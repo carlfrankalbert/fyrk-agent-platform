@@ -29,3 +29,4 @@ coverage/
 
 # n8n data
 n8n-data/
+.env
