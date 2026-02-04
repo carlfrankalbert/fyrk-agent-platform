@@ -1,0 +1,37 @@
+{
+  "mode": "fixture",
+  "repo": "fyrk/test-repo",
+  "rangeLabel": "v0.1.0..v0.1.1",
+  "commits": [
+    {
+      "sha": "abc1234567890",
+      "message": "feat: add user authentication",
+      "author": "alice",
+      "url": "https://github.com/fyrk/test-repo/commit/abc1234567890"
+    },
+    {
+      "sha": "def2345678901",
+      "message": "fix: resolve login redirect issue",
+      "author": "bob",
+      "url": "https://github.com/fyrk/test-repo/commit/def2345678901"
+    },
+    {
+      "sha": "ghi3456789012",
+      "message": "chore: update dependencies",
+      "author": "charlie",
+      "url": "https://github.com/fyrk/test-repo/commit/ghi3456789012"
+    },
+    {
+      "sha": "jkl4567890123",
+      "message": "docs: add API documentation",
+      "author": "alice",
+      "url": "https://github.com/fyrk/test-repo/commit/jkl4567890123"
+    },
+    {
+      "sha": "mno5678901234",
+      "message": "feat: implement dashboard widgets",
+      "author": "bob",
+      "url": "https://github.com/fyrk/test-repo/commit/mno5678901234"
+    }
+  ]
+}

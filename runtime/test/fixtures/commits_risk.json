@@ -1,0 +1,37 @@
+{
+  "mode": "fixture",
+  "repo": "fyrk/risky-repo",
+  "rangeLabel": "v1.0.0..v2.0.0",
+  "commits": [
+    {
+      "sha": "risk001",
+      "message": "feat: add breaking change to API",
+      "author": "dev1",
+      "url": "https://github.com/fyrk/risky-repo/commit/risk001"
+    },
+    {
+      "sha": "risk002",
+      "message": "fix: security vulnerability in auth module",
+      "author": "dev2",
+      "url": "https://github.com/fyrk/risky-repo/commit/risk002"
+    },
+    {
+      "sha": "risk003",
+      "message": "feat: add db migration for user table",
+      "author": "dev1",
+      "url": "https://github.com/fyrk/risky-repo/commit/risk003"
+    },
+    {
+      "sha": "risk004",
+      "message": "fix: payment processing edge case",
+      "author": "dev3",
+      "url": "https://github.com/fyrk/risky-repo/commit/risk004"
+    },
+    {
+      "sha": "risk005",
+      "message": "chore: remove pii logging",
+      "author": "dev2",
+      "url": "https://github.com/fyrk/risky-repo/commit/risk005"
+    }
+  ]
+}
