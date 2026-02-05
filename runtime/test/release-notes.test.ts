@@ -53,11 +53,11 @@ describe('release-notes agent', () => {
       expect(output.highlights[0]).toContain('user authentication');
     });
 
-    it('should limit highlights to 5', async () => {
+    it('should limit highlights to 3', async () => {
       const result = await releaseNotesAgent.execute(commitsBasic, ctx);
       const output = result.output as ReleaseNotesOutput;
 
-      expect(output.highlights.length).toBeLessThanOrEqual(5);
+      expect(output.highlights.length).toBeLessThanOrEqual(3);
     });
   });
 
@@ -98,43 +98,143 @@ describe('release-notes agent', () => {
     });
   });
 
+  describe('new output fields', () => {
+    it('should include date in YYYY-MM-DD format', async () => {
+      const result = await releaseNotesAgent.execute(commitsBasic, ctx);
+      const output = result.output as ReleaseNotesOutput;
+
+      expect(output.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+
+    it('should include executiveSummary', async () => {
+      const result = await releaseNotesAgent.execute(commitsBasic, ctx);
+      const output = result.output as ReleaseNotesOutput;
+
+      expect(output.executiveSummary).toBeTruthy();
+      expect(typeof output.executiveSummary).toBe('string');
+    });
+
+    it('should include impact with max 3 items', async () => {
+      const result = await releaseNotesAgent.execute(commitsBasic, ctx);
+      const output = result.output as ReleaseNotesOutput;
+
+      expect(output.impact.length).toBeGreaterThan(0);
+      expect(output.impact.length).toBeLessThanOrEqual(3);
+    });
+
+    it('should include maintenance as public alias of chores', async () => {
+      const result = await releaseNotesAgent.execute(commitsBasic, ctx);
+      const output = result.output as ReleaseNotesOutput;
+
+      expect(output.maintenance).toHaveLength(output.changes.chores.length);
+    });
+
+    it('should set rollback to null when no risks', async () => {
+      const result = await releaseNotesAgent.execute(commitsBasic, ctx);
+      const output = result.output as ReleaseNotesOutput;
+
+      expect(output.rollback).toBeNull();
+    });
+
+    it('should set rollback when risks are present', async () => {
+      const result = await releaseNotesAgent.execute(commitsRisk, ctx);
+      const output = result.output as ReleaseNotesOutput;
+
+      expect(output.rollback).toBeTruthy();
+      expect(typeof output.rollback).toBe('string');
+    });
+  });
+
   describe('markdown artifact', () => {
-    it('should generate markdown with title', async () => {
+    it('should generate markdown with FYRK title format', async () => {
       const result = await releaseNotesAgent.execute(commitsBasic, ctx);
 
       expect(result.artifacts).toHaveLength(1);
       expect(result.artifacts[0].kind).toBe('markdown');
-      expect(result.artifacts[0].content).toContain('# Release Notes:');
+      expect(result.artifacts[0].content).toContain('# Release notes —');
     });
 
-    it('should include Features heading when features exist', async () => {
+    it('should include date in markdown', async () => {
       const result = await releaseNotesAgent.execute(commitsBasic, ctx);
 
-      expect(result.artifacts[0].content).toContain('## Features');
+      expect(result.artifacts[0].content).toMatch(/\*\*Date:\*\* \d{4}-\d{2}-\d{2}/);
     });
 
-    it('should include Fixes heading when fixes exist', async () => {
+    it('should include Executive summary section', async () => {
       const result = await releaseNotesAgent.execute(commitsBasic, ctx);
 
-      expect(result.artifacts[0].content).toContain('## Fixes');
+      expect(result.artifacts[0].content).toContain('## Executive summary');
     });
 
-    it('should include Chores heading when chores exist', async () => {
+    it('should include Highlights section', async () => {
       const result = await releaseNotesAgent.execute(commitsBasic, ctx);
 
-      expect(result.artifacts[0].content).toContain('## Chores');
+      expect(result.artifacts[0].content).toContain('## Highlights');
     });
 
-    it('should include Risk Notes heading when risks exist', async () => {
-      const result = await releaseNotesAgent.execute(commitsRisk, ctx);
+    it('should include Changes section with subsections', async () => {
+      const result = await releaseNotesAgent.execute(commitsBasic, ctx);
+      const md = result.artifacts[0].content;
 
-      expect(result.artifacts[0].content).toContain('## Risk Notes');
+      expect(md).toContain('## Changes');
+      expect(md).toContain('### Features');
+      expect(md).toContain('### Fixes');
+      expect(md).toContain('### Maintenance');
+    });
+
+    it('should include Impact section', async () => {
+      const result = await releaseNotesAgent.execute(commitsBasic, ctx);
+
+      expect(result.artifacts[0].content).toContain('## Impact');
+    });
+
+    it('should include Links section', async () => {
+      const result = await releaseNotesAgent.execute(commitsBasic, ctx);
+
+      expect(result.artifacts[0].content).toContain('## Links');
     });
 
     it('should include commit links', async () => {
       const result = await releaseNotesAgent.execute(commitsBasic, ctx);
 
       expect(result.artifacts[0].content).toContain('[abc1234](https://github.com/');
+    });
+
+    it('should include Risk & Notes only when risks present', async () => {
+      const basicResult = await releaseNotesAgent.execute(commitsBasic, ctx);
+      const riskResult = await releaseNotesAgent.execute(commitsRisk, ctx);
+
+      expect(basicResult.artifacts[0].content).not.toContain('## Risk & Notes');
+      expect(riskResult.artifacts[0].content).toContain('## Risk & Notes');
+    });
+
+    it('should include Rollback / Mitigation only when risks present', async () => {
+      const basicResult = await releaseNotesAgent.execute(commitsBasic, ctx);
+      const riskResult = await releaseNotesAgent.execute(commitsRisk, ctx);
+
+      expect(basicResult.artifacts[0].content).not.toContain('## Rollback / Mitigation');
+      expect(riskResult.artifacts[0].content).toContain('## Rollback / Mitigation');
+    });
+
+    it('should never contain "feat", "fix", "chore", or "refactor" in markdown', async () => {
+      const basicResult = await releaseNotesAgent.execute(commitsBasic, ctx);
+      const riskResult = await releaseNotesAgent.execute(commitsRisk, ctx);
+
+      for (const result of [basicResult, riskResult]) {
+        const md = result.artifacts[0].content;
+        expect(md).not.toMatch(/\bfeat\b/);
+        expect(md).not.toMatch(/\bfix\b/);
+        expect(md).not.toMatch(/\bchore\b/);
+        expect(md).not.toMatch(/\brefactor\b/);
+      }
+    });
+
+    it('should use Norwegian-style verbs in change items', async () => {
+      const result = await releaseNotesAgent.execute(commitsBasic, ctx);
+      const md = result.artifacts[0].content;
+
+      expect(md).toContain('Lagt til');
+      expect(md).toContain('Rettet');
     });
   });
 

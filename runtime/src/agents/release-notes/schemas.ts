@@ -54,6 +54,11 @@ export const ReleaseNotesOutputSchema = z.object({
     chores: z.array(CategorizedCommitSchema),
   }),
   riskNotes: z.array(z.string()),
+  date: z.string(),
+  executiveSummary: z.string(),
+  impact: z.array(z.string()),
+  maintenance: z.array(z.string()),
+  rollback: z.string().nullable(),
 });
 
 export type ReleaseNotesOutput = z.infer<typeof ReleaseNotesOutputSchema>;
