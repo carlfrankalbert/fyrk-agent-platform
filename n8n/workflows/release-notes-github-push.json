@@ -1,0 +1,229 @@
+{
+  "name": "Release Notes Agent - GitHub Push",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "github-push",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "GitHub Push Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "github-push"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Extract commits from GitHub push payload\nconst payload = $input.first().json.body ?? $input.first().json;\n\nconst repo = payload.repository?.full_name ?? 'unknown/repo';\nconst before = (payload.before ?? '').substring(0, 7);\nconst after = (payload.after ?? '').substring(0, 7);\nconst ref = payload.ref ?? '';\nconst branch = ref.replace('refs/heads/', '');\n\n// Only process pushes to main/master\nif (branch !== 'main' && branch !== 'master') {\n  return [{ json: { skip: true, reason: `Push to ${branch}, skipping` } }];\n}\n\nconst commits = (payload.commits ?? []).map(c => ({\n  sha: c.id,\n  message: c.message,\n  author: c.author?.name ?? c.author?.username ?? 'unknown',\n  url: c.url\n}));\n\nif (commits.length === 0) {\n  return [{ json: { skip: true, reason: 'No commits in push' } }];\n}\n\nreturn [{\n  json: {\n    skip: false,\n    payload: {\n      version: '0.1',\n      input: {\n        mode: 'fixture',\n        repo: repo,\n        rangeLabel: `${before}..${after}`,\n        commits: commits\n      },\n      dryRun: false\n    }\n  }\n}];"
+      },
+      "id": "transform-payload",
+      "name": "Transform Push to Agent Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-skip",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-should-run",
+      "name": "Should Run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8787/run/release-notes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "call-runtime",
+      "name": "Call Release Notes Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [910, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-ok",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-status",
+      "name": "Check Status",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1130, 200]
+    },
+    {
+      "parameters": {
+        "content": "## Release Notes Generated\n\n**Run ID:** {{ $json.runId }}\n**Agent:** {{ $json.agentName }} v{{ $json.agentVersion }}\n**Artifacts:** {{ $json.artifactIds.length }} created",
+        "height": 200,
+        "width": 300
+      },
+      "id": "success-note",
+      "name": "Success",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1350, 80]
+    },
+    {
+      "parameters": {
+        "content": "## Error\n\n**Error:** {{ $json.error }}",
+        "height": 200,
+        "width": 300
+      },
+      "id": "error-note",
+      "name": "Error",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1350, 320]
+    },
+    {
+      "parameters": {
+        "content": "## Skipped\n\n**Reason:** {{ $json.reason }}",
+        "height": 150,
+        "width": 300
+      },
+      "id": "skip-note",
+      "name": "Skipped",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [910, 420]
+    }
+  ],
+  "connections": {
+    "GitHub Push Webhook": {
+      "main": [
+        [
+          {
+            "node": "Transform Push to Agent Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform Push to Agent Input": {
+      "main": [
+        [
+          {
+            "node": "Should Run?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Run?": {
+      "main": [
+        [
+          {
+            "node": "Call Release Notes Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Release Notes Agent": {
+      "main": [
+        [
+          {
+            "node": "Check Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Status": {
+      "main": [
+        [
+          {
+            "node": "Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-02-18T00:00:00.000Z",
+  "versionId": "1"
+}
