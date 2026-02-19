@@ -65,6 +65,11 @@ export async function runAgent<TInput, TOutput>(
       agentVersion: agent.version,
       status: 'ok',
       artifactIds,
+      artifacts: result.artifacts.map((a, i) => ({
+        id: artifactIds[i],
+        kind: a.kind,
+        content: a.content,
+      })),
       output: result.output as Record<string, unknown>,
     };
   } catch (err) {

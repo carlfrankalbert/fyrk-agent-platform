@@ -9,6 +9,13 @@ export const RunRequestSchema = z.object({
 
 export type RunRequest = z.infer<typeof RunRequestSchema>;
 
+// Artifact content included in response
+export const ArtifactContentSchema = z.object({
+  id: z.string().uuid(),
+  kind: z.string(),
+  content: z.string(),
+});
+
 // Base run response schema
 export const RunResponseSchema = z.object({
   runId: z.string().uuid(),
@@ -16,6 +23,7 @@ export const RunResponseSchema = z.object({
   agentVersion: z.string(),
   status: z.enum(['ok', 'error']),
   artifactIds: z.array(z.string().uuid()),
+  artifacts: z.array(ArtifactContentSchema).optional(),
   output: z.record(z.unknown()),
   error: z.string().optional(),
 });
