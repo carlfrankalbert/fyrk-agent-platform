@@ -39,6 +39,7 @@ export async function runRoutes(fastify: FastifyInstance): Promise<void> {
           agentVersion: 'unknown',
           status: 'error',
           artifactIds: [],
+          publish: false,
           output: {},
           error: `Agent '${agentName}' not found. Available: ${listAgents().join(', ')}`,
         } satisfies RunResponse);
@@ -53,6 +54,7 @@ export async function runRoutes(fastify: FastifyInstance): Promise<void> {
           agentVersion: agent.version,
           status: 'error',
           artifactIds: [],
+          publish: false,
           output: {},
           error: `Invalid request: ${parseResult.error.message}`,
         } satisfies RunResponse);

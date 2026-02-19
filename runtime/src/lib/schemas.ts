@@ -25,6 +25,7 @@ export const RunResponseSchema = z.object({
   status: z.enum(['ok', 'error']),
   artifactIds: z.array(z.string().uuid()),
   artifacts: z.array(ArtifactContentSchema).optional(),
+  publish: z.boolean(),
   output: z.record(z.unknown()),
   error: z.string().optional(),
 });

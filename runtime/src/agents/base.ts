@@ -71,6 +71,7 @@ export async function runAgent<TInput, TOutput>(
         kind: a.kind,
         content: a.content,
       })),
+      publish: ctx.publish,
       output: result.output as Record<string, unknown>,
     };
   } catch (err) {
@@ -88,6 +89,7 @@ export async function runAgent<TInput, TOutput>(
       agentVersion: agent.version,
       status: 'error',
       artifactIds,
+      publish: ctx.publish,
       output: {},
       error: errorMessage,
     };
