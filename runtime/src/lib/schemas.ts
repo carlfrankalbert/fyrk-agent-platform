@@ -5,6 +5,7 @@ export const RunRequestSchema = z.object({
   version: z.string().default('0.1'),
   input: z.record(z.unknown()).default({}),
   dryRun: z.boolean().default(false),
+  publish: z.boolean().default(false),
 });
 
 export type RunRequest = z.infer<typeof RunRequestSchema>;

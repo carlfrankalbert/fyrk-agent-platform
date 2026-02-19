@@ -1,14 +1,14 @@
 import Fastify from 'fastify';
+import { validateEnv } from './lib/env.js';
 import { healthRoutes } from './routes/health.js';
 import { runRoutes } from './routes/run.js';
 
-const PORT = parseInt(process.env.PORT ?? '8787', 10);
-const HOST = process.env.HOST ?? '0.0.0.0';
-
 async function main(): Promise<void> {
+  const env = validateEnv();
+
   const fastify = Fastify({
     logger: {
-      level: process.env.LOG_LEVEL ?? 'info',
+      level: env.LOG_LEVEL,
     },
   });
 
@@ -18,8 +18,8 @@ async function main(): Promise<void> {
 
   // Start server
   try {
-    await fastify.listen({ port: PORT, host: HOST });
-    fastify.log.info(`Server running at http://${HOST}:${PORT}`);
+    await fastify.listen({ port: env.PORT, host: env.HOST });
+    fastify.log.info(`Server running at http://${env.HOST}:${env.PORT}`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

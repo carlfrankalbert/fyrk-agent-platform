@@ -13,6 +13,7 @@ describe('release-notes agent', () => {
     ctx = {
       db: new NullDbClient(),
       dryRun: true,
+      publish: false,
       runId: 'test-run-id',
     };
   });

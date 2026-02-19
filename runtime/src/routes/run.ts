@@ -3,6 +3,7 @@ import { RunRequestSchema, type RunResponse } from '../lib/schemas.js';
 import { getAgent, listAgents } from '../agents/registry.js';
 import { runAgent, type AgentContext } from '../agents/base.js';
 import { SupabaseDbClient, NullDbClient, type DbClient } from '../db/client.js';
+import { getEnv } from '../lib/env.js';
 
 interface RunParams {
   agentName: string;
@@ -13,14 +14,8 @@ function getDbClient(dryRun: boolean): DbClient {
     return new NullDbClient();
   }
 
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_KEY;
-
-  if (!url || !key) {
-    throw new Error('SUPABASE_URL and SUPABASE_SERVICE_KEY must be set');
-  }
-
-  return new SupabaseDbClient(url, key);
+  const env = getEnv();
+  return new SupabaseDbClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
 }
 
 export async function runRoutes(fastify: FastifyInstance): Promise<void> {
@@ -63,7 +58,7 @@ export async function runRoutes(fastify: FastifyInstance): Promise<void> {
         } satisfies RunResponse);
       }
 
-      const { input, dryRun } = parseResult.data;
+      const { input, dryRun, publish } = parseResult.data;
 
       // Get DB client
       const db = getDbClient(dryRun);
@@ -78,12 +73,13 @@ export async function runRoutes(fastify: FastifyInstance): Promise<void> {
         error: null,
       });
 
-      fastify.log.info({ runId: run.id, agentName, dryRun }, 'Agent run started');
+      fastify.log.info({ runId: run.id, agentName, dryRun, publish }, 'Agent run started');
 
       // Create context
       const ctx: AgentContext = {
         db,
         dryRun,
+        publish,
         runId: run.id,
       };
 

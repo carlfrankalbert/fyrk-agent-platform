@@ -5,6 +5,7 @@ import type { RunResponse } from '../lib/schemas.js';
 export interface AgentContext {
   db: DbClient;
   dryRun: boolean;
+  publish: boolean;
   runId: string;
 }
 
