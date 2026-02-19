@@ -1,45 +1,60 @@
 # n8n Workflows
 
-This directory contains n8n workflow exports for the FYRK Agent Platform.
+This directory contains documentation for the FYRK Agent Platform n8n workflows.
 
-## Available Workflows
+## Production Pipeline
 
-### release-notes-cron.json
+**Workflow:** Release Notes — GitHub Push → Runtime → Publish
 
-Triggers the release-notes agent on a daily schedule.
+Automatically generates and publishes release notes on every push to main.
 
-**What it does:**
-1. Runs daily via cron trigger
-2. POSTs to the runtime service at `/run/release-notes`
-3. Uses fixture mode with sample commits
-4. Checks response status and logs result
+### Flow
 
-## How to Import
+```
+Webhook → Run agent → Status OK? ─ True → Publish? ─ True → Commit release notes
+                           │                    │
+                           └─ False → Alert      └─ False → (stop)
+```
 
-1. Open n8n at http://localhost:5678
-2. Go to **Workflows** in the left sidebar
-3. Click **Add Workflow** → **Import from File**
-4. Select `workflows/release-notes-cron.json`
-5. Click **Save**
+### Nodes
 
-## Configuration
+| Node | Type | Description |
+|------|------|-------------|
+| Webhook | Webhook | Receives GitHub push events at `/webhook/release-notes` |
+| Run agent | Code | Maps webhook data and calls `POST /run/release-notes` on Fly.io |
+| Status OK? | IF | Checks `$json.status === "ok"` |
+| Publish? | IF | Checks `$json.publish === "true"` |
+| Commit release notes | Code | Base64-encodes markdown artifact and commits to `releases/YYYY-MM-DD.md` via GitHub API |
+| Alert — agent failed | Slack | Posts error details to `#alerts` channel |
 
-After importing, you may want to:
+### Webhook URL
 
-1. **Update the cron schedule** - Click the "Daily Trigger" node and adjust the interval
-2. **Update the payload** - Click the "Call Release Notes Agent" node and modify the JSON body
-3. **Add notifications** - Add Slack, email, or other notification nodes after the status check
+Production: `https://n8n.fyrk.no/webhook/release-notes`
 
-## Environment Variables
+Configured in GitHub repo → Settings → Webhooks.
 
-When using Docker Compose, the runtime service is available at `http://runtime:8787`.
+### Cloudflare Tunnel
 
-For local development, change the URL to `http://localhost:8787`.
+n8n runs locally and is exposed via a named Cloudflare tunnel:
 
-## Testing Manually
+```bash
+# Start the tunnel
+cloudflared tunnel run fyrk-n8n
 
-You can test the workflow without waiting for the cron trigger:
+# Config location
+~/.cloudflared/config.yml
+```
 
-1. Open the workflow in n8n
-2. Click **Execute Workflow** in the top right
-3. View the execution results in each node
+The tunnel routes `n8n.fyrk.no` → `localhost:5678`.
+
+### Technical Notes
+
+- n8n Code nodes cannot use `fetch()` — use `this.helpers.httpRequest()` instead
+- n8n HTTP Request nodes do not support expression-based JSON bodies — use Code nodes with `this.helpers.httpRequest()` for dynamic payloads
+- The `publish` flag is echoed in the API response so the IF node can check `$json.publish` directly
+
+### Testing
+
+1. Push any commit to main
+2. Check n8n Executions tab for the new run
+3. Verify `releases/YYYY-MM-DD.md` was created in the repo

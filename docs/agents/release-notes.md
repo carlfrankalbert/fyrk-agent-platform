@@ -3,7 +3,7 @@
 **Name:** `release-notes`
 **Version:** `0.1`
 
-Generates structured release notes from commit data.
+Generates structured release notes from commit data with Norwegian-style markdown output.
 
 ## Input Modes
 
@@ -50,18 +50,18 @@ Commits are categorized based on conventional commit prefixes:
 |--------|----------|
 | `feat:` | Features |
 | `fix:` | Fixes |
-| `chore:` | Chores |
-| `docs:` | Chores |
-| `refactor:` | Chores |
-| `test:` | Chores |
-| `style:` | Chores |
+| `chore:` | Maintenance |
+| `docs:` | Maintenance |
+| `refactor:` | Maintenance |
+| `test:` | Maintenance |
+| `style:` | Maintenance |
 | `perf:` | Features |
-| `ci:` | Chores |
-| `build:` | Chores |
+| `ci:` | Maintenance |
+| `build:` | Maintenance |
 
 ## Risk Detection
 
-The agent scans commit messages for risk keywords:
+The agent scans commit messages for risk keywords using word-boundary regex (`\bkw\b`):
 
 - `breaking` - Breaking changes
 - `migration` - Database or data migrations
@@ -71,7 +71,7 @@ The agent scans commit messages for risk keywords:
 - `db` - Database changes
 - `payment` - Payment processing
 
-Commits with risk keywords are flagged in the Risk Notes section.
+Commits with risk keywords are flagged in the Risk Notes section. When risks are present, a rollback/mitigation section is included.
 
 ## Output
 
@@ -80,33 +80,51 @@ Commits with risk keywords are flagged in the Risk Notes section.
 ```json
 {
   "title": "Release Notes: v0.1.0..v0.1.1",
+  "date": "2026-02-19",
+  "executiveSummary": "Denne releasen inneholder 2 nye funksjoner og 1 feilretting.",
   "highlights": ["Add new feature", "Fix critical bug"],
   "changes": {
     "features": [...],
     "fixes": [...],
     "chores": [...]
   },
-  "riskNotes": ["⚠️ feat: add breaking change (keywords: breaking)"]
+  "impact": ["2 nye funksjoner påvirker brukeropplevelsen"],
+  "maintenance": ["Update dependencies"],
+  "riskNotes": [],
+  "rollback": null
 }
 ```
 
 ### Markdown Artifact
 
-Generates a markdown document with:
+Generates a Norwegian-style markdown document with:
 
-- Title and metadata (repo, range, date)
-- Highlights section (top 5 notable changes)
-- Features section
-- Fixes section
-- Chores section
-- Risk Notes section (if risks detected)
+- **Title:** `# Release notes — main`
+- **Date**
+- **Executive summary**
+- **Highlights** (max 3)
+- **Changes** with subsections: Features, Fixes, Maintenance
+- **Impact**
+- **Links** to commits
+- **Risk & Notes** (only when risks detected)
+- **Rollback / Mitigation** (only when risks detected)
 
-Each commit includes a link to the GitHub commit page.
+Norwegian verbs are used for change items:
+
+| Action | Norwegian |
+|--------|-----------|
+| feat/add | Lagt til |
+| fix | Rettet |
+| improve/refactor | Forbedret |
+| update | Oppdatert |
+| remove/delete | Fjernet |
+
+Conventional commit prefixes (`feat`, `fix`, `chore`, `refactor`) are stripped from all markdown output.
 
 ## Usage Example
 
 ```bash
-curl -X POST http://localhost:8787/run/release-notes \
+curl -X POST https://fyrk-agent-runtime.fly.dev/run/release-notes \
   -H "Content-Type: application/json" \
   -d '{
     "version": "0.1",
@@ -123,7 +141,7 @@ curl -X POST http://localhost:8787/run/release-notes \
         }
       ]
     },
-    "dryRun": false
+    "publish": true
   }'
 ```
 
@@ -131,12 +149,15 @@ curl -X POST http://localhost:8787/run/release-notes \
 
 Set `"dryRun": true` to test the agent without writing to the database.
 
+## Publish Flag
+
+Set `"publish": true` to signal downstream systems (n8n) to publish the output. The flag is echoed in the response for easy IF-node checking.
+
+## Tests
+
+29 tests covering categorization, highlights, risk detection, output fields, markdown generation, and error handling.
+
 ```bash
-curl -X POST http://localhost:8787/run/release-notes \
-  -H "Content-Type: application/json" \
-  -d '{
-    "version": "0.1",
-    "input": { ... },
-    "dryRun": true
-  }'
+cd runtime
+pnpm test
 ```

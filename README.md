@@ -6,10 +6,11 @@ A minimal, production-minded agent runtime service for executing automated tasks
 
 The FYRK Agent Platform provides:
 
-- **Runtime Service** - Fastify-based API for running agents
+- **Runtime Service** - Fastify-based API for running agents (Fly.io)
 - **Agent Registry** - Pluggable system for registering agents
 - **Supabase Integration** - Persistent storage for runs and artifacts
 - **n8n Workflows** - Visual automation via webhook triggers
+- **Operational hygiene** - Env validation, health checks, failure monitoring, Slack alerts
 
 ## Quick Start
 
@@ -53,8 +54,13 @@ psql $DATABASE_URL -f supabase/migrations/0001_init.sql
 ### Test the API
 
 ```bash
-# Health check
+# Health check (includes DB probe)
 curl http://localhost:8787/health
+# → { "ok": true, "db": "connected" }
+
+# Recent failures
+curl http://localhost:8787/health/failures?hours=24
+# → { "ok": true, "hours": 24, "count": 0, "failures": [] }
 
 # List agents
 curl http://localhost:8787/agents
@@ -88,20 +94,22 @@ fyrk-agent-platform/
 ├── runtime/                    # Node.js service
 │   ├── src/
 │   │   ├── agents/            # Agent implementations
-│   │   │   ├── base.ts        # Agent interface
+│   │   │   ├── base.ts        # Agent interface + runAgent
 │   │   │   ├── registry.ts    # Agent registry
 │   │   │   └── release-notes/ # Release notes agent
 │   │   ├── db/                # Database client
-│   │   ├── lib/               # Shared schemas
-│   │   └── routes/            # API routes
+│   │   ├── lib/
+│   │   │   ├── env.ts         # Zod env validation (fail-fast)
+│   │   │   └── schemas.ts     # Request/response schemas
+│   │   └── routes/
+│   │       ├── health.ts      # /health + /health/failures
+│   │       └── run.ts         # /run/:agentName
 │   └── test/                  # Tests and fixtures
+├── releases/                  # Auto-generated release notes (by n8n)
 ├── supabase/
 │   └── migrations/            # SQL migrations
 ├── docs/
 │   └── agents/                # Agent documentation
-├── n8n/
-│   └── workflows/             # n8n workflow exports
-├── docker-compose.yml
 └── .env.example
 ```
 
@@ -109,9 +117,25 @@ fyrk-agent-platform/
 
 ### GET /health
 
-Health check endpoint.
+Health check with Supabase DB probe.
 
-**Response:** `{ "ok": true }`
+**Response:** `{ "ok": true, "db": "connected" }`
+
+### GET /health/failures
+
+Recent failed agent runs. Accepts `?hours=N` (default 24, max 168).
+
+**Response:**
+```json
+{
+  "ok": true,
+  "hours": 24,
+  "count": 2,
+  "failures": [
+    { "id": "uuid", "agent_name": "release-notes", "status": "failed", "error": "...", "created_at": "..." }
+  ]
+}
+```
 
 ### GET /agents
 
@@ -128,7 +152,8 @@ Execute an agent.
 {
   "version": "0.1",
   "input": {},
-  "dryRun": false
+  "dryRun": false,
+  "publish": true
 }
 ```
 
@@ -139,7 +164,9 @@ Execute an agent.
   "agentName": "release-notes",
   "agentVersion": "0.1",
   "status": "ok",
+  "publish": true,
   "artifactIds": ["uuid"],
+  "artifacts": [{ "id": "uuid", "kind": "markdown", "content": "..." }],
   "output": {}
 }
 ```
@@ -148,9 +175,30 @@ Execute an agent.
 
 ### release-notes
 
-Generates structured release notes from commit data.
+Generates structured release notes from commit data with Norwegian-style markdown.
 
 See [docs/agents/release-notes.md](docs/agents/release-notes.md) for full documentation.
+
+## n8n Pipeline
+
+The production pipeline runs automatically on every push to main:
+
+```
+GitHub push → Cloudflare tunnel (n8n.fyrk.no) → Run agent → Status OK? → Publish? → Commit release notes
+                                                                │
+                                                                └→ Slack alert (#alerts)
+```
+
+See [n8n/README.md](n8n/README.md) for workflow details.
+
+## Infrastructure
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| Runtime | `fyrk-agent-runtime.fly.dev` | Fly.io (2 machines) |
+| n8n | `n8n.fyrk.no` | Local + Cloudflare tunnel |
+| DB | Supabase | agent_runs + artifacts |
+| Alerts | Slack `#alerts` | Failed run notifications |
 
 ## Development
 
@@ -170,45 +218,22 @@ pnpm typecheck
 pnpm dev
 ```
 
-## Docker
-
-### Build and Run
+## Deployment
 
 ```bash
-# Build runtime image
-docker build -t fyrk-agent-runtime ./runtime
-
-# Run with Docker Compose
-docker-compose up -d
+cd runtime
+fly deploy
 ```
-
-### Services
-
-| Service | Port | Description |
-|---------|------|-------------|
-| runtime | 8787 | Agent runtime API |
-| n8n | 5678 | n8n workflow editor |
-
-## n8n Integration
-
-Import the workflow from `n8n/workflows/release-notes-cron.json`:
-
-1. Open n8n at http://localhost:5678
-2. Go to Workflows → Add Workflow → Import from File
-3. Select the JSON file
-4. Save and activate
-
-See [n8n/README.md](n8n/README.md) for more details.
 
 ## Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `SUPABASE_URL` | Supabase project URL | required |
+| `SUPABASE_SERVICE_KEY` | Supabase service key | required |
 | `PORT` | Server port | `8787` |
 | `HOST` | Server host | `0.0.0.0` |
-| `LOG_LEVEL` | Logging level | `info` |
-| `SUPABASE_URL` | Supabase project URL | - |
-| `SUPABASE_SERVICE_KEY` | Supabase service key | - |
+| `LOG_LEVEL` | Logging level (fatal/error/warn/info/debug/trace) | `info` |
 
 ## License
 
