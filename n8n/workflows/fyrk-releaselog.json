@@ -57,13 +57,58 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const data = $input.first().json;\nconst output = data.output;\nconst changes = output.changes;\n\n// Skip if only chores (no user-facing changes)\nif (changes.features.length === 0 && changes.fixes.length === 0) {\n  return [];\n}\n\n// Use only first line (subject) and strip conventional commit prefix\nfunction stripPrefix(msg) {\n  return msg.split('\\n')[0].replace(/^(feat|fix|chore|docs|refactor|test|style|perf|ci|build)(\\([^)]*\\))?:\\s*/i, '');\n}\n\nfunction capitalize(str) {\n  return str.charAt(0).toUpperCase() + str.slice(1);\n}\n\n// Generate title from features\nconst featureTitles = changes.features.map(c => capitalize(stripPrefix(c.message)));\nconst title = featureTitles.length > 0\n  ? featureTitles.slice(0, 2).join(' og ')\n  : 'Feilrettinger og forbedringer';\n\n// Generate summary\nconst parts = [];\nif (changes.features.length > 0) parts.push(`${changes.features.length} nye funksjoner`);\nif (changes.fixes.length > 0) parts.push(`${changes.fixes.length} feilrettinger`);\nif (changes.chores.length > 0) parts.push('generelle forbedringer');\nconst summary = parts.join(', ') + '.';\n\n// Generate tags\nconst tags = [];\nif (changes.features.length > 0) tags.push('feature');\nif (changes.fixes.length > 0) tags.push('fix');\nif (changes.chores.length > 0) tags.push('improvement');\n\n// Generate body\nconst date = output.date;\nlet body = '## Hva er nytt\\n\\n';\n\nfor (const feat of changes.features) {\n  const heading = capitalize(stripPrefix(feat.message));\n  body += `### ${heading}\\n\\n`;\n  body += `${heading} er nå tilgjengelig.\\n\\n`;\n}\n\nif (changes.fixes.length > 0) {\n  body += '### Feilrettinger\\n\\n';\n  for (const fix of changes.fixes) {\n    body += `- ${capitalize(stripPrefix(fix.message))}\\n`;\n  }\n  body += '\\n';\n}\n\nif (changes.chores.length > 0) {\n  body += '### Generelle forbedringer\\n\\n';\n  body += 'Diverse forbedringer og vedlikehold for bedre ytelse og stabilitet.\\n';\n}\n\n// Sanitize for YAML frontmatter\nconst safeTitle = title.replace(/\"/g, \"'\");\nconst safeSummary = summary.replace(/\"/g, \"'\");\n\n// Frontmatter\nconst frontmatter = `---\\ntitle: \"${safeTitle}\"\\ndate: ${date}\\nsummary: \"${safeSummary}\"\\ntags: ${JSON.stringify(tags)}\\naudience: \"user-facing\"\\ndraft: false\\n---`;\n\nconst content = frontmatter + '\\n\\n' + body.trim() + '\\n';\n\n// Slug from title\nconst slug = title\n  .toLowerCase()\n  .replace(/[æ]/g, 'ae').replace(/[ø]/g, 'o').replace(/[å]/g, 'a')\n  .replace(/[^a-z0-9]+/g, '-')\n  .replace(/^-|-$/g, '');\n\nconst filename = `${date}-${slug}.md`;\nconst path = `src/content/releaselog/${filename}`;\n\nreturn [{\n  json: {\n    path,\n    content,\n    commitMessage: `docs: releaselog ${date}`,\n    date\n  }\n}];"
+        "jsCode": "const data = $input.first().json;\nconst output = data.output;\nconst changes = output.changes;\n\n// Skip if only chores (no user-facing changes)\nif (changes.features.length === 0 && changes.fixes.length === 0) {\n  return [];\n}\n\n// Build commit summary for Claude\nconst allChanges = [];\nfor (const feat of changes.features) {\n  allChanges.push(`[feature] ${feat.message.split('\\n')[0]}`);\n}\nfor (const fix of changes.fixes) {\n  allChanges.push(`[fix] ${fix.message.split('\\n')[0]}`);\n}\nfor (const chore of changes.chores) {\n  allChanges.push(`[chore] ${chore.message.split('\\n')[0]}`);\n}\n\nconst date = output.date;\nconst executiveSummary = output.executiveSummary;\nconst highlights = output.highlights || [];\n\nconst systemPrompt = `Du er en copywriter for FYRK, et norsk fintech-selskap. Du skriver releaselog-entries for fyrk.no.\n\nRegler:\n- Skriv for sluttbrukere som bruker FYRK-plattformen, IKKE for utviklere\n- Bruk norsk\n- Abstraher tekniske detaljer til brukervendte beskrivelser\n- Aldri nevn commit-hasher, filnavn, variabelnavn, eller tekniske implementasjonsdetaljer\n- Grupper relaterte endringer under beskrivende overskrifter (### Heading)\n- Bruk aktive verb: Lagt til, Rettet, Forbedret, Oppdatert, Fjernet\n- Hopp over rene vedlikeholdsendringer (chores) med mindre de gir direkte brukerverdi\n\nEksisterende stil (folg denne):\n---\ntitle: \"Sikkerhetsforbedringer og bedre verktøysider\"\nsummary: \"Herdet API-sikkerhet med strengere inputvalidering, og konsoliderte verktøysider.\"\n\n### Herdet API-sikkerhet\nAlle API-endepunkter har fatt strengere inputvalidering og forbedret PII-deteksjon.\n\n### Konsoliderte verktøysider\nVerktøysidene er slatt sammen til en oversiktlig side med forbedret navigasjon.\n---\n\nReturner et JSON-objekt med noyaktig denne strukturen:\n{\n  \"title\": \"Kort, beskrivende tittel (maks 60 tegn)\",\n  \"summary\": \"En setning som oppsummerer endringene (maks 120 tegn)\",\n  \"body\": \"Markdown-body med ### overskrifter og beskrivelser\"\n}\n\nReturner KUN valid JSON, ingen annen tekst.`;\n\nlet userMessage = `Her er endringene som skal bli til en releaselog-entry:\n\nOppsummering: ${executiveSummary}\n\nEndringer:\n${allChanges.join('\\n')}`;\n\nif (highlights.length > 0) {\n  userMessage += `\\n\\nViktige punkter:\\n${highlights.join('\\n')}`;\n}\n\nuserMessage += '\\n\\nSkriv en brukervendt releaselog-entry basert pa disse endringene.';\n\nconst requestBody = {\n  model: 'claude-haiku-4-5-20251001',\n  max_tokens: 1024,\n  messages: [\n    {\n      role: 'user',\n      content: userMessage\n    }\n  ],\n  system: systemPrompt\n};\n\nreturn [{\n  json: {\n    requestBody,\n    date,\n    changes\n  }\n}];"
       },
-      "id": "transform-releaselog",
-      "name": "Transform to User-Facing",
+      "id": "build-claude-request",
+      "name": "Build Claude Request",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [910, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "call-claude",
+      "name": "Call Claude",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1130, 200]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Get Claude's response\nconst claudeResponse = $input.first().json;\nconst textContent = claudeResponse.content[0].text;\n\n// Parse the JSON from Claude's response (strip markdown fences if present)\nlet jsonStr = textContent.trim();\nif (jsonStr.startsWith('```')) {\n  jsonStr = jsonStr.replace(/^```(?:json)?\\n?/, '').replace(/\\n?```$/, '');\n}\nconst parsed = JSON.parse(jsonStr);\nconst { title, summary, body } = parsed;\n\n// Get date and changes from the Build Claude Request node\nconst date = $('Build Claude Request').first().json.date;\nconst changes = $('Build Claude Request').first().json.changes;\n\n// Generate tags\nconst tags = [];\nif (changes.features.length > 0) tags.push('feature');\nif (changes.fixes.length > 0) tags.push('fix');\nif (changes.chores.length > 0) tags.push('improvement');\n\n// Sanitize for YAML frontmatter\nconst safeTitle = title.replace(/\"/g, \"'\");\nconst safeSummary = summary.replace(/\"/g, \"'\");\n\n// Frontmatter\nconst frontmatter = `---\\ntitle: \"${safeTitle}\"\\ndate: ${date}\\nsummary: \"${safeSummary}\"\\ntags: ${JSON.stringify(tags)}\\naudience: \"user-facing\"\\ndraft: false\\n---`;\n\nconst content = frontmatter + '\\n\\n' + body.trim() + '\\n';\n\n// Slug from title\nconst slug = title\n  .toLowerCase()\n  .replace(/[æ]/g, 'ae').replace(/[ø]/g, 'o').replace(/[å]/g, 'a')\n  .replace(/[^a-z0-9]+/g, '-')\n  .replace(/^-|-$/g, '');\n\nconst filename = `${date}-${slug}.md`;\nconst path = `src/content/releaselog/${filename}`;\n\nreturn [{\n  json: {\n    path,\n    content,\n    commitMessage: `docs: releaselog ${date}`,\n    date\n  }\n}];"
+      },
+      "id": "build-releaselog",
+      "name": "Build Releaselog",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 200]
     },
     {
       "parameters": {
@@ -74,7 +119,7 @@
       "name": "Prepare Commit",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1130, 200]
+      "position": [1570, 200]
     },
     {
       "parameters": {
@@ -104,7 +149,7 @@
       "name": "Commit to nettside_fyrk",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [1350, 200]
+      "position": [1790, 200]
     },
     {
       "parameters": {
@@ -128,7 +173,7 @@
       "name": "Success",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [1570, 200]
+      "position": [2010, 200]
     }
   ],
   "connections": {
@@ -158,7 +203,7 @@
       "main": [
         [
           {
-            "node": "Transform to User-Facing",
+            "node": "Build Claude Request",
             "type": "main",
             "index": 0
           }
@@ -172,7 +217,29 @@
         ]
       ]
     },
-    "Transform to User-Facing": {
+    "Build Claude Request": {
+      "main": [
+        [
+          {
+            "node": "Call Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Claude": {
+      "main": [
+        [
+          {
+            "node": "Build Releaselog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Releaselog": {
       "main": [
         [
           {
@@ -214,5 +281,5 @@
   "tags": [],
   "triggerCount": 0,
   "updatedAt": "2026-02-19T00:00:00.000Z",
-  "versionId": "2"
+  "versionId": "3"
 }
