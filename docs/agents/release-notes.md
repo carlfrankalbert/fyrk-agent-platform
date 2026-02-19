@@ -153,6 +153,51 @@ Set `"dryRun": true` to test the agent without writing to the database.
 
 Set `"publish": true` to signal downstream systems (n8n) to publish the output. The flag is echoed in the response for easy IF-node checking.
 
+## n8n Pipelines
+
+The release-notes agent is used by two n8n pipelines:
+
+### Pipeline 1: Internal Release Notes (fyrk-agent-platform)
+
+Triggers on push to `fyrk-agent-platform` main. Generates technical release notes and stores them in Supabase.
+
+- **Webhook:** `https://n8n.fyrk.no/webhook/release-notes`
+- **Workflow file:** `n8n/workflows/release-notes-github-push.json`
+
+### Pipeline 2: fyrk.no Releaselog (nettside_fyrk)
+
+Triggers on push to `nettside_fyrk` main. Transforms agent output into user-facing Norwegian markdown and commits it to the repo for Astro to pick up.
+
+- **Webhook:** `https://n8n.fyrk.no/webhook/fyrk-releaselog`
+- **Workflow file:** `n8n/workflows/fyrk-releaselog.json`
+- **Target:** `src/content/releaselog/<date>-<slug>.md` in `nettside_fyrk`
+
+Flow:
+```
+Webhook → Run Agent (Code) → Status OK? → Transform to User-Facing (Code) → Prepare Commit (Code) → Commit (HTTP Request)
+                                 └→ Alert
+```
+
+Transform rules:
+- `features` → listed as `### <heading>` sections under `## Hva er nytt`
+- `fixes` → bullet list under `### Feilrettinger`
+- `chores` → single line: "Diverse forbedringer og vedlikehold"
+- Chores-only pushes are skipped (no releaselog entry)
+
+Generated frontmatter matches the Astro content collection schema:
+```yaml
+---
+title: "<Norwegian title>"
+date: YYYY-MM-DD
+summary: "<1-2 sentence summary>"
+tags: ["feature"] / ["fix"] / ["improvement"]
+audience: "user-facing"
+draft: false
+---
+```
+
+Requires `GITHUB_TOKEN` env var in the n8n container (set in `docker-compose.yml`).
+
 ## Tests
 
 29 tests covering categorization, highlights, risk detection, output fields, markdown generation, and error handling.
