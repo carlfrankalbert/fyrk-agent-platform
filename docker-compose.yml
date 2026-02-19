@@ -30,6 +30,8 @@ services:
       - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
       - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-changeme}
       - WEBHOOK_URL=http://localhost:5678/
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     volumes:
       - n8n-data:/home/node/.n8n
       - ./n8n/workflows:/home/node/workflows:ro

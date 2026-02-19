@@ -1,0 +1,218 @@
+{
+  "name": "Releaselog — fyrk.no",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fyrk-releaselog",
+        "options": {}
+      },
+      "id": "webhook-fyrk-releaselog",
+      "name": "GitHub Push Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "fyrk-releaselog"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Extract commits from GitHub push payload\nconst payload = $input.first().json.body ?? $input.first().json;\n\nconst ref = payload.ref ?? '';\nconst branch = ref.replace('refs/heads/', '');\n\n// Only process pushes to main\nif (branch !== 'main') {\n  return [];\n}\n\nconst repo = payload.repository?.full_name ?? 'unknown/repo';\nconst before = (payload.before ?? '').substring(0, 7);\nconst after = (payload.after ?? '').substring(0, 7);\n\nconst commits = (payload.commits ?? []).map(c => ({\n  sha: c.id,\n  message: c.message,\n  author: c.author?.name ?? c.author?.username ?? 'unknown',\n  url: c.url\n}));\n\nif (commits.length === 0) {\n  return [];\n}\n\nconst response = await this.helpers.httpRequest({\n  method: 'POST',\n  url: 'https://fyrk-agent-runtime.fly.dev/run/release-notes',\n  headers: { 'Content-Type': 'application/json' },\n  body: {\n    version: '0.1',\n    input: {\n      mode: 'fixture',\n      repo,\n      rangeLabel: `${before}..${after}`,\n      commits\n    },\n    dryRun: false,\n    publish: true\n  },\n  json: true,\n  timeout: 30000\n});\n\nreturn [{ json: response }];"
+      },
+      "id": "run-agent",
+      "name": "Run Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-ok",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-status",
+      "name": "Status OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const data = $input.first().json;\nconst output = data.output;\nconst changes = output.changes;\n\n// Skip if only chores (no user-facing changes)\nif (changes.features.length === 0 && changes.fixes.length === 0) {\n  return [];\n}\n\n// Strip conventional commit prefix\nfunction stripPrefix(msg) {\n  return msg.replace(/^(feat|fix|chore|docs|refactor|test|style|perf|ci|build)(\\([^)]*\\))?:\\s*/i, '');\n}\n\nfunction capitalize(str) {\n  return str.charAt(0).toUpperCase() + str.slice(1);\n}\n\n// Generate title from features\nconst featureTitles = changes.features.map(c => capitalize(stripPrefix(c.message)));\nconst title = featureTitles.length > 0\n  ? featureTitles.slice(0, 2).join(' og ')\n  : 'Feilrettinger og forbedringer';\n\n// Generate summary\nconst parts = [];\nif (changes.features.length > 0) parts.push(`${changes.features.length} nye funksjoner`);\nif (changes.fixes.length > 0) parts.push(`${changes.fixes.length} feilrettinger`);\nif (changes.chores.length > 0) parts.push('generelle forbedringer');\nconst summary = parts.join(', ') + '.';\n\n// Generate tags\nconst tags = [];\nif (changes.features.length > 0) tags.push('feature');\nif (changes.fixes.length > 0) tags.push('fix');\nif (changes.chores.length > 0) tags.push('improvement');\n\n// Generate body\nconst date = output.date;\nlet body = '## Hva er nytt\\n\\n';\n\nfor (const feat of changes.features) {\n  const heading = capitalize(stripPrefix(feat.message));\n  body += `### ${heading}\\n\\n`;\n  body += `${heading} er nå tilgjengelig.\\n\\n`;\n}\n\nif (changes.fixes.length > 0) {\n  body += '### Feilrettinger\\n\\n';\n  for (const fix of changes.fixes) {\n    body += `- ${capitalize(stripPrefix(fix.message))}\\n`;\n  }\n  body += '\\n';\n}\n\nif (changes.chores.length > 0) {\n  body += '### Generelle forbedringer\\n\\n';\n  body += 'Diverse forbedringer og vedlikehold for bedre ytelse og stabilitet.\\n';\n}\n\n// Sanitize for YAML frontmatter\nconst safeTitle = title.replace(/\"/g, \"'\");\nconst safeSummary = summary.replace(/\"/g, \"'\");\n\n// Frontmatter\nconst frontmatter = `---\\ntitle: \"${safeTitle}\"\\ndate: ${date}\\nsummary: \"${safeSummary}\"\\ntags: ${JSON.stringify(tags)}\\naudience: \"user-facing\"\\ndraft: false\\n---`;\n\nconst content = frontmatter + '\\n\\n' + body.trim() + '\\n';\n\n// Slug from title\nconst slug = title\n  .toLowerCase()\n  .replace(/[æ]/g, 'ae').replace(/[ø]/g, 'o').replace(/[å]/g, 'a')\n  .replace(/[^a-z0-9]+/g, '-')\n  .replace(/^-|-$/g, '');\n\nconst filename = `${date}-${slug}.md`;\nconst path = `src/content/releaselog/${filename}`;\n\nreturn [{\n  json: {\n    path,\n    content,\n    commitMessage: `docs: releaselog ${date}`,\n    date\n  }\n}];"
+      },
+      "id": "transform-releaselog",
+      "name": "Transform to User-Facing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 200]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const data = $input.first().json;\nconst { path, content, commitMessage } = data;\n\nconst encoded = Buffer.from(content).toString('base64');\n\nreturn [{\n  json: {\n    apiUrl: `https://api.github.com/repos/carlfrankalbert/nettside_fyrk/contents/${path}`,\n    body: {\n      message: commitMessage,\n      content: encoded,\n      committer: {\n        name: 'FYRK Agent',\n        email: 'agent@fyrk.no'\n      }\n    },\n    path\n  }\n}];"
+      },
+      "id": "prepare-commit",
+      "name": "Prepare Commit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1130, 200]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $json.apiUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.GITHUB_TOKEN }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "commit-releaselog",
+      "name": "Commit to nettside_fyrk",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1350, 200]
+    },
+    {
+      "parameters": {
+        "content": "## Agent Failed\n\nThe release-notes agent returned a non-OK status.\nCheck runtime logs for details.\n\n**TODO:** Connect Slack #alerts notification",
+        "height": 220,
+        "width": 320
+      },
+      "id": "alert-note",
+      "name": "Alert — Agent Failed",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [910, 420]
+    },
+    {
+      "parameters": {
+        "content": "## Committed\n\n**Path:** {{ $json.content.path }}\n**SHA:** {{ $json.content.sha }}",
+        "height": 160,
+        "width": 300
+      },
+      "id": "success-note",
+      "name": "Success",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1570, 200]
+    }
+  ],
+  "connections": {
+    "GitHub Push Webhook": {
+      "main": [
+        [
+          {
+            "node": "Run Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Agent": {
+      "main": [
+        [
+          {
+            "node": "Status OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status OK?": {
+      "main": [
+        [
+          {
+            "node": "Transform to User-Facing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alert — Agent Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform to User-Facing": {
+      "main": [
+        [
+          {
+            "node": "Prepare Commit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Commit": {
+      "main": [
+        [
+          {
+            "node": "Commit to nettside_fyrk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Commit to nettside_fyrk": {
+      "main": [
+        [
+          {
+            "node": "Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-02-19T00:00:00.000Z",
+  "versionId": "2"
+}
