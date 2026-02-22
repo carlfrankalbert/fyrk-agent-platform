@@ -1,0 +1,245 @@
+{
+  "name": "Docs Sync — fyrk.no",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "docs-sync",
+        "options": {}
+      },
+      "id": "webhook-docs-sync",
+      "name": "GitHub Push Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "docs-sync"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "token-field",
+              "name": "githubToken",
+              "value": "={{ $env.GITHUB_TOKEN }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "resolve-token",
+      "name": "Resolve Token",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Get GitHub token resolved by Set node expression\nconst resolvedToken = $('Resolve Token').first().json.githubToken;\n\n// Extract push payload from webhook\nconst webhookData = $('GitHub Push Webhook').first().json;\nconst payload = webhookData.body ?? webhookData;\n\nconst ref = payload.ref ?? '';\nconst branch = ref.replace('refs/heads/', '');\n\n// Only process pushes to main\nif (branch !== 'main') {\n  return [];\n}\n\nconst repo = payload.repository?.full_name ?? 'unknown/repo';\nconst before = payload.before ?? '';\nconst after = payload.after ?? '';\n\nconst commits = payload.commits ?? [];\nif (commits.length === 0) {\n  return [];\n}\n\n// Skip chore-only pushes\nconst hasNonChore = commits.some(c => {\n  const msg = (c.message || '').toLowerCase();\n  return !msg.startsWith('chore:') && !msg.startsWith('chore(') &&\n         !msg.startsWith('docs:') && !msg.startsWith('docs(') &&\n         !msg.startsWith('ci:') && !msg.startsWith('ci(');\n});\nif (!hasNonChore) {\n  return [];\n}\n\nconst commitMessages = commits.map(c => (c.message || '').split('\\n')[0]);\n\n// Fetch compare diff from GitHub API\nconst compareUrl = `https://api.github.com/repos/${repo}/compare/${before.substring(0,12)}...${after.substring(0,12)}`;\nconst compareRes = await this.helpers.httpRequest({\n  method: 'GET',\n  url: compareUrl,\n  headers: {\n    'Authorization': `Bearer ${resolvedToken}`,\n    'Accept': 'application/vnd.github.v3+json'\n  },\n  json: true,\n  timeout: 15000\n});\n\nconst changedFiles = (compareRes.files || []).map(f => ({\n  path: f.filename,\n  diff: f.patch || '',\n  status: f.status === 'added' ? 'added' : f.status === 'removed' ? 'removed' : 'modified'\n}));\n\nif (changedFiles.length === 0) {\n  return [];\n}\n\n// Fetch content pages (.astro files in src/pages/)\nconst treeUrl = `https://api.github.com/repos/${repo}/git/trees/${after}?recursive=1`;\nconst treeRes = await this.helpers.httpRequest({\n  method: 'GET',\n  url: treeUrl,\n  headers: {\n    'Authorization': `Bearer ${resolvedToken}`,\n    'Accept': 'application/vnd.github.v3+json'\n  },\n  json: true,\n  timeout: 15000\n});\n\nconst pageFiles = (treeRes.tree || [])\n  .filter(f => f.type === 'blob' && f.path.startsWith('src/pages/') && f.path.endsWith('.astro'))\n  .slice(0, 20);\n\nconst contentPages = [];\nfor (const pf of pageFiles) {\n  try {\n    const contentUrl = `https://api.github.com/repos/${repo}/contents/${pf.path}?ref=${after}`;\n    const contentRes = await this.helpers.httpRequest({\n      method: 'GET',\n      url: contentUrl,\n      headers: {\n        'Authorization': `Bearer ${resolvedToken}`,\n        'Accept': 'application/vnd.github.v3+json'\n      },\n      json: true,\n      timeout: 10000\n    });\n    const decoded = Buffer.from(contentRes.content, 'base64').toString('utf-8');\n    contentPages.push({ path: pf.path, content: decoded });\n  } catch (e) {\n    // Skip files we can't read\n  }\n}\n\nif (contentPages.length === 0) {\n  return [];\n}\n\n// Call the docs-sync agent\nconst agentResponse = await this.helpers.httpRequest({\n  method: 'POST',\n  url: 'https://fyrk-agent-runtime.fly.dev/run/docs-sync',\n  headers: { 'Content-Type': 'application/json' },\n  body: {\n    version: '0.1',\n    input: {\n      repo,\n      ref,\n      beforeSha: before,\n      afterSha: after,\n      changedFiles,\n      contentPages,\n      commitMessages\n    },\n    dryRun: false,\n    publish: true\n  },\n  json: true,\n  timeout: 60000\n});\n\nreturn [{ json: agentResponse }];"
+      },
+      "id": "fetch-and-run",
+      "name": "Fetch Context & Run Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-ok",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-status",
+      "name": "Status OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [830, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-updates",
+              "leftValue": "={{ $json.output.hasUpdates }}",
+              "rightValue": "={{ true }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-updates",
+      "name": "Has Updates?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resolvedToken = $('Resolve Token').first().json.githubToken;\n\nconst data = $input.first().json;\nconst output = data.output;\nconst suggestedUpdates = output.suggestedUpdates;\n\n// Generate branch name\nconst date = new Date().toISOString().split('T')[0];\nconst shortId = data.runId ? data.runId.substring(0, 8) : Math.random().toString(36).substring(2, 10);\nconst branchName = `docs-sync/${date}-${shortId}`;\n\nconst repo = 'carlfrankalbert/nettside_fyrk';\nconst headers = {\n  'Authorization': `Bearer ${resolvedToken}`,\n  'Accept': 'application/vnd.github.v3+json',\n  'Content-Type': 'application/json'\n};\n\n// Get default branch SHA\nconst mainRef = await this.helpers.httpRequest({\n  method: 'GET',\n  url: `https://api.github.com/repos/${repo}/git/ref/heads/main`,\n  headers,\n  json: true,\n  timeout: 10000\n});\nconst baseSha = mainRef.object.sha;\n\n// Create branch\nawait this.helpers.httpRequest({\n  method: 'POST',\n  url: `https://api.github.com/repos/${repo}/git/refs`,\n  headers,\n  body: {\n    ref: `refs/heads/${branchName}`,\n    sha: baseSha\n  },\n  json: true,\n  timeout: 10000\n});\n\n// Commit each updated file\nfor (const update of suggestedUpdates) {\n  const existingFile = await this.helpers.httpRequest({\n    method: 'GET',\n    url: `https://api.github.com/repos/${repo}/contents/${update.path}?ref=${branchName}`,\n    headers,\n    json: true,\n    timeout: 10000\n  });\n\n  const encoded = Buffer.from(update.updatedContent).toString('base64');\n  await this.helpers.httpRequest({\n    method: 'PUT',\n    url: `https://api.github.com/repos/${repo}/contents/${update.path}`,\n    headers,\n    body: {\n      message: `docs: oppdater ${update.path.split('/').pop()}`,\n      content: encoded,\n      sha: existingFile.sha,\n      branch: branchName,\n      committer: {\n        name: 'FYRK Agent',\n        email: 'agent@fyrk.no'\n      }\n    },\n    json: true,\n    timeout: 15000\n  });\n}\n\n// Create PR\nconst prBody = output.prBody + '\\n\\n---\\n🤖 Generated by FYRK docs-sync agent';\nconst pr = await this.helpers.httpRequest({\n  method: 'POST',\n  url: `https://api.github.com/repos/${repo}/pulls`,\n  headers,\n  body: {\n    title: output.prTitle,\n    body: prBody,\n    head: branchName,\n    base: 'main'\n  },\n  json: true,\n  timeout: 15000\n});\n\nreturn [{\n  json: {\n    repo,\n    branchName,\n    prTitle: output.prTitle,\n    prUrl: pr.html_url,\n    prNumber: pr.number\n  }\n}];"
+      },
+      "id": "create-branch-commit",
+      "name": "Create Branch & Commit Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1280, 200]
+    },
+    {
+      "parameters": {
+        "content": "## Agent Failed\n\nThe docs-sync agent returned a non-OK status.\nCheck runtime logs for details.\n\n**TODO:** Connect Slack #alerts notification",
+        "height": 220,
+        "width": 320
+      },
+      "id": "alert-note",
+      "name": "Alert — Agent Failed",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1050, 420]
+    },
+    {
+      "parameters": {
+        "content": "## No Updates Needed\n\nAgent determined no content pages need updating.\nNo PR will be created.",
+        "height": 160,
+        "width": 300
+      },
+      "id": "no-updates-note",
+      "name": "No Updates Needed",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1280, 420]
+    },
+    {
+      "parameters": {
+        "content": "## PR Created\n\n**PR:** {{ $json.prUrl }}\n**Title:** {{ $json.prTitle }}",
+        "height": 160,
+        "width": 300
+      },
+      "id": "success-note",
+      "name": "Success",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1740, 200]
+    }
+  ],
+  "connections": {
+    "GitHub Push Webhook": {
+      "main": [
+        [
+          {
+            "node": "Resolve Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Token": {
+      "main": [
+        [
+          {
+            "node": "Fetch Context & Run Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Context & Run Agent": {
+      "main": [
+        [
+          {
+            "node": "Status OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status OK?": {
+      "main": [
+        [
+          {
+            "node": "Has Updates?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alert — Agent Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Updates?": {
+      "main": [
+        [
+          {
+            "node": "Create Branch & Commit Updates",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Updates Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Branch & Commit Updates": {
+      "main": [
+        [
+          {
+            "node": "Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-02-20T00:00:00.000Z",
+  "versionId": "2"
+}

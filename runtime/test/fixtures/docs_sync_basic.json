@@ -1,0 +1,32 @@
+{
+  "repo": "carlfrankalbert/nettside_fyrk",
+  "ref": "refs/heads/main",
+  "beforeSha": "abc1234",
+  "afterSha": "def5678",
+  "changedFiles": [
+    {
+      "path": "src/lib/api/okr.ts",
+      "diff": "@@ -10,6 +10,12 @@ export async function getOKRs() {\n+export async function getOKRProgress(id: string) {\n+  const res = await fetch(`/api/okr/${id}/progress`);\n+  return res.json();\n+}",
+      "status": "modified"
+    },
+    {
+      "path": "src/components/OKRDashboard.astro",
+      "diff": "@@ -1,5 +1,8 @@\n-<div class=\"okr-grid\">\n+<div class=\"okr-grid with-progress\">\n+  <ProgressBar />\n   {okrs.map(okr => (",
+      "status": "modified"
+    }
+  ],
+  "contentPages": [
+    {
+      "path": "src/pages/verktoy.astro",
+      "content": "---\nimport Layout from '../layouts/Layout.astro';\n---\n<Layout title=\"Verktoy\">\n  <h1>Verktoy</h1>\n  <p>FYRK tilbyr kraftige verktoy for OKR-styring og budsjettoppfolging.</p>\n  <ul>\n    <li>OKR-dashboard med oversikt over mal og resultater</li>\n    <li>Budsjettmodul med sanntidsoppdateringer</li>\n  </ul>\n</Layout>"
+    },
+    {
+      "path": "src/pages/om-oss.astro",
+      "content": "---\nimport Layout from '../layouts/Layout.astro';\n---\n<Layout title=\"Om oss\">\n  <h1>Om FYRK</h1>\n  <p>FYRK er en norsk fintech-plattform som hjelper bedrifter med okonomistyring.</p>\n</Layout>"
+    }
+  ],
+  "commitMessages": [
+    "feat: add OKR progress tracking",
+    "fix: update dashboard grid layout"
+  ]
+}
