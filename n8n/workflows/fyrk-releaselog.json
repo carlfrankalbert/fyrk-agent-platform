@@ -74,7 +74,7 @@
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $vars.ANTHROPIC_API_KEY }}"
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
             },
             {
               "name": "anthropic-version",
@@ -130,7 +130,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer {{ $vars.GITHUB_TOKEN }}"
+              "value": "=Bearer {{ $env.GITHUB_TOKEN }}"
             },
             {
               "name": "Accept",
