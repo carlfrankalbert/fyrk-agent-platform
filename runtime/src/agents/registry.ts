@@ -1,6 +1,7 @@
 import type { AgentDefinition } from './base.js';
 import { releaseNotesAgent } from './release-notes/index.js';
 import { docsSyncAgent } from './docs-sync/index.js';
+import { linkedInPostAgent } from './linkedin-post/index.js';
 
 // Agent registry - add new agents here
 const agents: Map<string, AgentDefinition<unknown, unknown>> = new Map();
@@ -8,6 +9,7 @@ const agents: Map<string, AgentDefinition<unknown, unknown>> = new Map();
 // Register built-in agents
 agents.set('release-notes', releaseNotesAgent as AgentDefinition<unknown, unknown>);
 agents.set('docs-sync', docsSyncAgent as AgentDefinition<unknown, unknown>);
+agents.set('linkedin-post', linkedInPostAgent as AgentDefinition<unknown, unknown>);
 
 export function getAgent(name: string): AgentDefinition<unknown, unknown> | undefined {
   return agents.get(name);

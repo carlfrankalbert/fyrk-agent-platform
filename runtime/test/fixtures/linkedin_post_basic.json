@@ -1,0 +1,29 @@
+{
+  "articles": [
+    {
+      "title": "How AI Agents Are Transforming Business Automation",
+      "url": "https://example.com/ai-agents-automation",
+      "summary": "New research shows AI agents can reduce manual workflow tasks by 60%, with particularly strong results in document processing and decision support systems.",
+      "publishedAt": "2026-02-21T10:00:00Z",
+      "source": "MIT Technology Review"
+    },
+    {
+      "title": "Norske bedrifter satser stort på KI-verktøy",
+      "url": "https://example.com/norske-bedrifter-ki",
+      "summary": "En ny undersøkelse viser at 45% av norske mellomstore bedrifter planlegger å implementere KI-baserte beslutningsverktøy innen 2027.",
+      "publishedAt": "2026-02-20T08:30:00Z",
+      "source": "Digi.no"
+    },
+    {
+      "title": "The Rise of OKR Software in European Startups",
+      "url": "https://example.com/okr-european-startups",
+      "summary": "European startups are increasingly adopting OKR tracking tools to align teams and measure progress, with Norway and Sweden leading adoption rates.",
+      "publishedAt": "2026-02-19T14:00:00Z",
+      "source": "TechCrunch"
+    }
+  ],
+  "topics": ["AI", "automatisering", "beslutningsverktøy"],
+  "maxPosts": 3,
+  "language": "no",
+  "tone": "thought-leader"
+}
