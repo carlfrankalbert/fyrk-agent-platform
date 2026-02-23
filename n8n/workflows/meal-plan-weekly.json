@@ -23,9 +23,9 @@
         "assignments": {
           "assignments": [
             {
-              "id": "mat-bot-token",
-              "name": "slackMatBotToken",
-              "value": "={{ $env.SLACK_MAT_BOT_TOKEN }}",
+              "id": "husmor-bot-token",
+              "name": "slackHusmorBotToken",
+              "value": "={{ $env.SLACK_HUSMOR_BOT_TOKEN }}",
               "type": "string"
             },
             {
@@ -42,8 +42,8 @@
             },
             {
               "id": "slack-channel",
-              "name": "slackChannelMat",
-              "value": "={{ $env.SLACK_CHANNEL_MAT }}",
+              "name": "slackChannelHusmor",
+              "value": "={{ $env.SLACK_CHANNEL_HUSMOR }}",
               "type": "string"
             }
           ]
@@ -185,7 +185,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const config = $('Resolve Config').first().json;\nconst slackData = $input.first().json;\n\nconst channel = config.slackChannelMat || '#mat';\nconst token = config.slackMatBotToken;\n\nif (!token) {\n  throw new Error('SLACK_MAT_BOT_TOKEN is not configured');\n}\n\nconst slackRes = await this.helpers.httpRequest({\n  method: 'POST',\n  url: 'https://slack.com/api/chat.postMessage',\n  headers: {\n    'Authorization': `Bearer ${token}`,\n    'Content-Type': 'application/json'\n  },\n  body: {\n    channel,\n    blocks: slackData.blocks,\n    text: slackData.text\n  },\n  json: true\n});\n\nif (!slackRes.ok) {\n  throw new Error(`Slack error: ${slackRes.error}`);\n}\n\n// Save slack_message_ts back to weekly_plans\nif (slackData.planId && slackRes.ts) {\n  const supabaseUrl = config.supabaseUrl;\n  const supabaseKey = config.supabaseKey;\n  await this.helpers.httpRequest({\n    method: 'PATCH',\n    url: `${supabaseUrl}/rest/v1/weekly_plans?id=eq.${slackData.planId}`,\n    headers: {\n      'apikey': supabaseKey,\n      'Authorization': `Bearer ${supabaseKey}`,\n      'Content-Type': 'application/json'\n    },\n    body: {\n      slack_message_ts: slackRes.ts,\n      slack_channel: slackRes.channel || channel\n    },\n    json: true\n  });\n}\n\nreturn [{ json: { slackSent: true, ts: slackRes.ts, channel: slackRes.channel } }];"
+        "jsCode": "const config = $('Resolve Config').first().json;\nconst slackData = $input.first().json;\n\nconst channel = config.slackChannelHusmor || '#husmor';\nconst token = config.slackHusmorBotToken;\n\nif (!token) {\n  throw new Error('SLACK_HUSMOR_BOT_TOKEN is not configured');\n}\n\nconst slackRes = await this.helpers.httpRequest({\n  method: 'POST',\n  url: 'https://slack.com/api/chat.postMessage',\n  headers: {\n    'Authorization': `Bearer ${token}`,\n    'Content-Type': 'application/json'\n  },\n  body: {\n    channel,\n    blocks: slackData.blocks,\n    text: slackData.text\n  },\n  json: true\n});\n\nif (!slackRes.ok) {\n  throw new Error(`Slack error: ${slackRes.error}`);\n}\n\n// Save slack_message_ts back to weekly_plans\nif (slackData.planId && slackRes.ts) {\n  const supabaseUrl = config.supabaseUrl;\n  const supabaseKey = config.supabaseKey;\n  await this.helpers.httpRequest({\n    method: 'PATCH',\n    url: `${supabaseUrl}/rest/v1/weekly_plans?id=eq.${slackData.planId}`,\n    headers: {\n      'apikey': supabaseKey,\n      'Authorization': `Bearer ${supabaseKey}`,\n      'Content-Type': 'application/json'\n    },\n    body: {\n      slack_message_ts: slackRes.ts,\n      slack_channel: slackRes.channel || channel\n    },\n    json: true\n  });\n}\n\nreturn [{ json: { slackSent: true, ts: slackRes.ts, channel: slackRes.channel } }];"
       },
       "id": "post-to-slack",
       "name": "Post to Slack",

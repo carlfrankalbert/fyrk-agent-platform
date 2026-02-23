@@ -3,7 +3,7 @@ import { validateEnv } from './lib/env.js';
 import { healthRoutes } from './routes/health.js';
 import { runRoutes } from './routes/run.js';
 import { leadRoutes } from './routes/leads.js';
-import { matRoutes } from './routes/mat.js';
+import { husmorRoutes } from './routes/husmor.js';
 
 async function main(): Promise<void> {
   const env = validateEnv();
@@ -18,7 +18,7 @@ async function main(): Promise<void> {
   await fastify.register(healthRoutes);
   await fastify.register(runRoutes);
   await fastify.register(leadRoutes);
-  await fastify.register(matRoutes);
+  await fastify.register(husmorRoutes);
 
   // Start server
   try {

@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { getEnv } from '../lib/env.js';
 import { verifySignature } from '../lib/slack.js';
-import { MatSlackEventSchema } from './mat-schemas.js';
+import { HusmorSlackEventSchema } from './husmor-schemas.js';
 
 function getSupabase(): SupabaseClient {
   const env = getEnv();
@@ -18,9 +18,9 @@ const REACTION_MAP: Record<string, string> = {
   'repeat': 'regenerate',
 };
 
-export async function matRoutes(fastify: FastifyInstance): Promise<void> {
+export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
   // Encapsulated sub-plugin for custom JSON parser (raw body for signature verification)
-  await fastify.register(async function matSlackEventsPlugin(scope) {
+  await fastify.register(async function husmorSlackEventsPlugin(scope) {
     scope.addContentTypeParser(
       'application/json',
       { parseAs: 'string' },
@@ -35,15 +35,15 @@ export async function matRoutes(fastify: FastifyInstance): Promise<void> {
       },
     );
 
-    scope.post('/slack/mat-events', async (request: FastifyRequest, reply: FastifyReply) => {
+    scope.post('/slack/husmor-events', async (request: FastifyRequest, reply: FastifyReply) => {
       const env = getEnv();
 
       // Verify Slack signature if signing secret is configured
-      if (env.SLACK_MAT_SIGNING_SECRET) {
+      if (env.SLACK_HUSMOR_SIGNING_SECRET) {
         const rawBody = (request.body as Record<string, unknown>).__rawBody as string | undefined;
         if (rawBody) {
           const valid = verifySignature(
-            env.SLACK_MAT_SIGNING_SECRET,
+            env.SLACK_HUSMOR_SIGNING_SECRET,
             request.headers as Record<string, string>,
             rawBody,
           );
@@ -53,7 +53,7 @@ export async function matRoutes(fastify: FastifyInstance): Promise<void> {
         }
       }
 
-      const parseResult = MatSlackEventSchema.safeParse(request.body);
+      const parseResult = HusmorSlackEventSchema.safeParse(request.body);
       if (!parseResult.success) {
         return reply.status(400).send({ error: parseResult.error.message });
       }
