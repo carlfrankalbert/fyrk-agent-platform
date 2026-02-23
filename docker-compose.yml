@@ -32,6 +32,7 @@ services:
       - WEBHOOK_URL=http://localhost:5678/
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     volumes:
       - n8n-data:/home/node/.n8n
