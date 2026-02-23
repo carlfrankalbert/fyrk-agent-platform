@@ -161,11 +161,6 @@ export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
           return { ok: true, ignored: true, reason: 'subtype' };
         }
 
-        // Filter: skip thread replies (only respond to top-level messages)
-        if (msg.thread_ts && msg.thread_ts !== msg.ts) {
-          return { ok: true, ignored: true, reason: 'thread_reply' };
-        }
-
         // Filter: skip empty messages
         if (!msg.text || !msg.user) {
           return { ok: true, ignored: true, reason: 'empty' };
@@ -184,12 +179,14 @@ export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
         }
 
         // Async dispatch — return immediately for Slack's 3-second timeout
+        // Use thread_ts if replying in a thread, otherwise use ts to start a new thread
+        const threadTs = msg.thread_ts ?? msg.ts;
         const logger = scope.log;
         setImmediate(() => {
           handleHusmorMessage({
             text: msg.text!,
             channel: msg.channel,
-            threadTs: msg.ts,
+            threadTs,
             userId: msg.user!,
             logger,
           }).catch((err) => {
