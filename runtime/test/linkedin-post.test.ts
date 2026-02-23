@@ -1,6 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { NullDbClient } from '../src/db/client.js';
-import type { AgentContext } from '../src/agents/base.js';
 import type { LinkedInPostOutput } from '../src/agents/linkedin-post/schemas.js';
 import linkedInPostBasic from './fixtures/linkedin_post_basic.json';
 
@@ -23,23 +21,13 @@ vi.mock('../src/lib/claude.js', () => ({
 }));
 
 import { linkedInPostAgent } from '../src/agents/linkedin-post/index.js';
-import { callClaude, extractText } from '../src/lib/claude.js';
-
-const mockCallClaude = vi.mocked(callClaude);
-const mockExtractText = vi.mocked(extractText);
-
-function makeMockResponse(output: LinkedInPostOutput) {
-  const text = JSON.stringify(output);
-  const response = {
-    id: 'msg_test',
-    content: [{ type: 'text', text }],
-    model: 'claude-haiku-4-5-20251001',
-    stop_reason: 'end_turn',
-    usage: { input_tokens: 200, output_tokens: 150 },
-  };
-  mockCallClaude.mockResolvedValue(response);
-  mockExtractText.mockReturnValue(text);
-}
+import {
+  mockCallClaude,
+  createTestContext,
+  makeMockClaudeResponse,
+  makeFencedClaudeResponse,
+  makeBadJsonClaudeResponse,
+} from './helpers/claude-agent.js';
 
 const sampleDrafts: LinkedInPostOutput = {
   drafts: [
@@ -74,16 +62,11 @@ const sampleDrafts: LinkedInPostOutput = {
 };
 
 describe('linkedin-post agent', () => {
-  let ctx: AgentContext;
+  let ctx: ReturnType<typeof createTestContext>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    ctx = {
-      db: new NullDbClient(),
-      dryRun: true,
-      publish: false,
-      runId: 'test-run-id',
-    };
+    ctx = createTestContext();
   });
 
   describe('input validation', () => {
@@ -93,14 +76,14 @@ describe('linkedin-post agent', () => {
     });
 
     it('should accept input with default topics', async () => {
-      makeMockResponse(sampleDrafts);
+      makeMockClaudeResponse(sampleDrafts);
       const input = { articles: linkedInPostBasic.articles };
       const result = await linkedInPostAgent.execute(input, ctx);
       expect(result.output.hasDrafts).toBe(true);
     });
 
     it('should accept input with default maxPosts', async () => {
-      makeMockResponse(sampleDrafts);
+      makeMockClaudeResponse(sampleDrafts);
       const { maxPosts, ...input } = linkedInPostBasic;
       const result = await linkedInPostAgent.execute(input, ctx);
       expect(result.output).toBeDefined();
@@ -109,7 +92,7 @@ describe('linkedin-post agent', () => {
 
   describe('draft generation', () => {
     beforeEach(() => {
-      makeMockResponse(sampleDrafts);
+      makeMockClaudeResponse(sampleDrafts);
     });
 
     it('should return hasDrafts true when drafts exist', async () => {
@@ -182,7 +165,7 @@ describe('linkedin-post agent', () => {
 
   describe('prompt construction', () => {
     beforeEach(() => {
-      makeMockResponse(sampleDrafts);
+      makeMockClaudeResponse(sampleDrafts);
     });
 
     it('should call Claude with correct model', async () => {
@@ -226,7 +209,7 @@ describe('linkedin-post agent', () => {
     };
 
     beforeEach(() => {
-      makeMockResponse(noDrafts);
+      makeMockClaudeResponse(noDrafts);
     });
 
     it('should return hasDrafts false', async () => {
@@ -247,16 +230,7 @@ describe('linkedin-post agent', () => {
 
   describe('Claude response with markdown fences', () => {
     it('should handle response wrapped in code fences', async () => {
-      const fenced = '```json\n' + JSON.stringify(sampleDrafts) + '\n```';
-      const response = {
-        id: 'msg_test',
-        content: [{ type: 'text', text: fenced }],
-        model: 'claude-haiku-4-5-20251001',
-        stop_reason: 'end_turn',
-        usage: { input_tokens: 200, output_tokens: 150 },
-      };
-      mockCallClaude.mockResolvedValue(response);
-      mockExtractText.mockReturnValue(fenced);
+      makeFencedClaudeResponse(sampleDrafts);
 
       const result = await linkedInPostAgent.execute(linkedInPostBasic, ctx);
       expect(result.output.hasDrafts).toBe(true);
@@ -285,15 +259,7 @@ describe('linkedin-post agent', () => {
     });
 
     it('should throw on invalid Claude JSON response', async () => {
-      const response = {
-        id: 'msg_test',
-        content: [{ type: 'text', text: 'not valid json' }],
-        model: 'claude-haiku-4-5-20251001',
-        stop_reason: 'end_turn',
-        usage: { input_tokens: 200, output_tokens: 150 },
-      };
-      mockCallClaude.mockResolvedValue(response);
-      mockExtractText.mockReturnValue('not valid json');
+      makeBadJsonClaudeResponse();
 
       await expect(linkedInPostAgent.execute(linkedInPostBasic, ctx)).rejects.toThrow();
     });

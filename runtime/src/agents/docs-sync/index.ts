@@ -1,6 +1,5 @@
 import type { AgentDefinition, AgentContext, AgentResult } from '../base.js';
-import { callClaude, extractText } from '../../lib/claude.js';
-import { getEnv } from '../../lib/env.js';
+import { callClaudeJson } from '../../lib/claude-json.js';
 
 import {
   DocsSyncInputSchema,
@@ -72,32 +71,12 @@ async function execute(
   input: DocsSyncInput,
   _ctx: AgentContext,
 ): Promise<AgentResult<DocsSyncOutput>> {
-  const env = getEnv();
-  const apiKey = env.ANTHROPIC_API_KEY;
-
-  if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY is required for docs-sync agent');
-  }
-
   const userPrompt = buildUserPrompt(input);
 
-  const response = await callClaude(apiKey, {
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 4096,
+  const { parsed: output } = await callClaudeJson(DocsSyncOutputSchema, {
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userPrompt }],
   });
-
-  const text = extractText(response);
-
-  // Strip markdown fences if present
-  let jsonStr = text.trim();
-  if (jsonStr.startsWith('```')) {
-    jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-  }
-
-  const parsed = JSON.parse(jsonStr);
-  const output = DocsSyncOutputSchema.parse(parsed);
 
   // Filter out updates where content didn't actually change
   const realUpdates: SuggestedUpdate[] = output.suggestedUpdates.filter(

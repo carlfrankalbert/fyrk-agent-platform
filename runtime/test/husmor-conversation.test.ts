@@ -138,12 +138,16 @@ describe('husmor-conversation', () => {
       expect(result.reply).toBe('Hei!');
     });
 
-    it('should throw on invalid JSON', () => {
-      expect(() => parseClaudeResponse('not json at all')).toThrow();
+    it('should salvage plain text as reply when not valid JSON', () => {
+      const result = parseClaudeResponse('For mye sukker er skadelig.');
+      expect(result.reply).toBe('For mye sukker er skadelig.');
+      expect(result.actions).toEqual([]);
     });
 
-    it('should throw on missing reply field', () => {
-      expect(() => parseClaudeResponse('{"actions":[]}')).toThrow();
+    it('should salvage text when reply field is missing from JSON', () => {
+      const result = parseClaudeResponse('{"actions":[]}');
+      expect(result.reply).toBe('{"actions":[]}');
+      expect(result.actions).toEqual([]);
     });
 
     it('should accept response without actions field', () => {
@@ -454,6 +458,42 @@ describe('husmor-conversation', () => {
       await handleHusmorMessage(makeParams({ isThreadReply: false }));
 
       expect(mockGetThreadHistory).not.toHaveBeenCalled();
+    });
+
+    it('should wrap bot messages in JSON format for Claude', async () => {
+      mockFrom.mockImplementation(() => chainMock({ data: null, error: null }));
+      mockGetThreadHistory.mockResolvedValue([
+        { user: 'U12345', text: 'hei', ts: '1700000000.000001' },
+        { bot_id: 'B1', text: 'Hei! Hva kan jeg hjelpe med?', ts: '1700000000.000002' },
+        { user: 'U12345', text: 'taco i dag?', ts: '1700000000.000003' },
+      ]);
+      makeClaudeResponse('Ok!');
+
+      await handleHusmorMessage(makeParams({ isThreadReply: true, text: 'taco i dag?' }));
+
+      const messages = mockCallClaude.mock.calls[0][1].messages;
+      const assistantMsg = messages.find((m: { role: string }) => m.role === 'assistant');
+      expect(assistantMsg).toBeDefined();
+      // Bot messages should be wrapped in JSON format
+      const parsed = JSON.parse(assistantMsg!.content);
+      expect(parsed.reply).toBe('Hei! Hva kan jeg hjelpe med?');
+      expect(parsed.actions).toEqual([]);
+    });
+
+    it('should skip error messages from thread history', async () => {
+      mockFrom.mockImplementation(() => chainMock({ data: null, error: null }));
+      mockGetThreadHistory.mockResolvedValue([
+        { user: 'U12345', text: 'hei', ts: '1700000000.000001' },
+        { bot_id: 'B1', text: 'Beklager, noe gikk galt. Prov igjen om litt!', ts: '1700000000.000002' },
+        { user: 'U12345', text: 'prov igjen', ts: '1700000000.000003' },
+      ]);
+      makeClaudeResponse('Ok!');
+
+      await handleHusmorMessage(makeParams({ isThreadReply: true, text: 'prov igjen' }));
+
+      const messages = mockCallClaude.mock.calls[0][1].messages;
+      const allContent = messages.map((m: { content: string }) => m.content).join(' ');
+      expect(allContent).not.toContain('Beklager, noe gikk galt');
     });
 
     it('should skip "Husmor tenker..." messages from history', async () => {

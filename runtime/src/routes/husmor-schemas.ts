@@ -105,17 +105,3 @@ export const HusmorClaudeResponseSchema = z.object({
 });
 
 export type HusmorClaudeResponse = z.infer<typeof HusmorClaudeResponseSchema>;
-
-// --- Legacy combined schema (kept for backwards compat with existing reaction handler) ---
-export const HusmorSlackEventCallbackSchema = z.object({
-  type: z.literal('event_callback'),
-  token: z.string(),
-  event: HusmorSlackReactionEvent,
-});
-
-export const HusmorSlackEventSchema = z.discriminatedUnion('type', [
-  HusmorSlackChallengeSchema,
-  HusmorSlackEventCallbackSchema,
-]);
-
-export type HusmorSlackEvent = z.infer<typeof HusmorSlackEventSchema>;

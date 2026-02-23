@@ -1,6 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { NullDbClient } from '../src/db/client.js';
-import type { AgentContext } from '../src/agents/base.js';
 import type { DocsSyncOutput } from '../src/agents/docs-sync/schemas.js';
 import docsSyncBasic from './fixtures/docs_sync_basic.json';
 
@@ -23,35 +21,20 @@ vi.mock('../src/lib/claude.js', () => ({
 }));
 
 import { docsSyncAgent } from '../src/agents/docs-sync/index.js';
-import { callClaude, extractText } from '../src/lib/claude.js';
-
-const mockCallClaude = vi.mocked(callClaude);
-const mockExtractText = vi.mocked(extractText);
-
-function makeMockResponse(output: DocsSyncOutput) {
-  const text = JSON.stringify(output);
-  const response = {
-    id: 'msg_test',
-    content: [{ type: 'text', text }],
-    model: 'claude-haiku-4-5-20251001',
-    stop_reason: 'end_turn',
-    usage: { input_tokens: 100, output_tokens: 50 },
-  };
-  mockCallClaude.mockResolvedValue(response);
-  mockExtractText.mockReturnValue(text);
-}
+import {
+  mockCallClaude,
+  createTestContext,
+  makeMockClaudeResponse,
+  makeFencedClaudeResponse,
+  makeBadJsonClaudeResponse,
+} from './helpers/claude-agent.js';
 
 describe('docs-sync agent', () => {
-  let ctx: AgentContext;
+  let ctx: ReturnType<typeof createTestContext>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    ctx = {
-      db: new NullDbClient(),
-      dryRun: true,
-      publish: false,
-      runId: 'test-run-id',
-    };
+    ctx = createTestContext();
   });
 
   describe('input validation', () => {
@@ -86,7 +69,7 @@ describe('docs-sync agent', () => {
     };
 
     beforeEach(() => {
-      makeMockResponse(mockOutput);
+      makeMockClaudeResponse(mockOutput);
     });
 
     it('should return hasUpdates true', async () => {
@@ -148,7 +131,7 @@ describe('docs-sync agent', () => {
     };
 
     beforeEach(() => {
-      makeMockResponse(mockOutput);
+      makeMockClaudeResponse(mockOutput);
     });
 
     it('should return hasUpdates false', async () => {
@@ -183,7 +166,7 @@ describe('docs-sync agent', () => {
         prTitle: 'docs: no-op',
         prBody: 'Nothing changed',
       };
-      makeMockResponse(fakeOutput);
+      makeMockClaudeResponse(fakeOutput);
 
       const result = await docsSyncAgent.execute(docsSyncBasic, ctx);
       expect(result.output.hasUpdates).toBe(false);
@@ -200,16 +183,7 @@ describe('docs-sync agent', () => {
         prTitle: '',
         prBody: '',
       };
-      const fenced = '```json\n' + JSON.stringify(output) + '\n```';
-      const response = {
-        id: 'msg_test',
-        content: [{ type: 'text', text: fenced }],
-        model: 'claude-haiku-4-5-20251001',
-        stop_reason: 'end_turn',
-        usage: { input_tokens: 100, output_tokens: 50 },
-      };
-      mockCallClaude.mockResolvedValue(response);
-      mockExtractText.mockReturnValue(fenced);
+      makeFencedClaudeResponse(output);
 
       const result = await docsSyncAgent.execute(docsSyncBasic, ctx);
       expect(result.output.hasUpdates).toBe(false);
@@ -238,15 +212,7 @@ describe('docs-sync agent', () => {
     });
 
     it('should throw on invalid Claude JSON response', async () => {
-      const response = {
-        id: 'msg_test',
-        content: [{ type: 'text', text: 'not valid json' }],
-        model: 'claude-haiku-4-5-20251001',
-        stop_reason: 'end_turn',
-        usage: { input_tokens: 100, output_tokens: 50 },
-      };
-      mockCallClaude.mockResolvedValue(response);
-      mockExtractText.mockReturnValue('not valid json');
+      makeBadJsonClaudeResponse();
 
       await expect(docsSyncAgent.execute(docsSyncBasic, ctx)).rejects.toThrow();
     });

@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { getEnv } from '../lib/env.js';
 import { verifySignature } from '../lib/slack.js';
+import { getSupabase } from '../lib/supabase.js';
+import { registerRawBodyParser } from '../lib/slack-events.js';
 import {
   HusmorSlackChallengeSchema,
   HusmorSlackEventEnvelope,
@@ -9,11 +10,6 @@ import {
   HusmorSlackMessageEvent,
 } from './husmor-schemas.js';
 import { handleHusmorMessage } from './husmor-conversation.js';
-
-function getSupabase(): SupabaseClient {
-  const env = getEnv();
-  return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
-}
 
 // Reaction → plan status mapping
 const REACTION_MAP: Record<string, string> = {
@@ -42,19 +38,7 @@ function isDuplicate(eventTs: string): boolean {
 export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
   // Encapsulated sub-plugin for custom JSON parser (raw body for signature verification)
   await fastify.register(async function husmorSlackEventsPlugin(scope) {
-    scope.addContentTypeParser(
-      'application/json',
-      { parseAs: 'string' },
-      (_req, body, done) => {
-        try {
-          const json = JSON.parse(body as string);
-          (json as Record<string, unknown>).__rawBody = body;
-          done(null, json);
-        } catch (err) {
-          done(err as Error, undefined);
-        }
-      },
-    );
+    registerRawBodyParser(scope);
 
     scope.post('/slack/husmor-events', async (request: FastifyRequest, reply: FastifyReply) => {
       const env = getEnv();

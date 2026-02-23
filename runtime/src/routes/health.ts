@@ -1,16 +1,10 @@
 import type { FastifyInstance } from 'fastify';
-import { createClient } from '@supabase/supabase-js';
-import { getEnv } from '../lib/env.js';
-
-function getSupabaseClient() {
-  const env = getEnv();
-  return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
-}
+import { getSupabase } from '../lib/supabase.js';
 
 export async function healthRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get('/health', async () => {
     try {
-      const client = getSupabaseClient();
+      const client = getSupabase();
       const { error } = await client
         .from('agent_runs')
         .select('id', { count: 'exact', head: true });
@@ -29,7 +23,7 @@ export async function healthRoutes(fastify: FastifyInstance): Promise<void> {
     const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
     try {
-      const client = getSupabaseClient();
+      const client = getSupabase();
       const { data, error } = await client
         .from('agent_runs')
         .select('id, agent_name, agent_version, status, error, created_at')

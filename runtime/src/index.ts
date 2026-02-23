@@ -20,6 +20,14 @@ async function main(): Promise<void> {
   await fastify.register(leadRoutes);
   await fastify.register(husmorRoutes);
 
+  // Graceful shutdown
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.on(signal, () => {
+      fastify.log.info(`Received ${signal}, shutting down`);
+      fastify.close().then(() => process.exit(0), () => process.exit(1));
+    });
+  }
+
   // Start server
   try {
     await fastify.listen({ port: env.PORT, host: env.HOST });

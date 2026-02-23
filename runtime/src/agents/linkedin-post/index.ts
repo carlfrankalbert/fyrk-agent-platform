@@ -1,6 +1,5 @@
 import type { AgentDefinition, AgentContext, AgentResult } from '../base.js';
-import { callClaude, extractText } from '../../lib/claude.js';
-import { getEnv } from '../../lib/env.js';
+import { callClaudeJson } from '../../lib/claude-json.js';
 
 import {
   LinkedInPostInputSchema,
@@ -105,33 +104,13 @@ async function execute(
 ): Promise<AgentResult<LinkedInPostOutput>> {
   const input = resolveDefaults(rawInput);
 
-  const env = getEnv();
-  const apiKey = env.ANTHROPIC_API_KEY;
-
-  if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY is required for linkedin-post agent');
-  }
-
   const systemPrompt = buildSystemPrompt(input);
   const userPrompt = buildUserPrompt(input);
 
-  const response = await callClaude(apiKey, {
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 4096,
+  const { parsed: output } = await callClaudeJson(LinkedInPostOutputSchema, {
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   });
-
-  const text = extractText(response);
-
-  // Strip markdown fences if present
-  let jsonStr = text.trim();
-  if (jsonStr.startsWith('```')) {
-    jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-  }
-
-  const parsed = JSON.parse(jsonStr);
-  const output = LinkedInPostOutputSchema.parse(parsed);
 
   // Build a human-readable markdown artifact for review
   const markdownLines: string[] = [];

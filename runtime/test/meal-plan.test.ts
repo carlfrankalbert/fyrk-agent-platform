@@ -1,6 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { NullDbClient } from '../src/db/client.js';
-import type { AgentContext } from '../src/agents/base.js';
 import type { MealPlanOutput } from '../src/agents/meal-plan/schemas.js';
 import mealPlanBasic from './fixtures/meal_plan_basic.json';
 
@@ -23,23 +21,13 @@ vi.mock('../src/lib/claude.js', () => ({
 }));
 
 import { mealPlanAgent } from '../src/agents/meal-plan/index.js';
-import { callClaude, extractText } from '../src/lib/claude.js';
-
-const mockCallClaude = vi.mocked(callClaude);
-const mockExtractText = vi.mocked(extractText);
-
-function makeMockResponse(output: MealPlanOutput) {
-  const text = JSON.stringify(output);
-  const response = {
-    id: 'msg_test',
-    content: [{ type: 'text', text }],
-    model: 'claude-haiku-4-5-20251001',
-    stop_reason: 'end_turn',
-    usage: { input_tokens: 500, output_tokens: 800 },
-  };
-  mockCallClaude.mockResolvedValue(response);
-  mockExtractText.mockReturnValue(text);
-}
+import {
+  mockCallClaude,
+  createTestContext,
+  makeMockClaudeResponse,
+  makeFencedClaudeResponse,
+  makeBadJsonClaudeResponse,
+} from './helpers/claude-agent.js';
 
 const sampleMeals: MealPlanOutput = {
   weekNumber: 9,
@@ -166,16 +154,11 @@ const sampleMeals: MealPlanOutput = {
 };
 
 describe('meal-plan agent', () => {
-  let ctx: AgentContext;
+  let ctx: ReturnType<typeof createTestContext>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    ctx = {
-      db: new NullDbClient(),
-      dryRun: true,
-      publish: false,
-      runId: 'test-run-id',
-    };
+    ctx = createTestContext();
   });
 
   describe('input validation', () => {
@@ -185,14 +168,14 @@ describe('meal-plan agent', () => {
     });
 
     it('should accept minimal input (weekNumber + year only)', async () => {
-      makeMockResponse(sampleMeals);
+      makeMockClaudeResponse(sampleMeals);
       const input = { weekNumber: 9, year: 2026 };
       const result = await mealPlanAgent.execute(input, ctx);
       expect(result.output.hasMeals).toBe(true);
     });
 
     it('should accept full context input', async () => {
-      makeMockResponse(sampleMeals);
+      makeMockClaudeResponse(sampleMeals);
       const result = await mealPlanAgent.execute(mealPlanBasic, ctx);
       expect(result.output).toBeDefined();
     });
@@ -200,7 +183,7 @@ describe('meal-plan agent', () => {
 
   describe('meal plan generation', () => {
     beforeEach(() => {
-      makeMockResponse(sampleMeals);
+      makeMockClaudeResponse(sampleMeals);
     });
 
     it('should return hasMeals true when meals exist', async () => {
@@ -288,7 +271,7 @@ describe('meal-plan agent', () => {
 
   describe('prompt construction', () => {
     beforeEach(() => {
-      makeMockResponse(sampleMeals);
+      makeMockClaudeResponse(sampleMeals);
     });
 
     it('should call Claude with correct model', async () => {
@@ -341,7 +324,7 @@ describe('meal-plan agent', () => {
     };
 
     beforeEach(() => {
-      makeMockResponse(noMeals);
+      makeMockClaudeResponse(noMeals);
     });
 
     it('should return hasMeals false', async () => {
@@ -357,16 +340,7 @@ describe('meal-plan agent', () => {
 
   describe('Claude response with markdown fences', () => {
     it('should handle response wrapped in code fences', async () => {
-      const fenced = '```json\n' + JSON.stringify(sampleMeals) + '\n```';
-      const response = {
-        id: 'msg_test',
-        content: [{ type: 'text', text: fenced }],
-        model: 'claude-haiku-4-5-20251001',
-        stop_reason: 'end_turn',
-        usage: { input_tokens: 500, output_tokens: 800 },
-      };
-      mockCallClaude.mockResolvedValue(response);
-      mockExtractText.mockReturnValue(fenced);
+      makeFencedClaudeResponse(sampleMeals);
 
       const result = await mealPlanAgent.execute(mealPlanBasic, ctx);
       expect(result.output.hasMeals).toBe(true);
@@ -376,7 +350,7 @@ describe('meal-plan agent', () => {
 
   describe('handles missing optional context gracefully', () => {
     it('should work without seasonal produce or traditions', async () => {
-      makeMockResponse(sampleMeals);
+      makeMockClaudeResponse(sampleMeals);
       const input = { weekNumber: 9, year: 2026 };
       const result = await mealPlanAgent.execute(input, ctx);
       expect(result.output.hasMeals).toBe(true);
@@ -409,15 +383,7 @@ describe('meal-plan agent', () => {
     });
 
     it('should throw on invalid Claude JSON response', async () => {
-      const response = {
-        id: 'msg_test',
-        content: [{ type: 'text', text: 'not valid json' }],
-        model: 'claude-haiku-4-5-20251001',
-        stop_reason: 'end_turn',
-        usage: { input_tokens: 500, output_tokens: 100 },
-      };
-      mockCallClaude.mockResolvedValue(response);
-      mockExtractText.mockReturnValue('not valid json');
+      makeBadJsonClaudeResponse();
 
       await expect(mealPlanAgent.execute(mealPlanBasic, ctx)).rejects.toThrow();
     });
@@ -433,7 +399,7 @@ describe('meal-plan agent', () => {
         usage: { input_tokens: 500, output_tokens: 100 },
       };
       mockCallClaude.mockResolvedValue(response);
-      mockExtractText.mockReturnValue(text);
+      vi.mocked((await import('../src/lib/claude.js')).extractText).mockReturnValue(text);
 
       await expect(mealPlanAgent.execute(mealPlanBasic, ctx)).rejects.toThrow();
     });
