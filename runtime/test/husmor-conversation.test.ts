@@ -349,7 +349,7 @@ describe('husmor-conversation', () => {
 
       expect(mockCallClaude).toHaveBeenCalledTimes(1);
       expect(mockCallClaude.mock.calls[0][0]).toBe('test-api-key');
-      expect(mockCallClaude.mock.calls[0][1].model).toBe('claude-haiku-4-5-20251001');
+      expect(mockCallClaude.mock.calls[0][1].model).toBe('claude-sonnet-4-5-20241022');
       // First call: thinking indicator
       expect(mockReplyInThread).toHaveBeenCalledWith(
         'xoxb-test-token',

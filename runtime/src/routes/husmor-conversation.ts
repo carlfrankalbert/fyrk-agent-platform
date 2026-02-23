@@ -3,7 +3,7 @@ import { callClaude, extractText } from '../lib/claude.js';
 import { replyInThread, updateMessage, getThreadHistory } from '../lib/slack.js';
 import type { ClaudeMessage } from '../lib/claude.js';
 import { getSupabase } from '../lib/supabase.js';
-import { DEFAULT_MODEL } from '../lib/claude-json.js';
+const HUSMOR_MODEL = 'claude-sonnet-4-5-20241022';
 
 // Re-export split modules for backwards-compatible imports
 export { loadDbContext, executeActions, getOrCreateCurrentWeekPlan } from './husmor-db.js';
@@ -92,7 +92,7 @@ export async function handleHusmorMessage(params: HusmorMessageParams): Promise<
 
     // 4. Call Claude
     const response = await callClaude(apiKey, {
-      model: DEFAULT_MODEL,
+      model: HUSMOR_MODEL,
       max_tokens: 2048,
       system: systemPrompt,
       messages: cleanedMessages,
