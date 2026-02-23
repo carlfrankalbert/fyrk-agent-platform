@@ -39,6 +39,33 @@ export async function postMessage(
   return data;
 }
 
+export async function replyInThread(
+  token: string,
+  channel: string,
+  threadTs: string,
+  text: string,
+): Promise<PostMessageResponse> {
+  const res = await fetch('https://slack.com/api/chat.postMessage', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ channel, thread_ts: threadTs, text }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Slack API HTTP error ${res.status}: ${await res.text()}`);
+  }
+
+  const data = await res.json() as PostMessageResponse;
+  if (!data.ok) {
+    throw new Error(`Slack API error: ${data.error}`);
+  }
+
+  return data;
+}
+
 export function verifySignature(
   signingSecret: string,
   headers: { 'x-slack-signature'?: string; 'x-slack-request-timestamp'?: string },
