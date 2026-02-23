@@ -180,6 +180,7 @@ export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
 
         // Async dispatch — return immediately for Slack's 3-second timeout
         // Use thread_ts if replying in a thread, otherwise use ts to start a new thread
+        const isThreadReply = !!(msg.thread_ts && msg.thread_ts !== msg.ts);
         const threadTs = msg.thread_ts ?? msg.ts;
         const logger = scope.log;
         setImmediate(() => {
@@ -188,6 +189,7 @@ export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
             channel: msg.channel,
             threadTs,
             userId: msg.user!,
+            isThreadReply,
             logger,
           }).catch((err) => {
             logger.error({ err }, 'Unhandled error in handleHusmorMessage');

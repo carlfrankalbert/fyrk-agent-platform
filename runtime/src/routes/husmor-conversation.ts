@@ -1,7 +1,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { getEnv } from '../lib/env.js';
 import { callClaude, extractText } from '../lib/claude.js';
-import { replyInThread, updateMessage } from '../lib/slack.js';
+import { replyInThread, updateMessage, getThreadHistory } from '../lib/slack.js';
+import type { ClaudeMessage } from '../lib/claude.js';
 import {
   HusmorClaudeResponseSchema,
   type HusmorAction,
@@ -13,6 +14,7 @@ export interface HusmorMessageParams {
   channel: string;
   threadTs: string;
   userId: string;
+  isThreadReply: boolean;
   logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
 }
 
@@ -124,12 +126,21 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
 export function buildSystemPrompt(ctx: DbContext): string {
   const sections: string[] = [];
 
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('nb-NO', {
+    timeZone: 'Europe/Oslo',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
   sections.push(`Du er Husmor — en varm, kunnskapsrik og praktisk familiens matassistent i Slack.
 Du hjelper familien med ukeplanlegging, matinnkjop, preferanser og ernaering.
 Skriv alltid pa norsk. Vær vennlig, kortfattet og handlingsorientert.
 
-Dagens dato: ${new Date().toISOString().slice(0, 10)}
-Uke ${ctx.plan.weekNumber}, ${ctx.plan.year}`);
+I dag er det ${dateStr}.
+Uke ${ctx.plan.weekNumber}, ${ctx.plan.year}.`);
 
   // Current plan
   if (ctx.plan.meals.length > 0) {
@@ -325,10 +336,40 @@ export async function executeActions(
   }
 }
 
+// --- Message ordering ---
+
+/** Ensure messages alternate user/assistant and start with user (Claude API requirement) */
+export function cleanMessageOrder(messages: ClaudeMessage[]): ClaudeMessage[] {
+  if (messages.length === 0) return [];
+
+  const result: ClaudeMessage[] = [];
+  for (const msg of messages) {
+    const prev = result[result.length - 1];
+    // Merge consecutive same-role messages
+    if (prev && prev.role === msg.role) {
+      prev.content += '\n' + msg.content;
+    } else {
+      result.push({ ...msg });
+    }
+  }
+
+  // Must start with user
+  while (result.length > 0 && result[0].role !== 'user') {
+    result.shift();
+  }
+
+  // Must end with user
+  while (result.length > 0 && result[result.length - 1].role !== 'user') {
+    result.pop();
+  }
+
+  return result.length > 0 ? result : [{ role: 'user', content: '' }];
+}
+
 // --- Main handler ---
 
 export async function handleHusmorMessage(params: HusmorMessageParams): Promise<void> {
-  const { text, channel, threadTs, userId, logger } = params;
+  const { text, channel, threadTs, userId, isThreadReply, logger } = params;
   const env = getEnv();
 
   const botToken = env.SLACK_HUSMOR_BOT_TOKEN;
@@ -351,18 +392,49 @@ export async function handleHusmorMessage(params: HusmorMessageParams): Promise<
   }
 
   try {
-    // 1. Load DB context
-    const dbContext = await loadDbContext(supabase);
+    // 1. Load DB context + thread history in parallel
+    const [dbContext, threadMessages] = await Promise.all([
+      loadDbContext(supabase),
+      isThreadReply
+        ? getThreadHistory(botToken, channel, threadTs).catch(() => [])
+        : Promise.resolve([]),
+    ]);
 
     // 2. Build prompt
     const systemPrompt = buildSystemPrompt(dbContext);
 
-    // 3. Call Claude
+    // 3. Build conversation messages from thread history
+    const messages: ClaudeMessage[] = [];
+    if (threadMessages.length > 0) {
+      // Skip the thinking message (last bot message) and the current user message (last)
+      for (const msg of threadMessages) {
+        if (!msg.text) continue;
+        // Skip "Husmor tenker..." placeholders
+        if (msg.text === 'Husmor tenker...') continue;
+        if (msg.bot_id) {
+          // Bot message → try to extract just the reply text (strip JSON if present)
+          messages.push({ role: 'assistant', content: msg.text });
+        } else if (msg.user) {
+          messages.push({ role: 'user', content: msg.text });
+        }
+      }
+    }
+
+    // If no history or last message isn't the current one, add it
+    const lastUserMsg = messages.filter((m) => m.role === 'user').pop();
+    if (!lastUserMsg || lastUserMsg.content !== text) {
+      messages.push({ role: 'user', content: text });
+    }
+
+    // Ensure messages alternate and start with user
+    const cleanedMessages = cleanMessageOrder(messages);
+
+    // 4. Call Claude
     const response = await callClaude(apiKey, {
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 2048,
       system: systemPrompt,
-      messages: [{ role: 'user', content: text }],
+      messages: cleanedMessages,
     });
 
     const rawText = extractText(response);

@@ -93,6 +93,37 @@ export async function updateMessage(
   return data;
 }
 
+export interface ThreadMessage {
+  user?: string;
+  bot_id?: string;
+  text?: string;
+  ts: string;
+}
+
+export async function getThreadHistory(
+  token: string,
+  channel: string,
+  threadTs: string,
+): Promise<ThreadMessage[]> {
+  const res = await fetch(`https://slack.com/api/conversations.replies?channel=${channel}&ts=${threadTs}&limit=50`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Slack API HTTP error ${res.status}: ${await res.text()}`);
+  }
+
+  const data = await res.json() as { ok: boolean; messages?: ThreadMessage[]; error?: string };
+  if (!data.ok) {
+    throw new Error(`Slack API error: ${data.error}`);
+  }
+
+  return data.messages ?? [];
+}
+
 export function verifySignature(
   signingSecret: string,
   headers: { 'x-slack-signature'?: string; 'x-slack-request-timestamp'?: string },

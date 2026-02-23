@@ -25,6 +25,7 @@ vi.mock('../src/lib/claude.js', () => ({
 vi.mock('../src/lib/slack.js', () => ({
   replyInThread: vi.fn().mockResolvedValue({ ok: true, ts: '1234.5678' }),
   updateMessage: vi.fn().mockResolvedValue({ ok: true, ts: '1234.5678' }),
+  getThreadHistory: vi.fn().mockResolvedValue([]),
   verifySignature: vi.fn().mockReturnValue(true),
 }));
 
@@ -37,7 +38,7 @@ vi.mock('@supabase/supabase-js', () => ({
 }));
 
 import { callClaude, extractText } from '../src/lib/claude.js';
-import { replyInThread, updateMessage } from '../src/lib/slack.js';
+import { replyInThread, updateMessage, getThreadHistory } from '../src/lib/slack.js';
 import {
   handleHusmorMessage,
   loadDbContext,
@@ -45,6 +46,7 @@ import {
   parseClaudeResponse,
   executeActions,
   getOrCreateCurrentWeekPlan,
+  cleanMessageOrder,
   type HusmorMessageParams,
 } from '../src/routes/husmor-conversation.js';
 import {
@@ -58,6 +60,7 @@ const mockCallClaude = vi.mocked(callClaude);
 const mockExtractText = vi.mocked(extractText);
 const mockReplyInThread = vi.mocked(replyInThread);
 const mockUpdateMessage = vi.mocked(updateMessage);
+const mockGetThreadHistory = vi.mocked(getThreadHistory);
 
 const mockLogger = {
   info: vi.fn(),
@@ -71,6 +74,7 @@ function makeParams(overrides?: Partial<HusmorMessageParams>): HusmorMessagePara
     channel: 'C-husmor',
     threadTs: '1700000000.000001',
     userId: 'U12345',
+    isThreadReply: false,
     logger: mockLogger,
     ...overrides,
   };
@@ -422,6 +426,81 @@ describe('husmor-conversation', () => {
       // Should not throw
       await handleHusmorMessage(makeParams());
       expect(mockLogger.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('thread history / conversation memory', () => {
+    it('should fetch thread history for thread replies', async () => {
+      mockFrom.mockImplementation(() => chainMock({ data: null, error: null }));
+      mockGetThreadHistory.mockResolvedValue([
+        { user: 'U12345', text: 'hei, hva er det til middag?', ts: '1700000000.000001' },
+        { bot_id: 'B1', text: 'I dag er det laks!', ts: '1700000000.000002' },
+        { user: 'U12345', text: 'kan vi bytte til taco?', ts: '1700000000.000003' },
+      ]);
+      makeClaudeResponse('Selvfolgelig!');
+
+      await handleHusmorMessage(makeParams({ isThreadReply: true, text: 'kan vi bytte til taco?' }));
+
+      expect(mockGetThreadHistory).toHaveBeenCalledWith('xoxb-test-token', 'C-husmor', '1700000000.000001');
+      // Should send multi-turn messages to Claude
+      const messages = mockCallClaude.mock.calls[0][1].messages;
+      expect(messages.length).toBeGreaterThan(1);
+    });
+
+    it('should not fetch thread history for top-level messages', async () => {
+      mockFrom.mockImplementation(() => chainMock({ data: null, error: null }));
+      makeClaudeResponse('Hei!');
+
+      await handleHusmorMessage(makeParams({ isThreadReply: false }));
+
+      expect(mockGetThreadHistory).not.toHaveBeenCalled();
+    });
+
+    it('should skip "Husmor tenker..." messages from history', async () => {
+      mockFrom.mockImplementation(() => chainMock({ data: null, error: null }));
+      mockGetThreadHistory.mockResolvedValue([
+        { user: 'U12345', text: 'hei', ts: '1700000000.000001' },
+        { bot_id: 'B1', text: 'Husmor tenker...', ts: '1700000000.000002' },
+        { bot_id: 'B1', text: 'Hei! Hva kan jeg hjelpe med?', ts: '1700000000.000002' },
+        { user: 'U12345', text: 'taco i dag?', ts: '1700000000.000003' },
+      ]);
+      makeClaudeResponse('Ok!');
+
+      await handleHusmorMessage(makeParams({ isThreadReply: true, text: 'taco i dag?' }));
+
+      const messages = mockCallClaude.mock.calls[0][1].messages;
+      const allContent = messages.map((m: { content: string }) => m.content).join(' ');
+      expect(allContent).not.toContain('Husmor tenker...');
+    });
+  });
+
+  describe('cleanMessageOrder', () => {
+    it('should merge consecutive same-role messages', () => {
+      const result = cleanMessageOrder([
+        { role: 'user', content: 'hei' },
+        { role: 'user', content: 'hva skjer' },
+        { role: 'assistant', content: 'hei!' },
+        { role: 'user', content: 'ok' },
+      ]);
+      expect(result).toHaveLength(3);
+      expect(result[0].content).toContain('hei');
+      expect(result[0].content).toContain('hva skjer');
+    });
+
+    it('should ensure first message is user', () => {
+      const result = cleanMessageOrder([
+        { role: 'assistant', content: 'hei' },
+        { role: 'user', content: 'hei tilbake' },
+      ]);
+      expect(result[0].role).toBe('user');
+    });
+
+    it('should ensure last message is user', () => {
+      const result = cleanMessageOrder([
+        { role: 'user', content: 'hei' },
+        { role: 'assistant', content: 'hei!' },
+      ]);
+      expect(result[result.length - 1].role).toBe('user');
     });
   });
 
