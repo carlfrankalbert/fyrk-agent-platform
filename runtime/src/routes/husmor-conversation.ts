@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { getEnv } from '../lib/env.js';
 import { callClaude, extractText } from '../lib/claude.js';
-import { replyInThread } from '../lib/slack.js';
+import { replyInThread, updateMessage } from '../lib/slack.js';
 import {
   HusmorClaudeResponseSchema,
   type HusmorAction,
@@ -341,6 +341,15 @@ export async function handleHusmorMessage(params: HusmorMessageParams): Promise<
 
   const supabase = getSupabase();
 
+  // Post a "thinking" indicator immediately
+  let thinkingTs: string | undefined;
+  try {
+    const thinking = await replyInThread(botToken, channel, threadTs, 'Husmor tenker...');
+    thinkingTs = thinking.ts;
+  } catch (err) {
+    logger.warn({ err }, 'Failed to post thinking indicator');
+  }
+
   try {
     // 1. Load DB context
     const dbContext = await loadDbContext(supabase);
@@ -361,8 +370,16 @@ export async function handleHusmorMessage(params: HusmorMessageParams): Promise<
     // 4. Parse response
     const parsed = parseClaudeResponse(rawText);
 
-    // 5. Reply in thread
-    await replyInThread(botToken, channel, threadTs, parsed.reply);
+    // 5. Update thinking message with real reply, or post new if update fails
+    if (thinkingTs) {
+      try {
+        await updateMessage(botToken, channel, thinkingTs, parsed.reply);
+      } catch {
+        await replyInThread(botToken, channel, threadTs, parsed.reply);
+      }
+    } else {
+      await replyInThread(botToken, channel, threadTs, parsed.reply);
+    }
 
     // 6. Execute actions
     if (parsed.actions && parsed.actions.length > 0) {
@@ -373,13 +390,15 @@ export async function handleHusmorMessage(params: HusmorMessageParams): Promise<
   } catch (err) {
     logger.error({ err, userId }, 'Failed to handle Husmor message');
     try {
-      if (botToken) {
-        await replyInThread(
-          botToken,
-          channel,
-          threadTs,
-          'Beklager, noe gikk galt. Prov igjen om litt!',
-        );
+      const errorMsg = 'Beklager, noe gikk galt. Prov igjen om litt!';
+      if (thinkingTs) {
+        try {
+          await updateMessage(botToken, channel, thinkingTs, errorMsg);
+        } catch {
+          await replyInThread(botToken, channel, threadTs, errorMsg);
+        }
+      } else {
+        await replyInThread(botToken, channel, threadTs, errorMsg);
       }
     } catch (replyErr) {
       logger.error({ replyErr }, 'Failed to send error reply');

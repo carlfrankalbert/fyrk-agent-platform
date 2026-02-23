@@ -24,6 +24,7 @@ vi.mock('../src/lib/claude.js', () => ({
 // Mock Slack
 vi.mock('../src/lib/slack.js', () => ({
   replyInThread: vi.fn().mockResolvedValue({ ok: true, ts: '1234.5678' }),
+  updateMessage: vi.fn().mockResolvedValue({ ok: true, ts: '1234.5678' }),
   verifySignature: vi.fn().mockReturnValue(true),
 }));
 
@@ -36,7 +37,7 @@ vi.mock('@supabase/supabase-js', () => ({
 }));
 
 import { callClaude, extractText } from '../src/lib/claude.js';
-import { replyInThread } from '../src/lib/slack.js';
+import { replyInThread, updateMessage } from '../src/lib/slack.js';
 import {
   handleHusmorMessage,
   loadDbContext,
@@ -56,6 +57,7 @@ import {
 const mockCallClaude = vi.mocked(callClaude);
 const mockExtractText = vi.mocked(extractText);
 const mockReplyInThread = vi.mocked(replyInThread);
+const mockUpdateMessage = vi.mocked(updateMessage);
 
 const mockLogger = {
   info: vi.fn(),
@@ -327,7 +329,7 @@ describe('husmor-conversation', () => {
   });
 
   describe('handleHusmorMessage', () => {
-    it('should call Claude and reply in thread', async () => {
+    it('should call Claude and update thinking message with reply', async () => {
       // Setup Supabase mocks for context loading
       mockFrom.mockImplementation(() => {
         return chainMock({ data: null, error: null });
@@ -340,10 +342,18 @@ describe('husmor-conversation', () => {
       expect(mockCallClaude).toHaveBeenCalledTimes(1);
       expect(mockCallClaude.mock.calls[0][0]).toBe('test-api-key');
       expect(mockCallClaude.mock.calls[0][1].model).toBe('claude-haiku-4-5-20251001');
+      // First call: thinking indicator
       expect(mockReplyInThread).toHaveBeenCalledWith(
         'xoxb-test-token',
         'C-husmor',
         '1700000000.000001',
+        'Husmor tenker...',
+      );
+      // Then: update the thinking message with the real reply
+      expect(mockUpdateMessage).toHaveBeenCalledWith(
+        'xoxb-test-token',
+        'C-husmor',
+        '1234.5678',
         'Hei! Ingen plan for denne uken enna.',
       );
     });
@@ -382,7 +392,7 @@ describe('husmor-conversation', () => {
       expect(insertFn).toHaveBeenCalled();
     });
 
-    it('should send error reply when Claude call fails', async () => {
+    it('should update thinking message with error when Claude call fails', async () => {
       mockFrom.mockImplementation(() => {
         return chainMock({ data: null, error: null });
       });
@@ -391,10 +401,10 @@ describe('husmor-conversation', () => {
 
       await handleHusmorMessage(makeParams());
 
-      expect(mockReplyInThread).toHaveBeenCalledWith(
+      expect(mockUpdateMessage).toHaveBeenCalledWith(
         'xoxb-test-token',
         'C-husmor',
-        '1700000000.000001',
+        '1234.5678',
         'Beklager, noe gikk galt. Prov igjen om litt!',
       );
     });
@@ -405,6 +415,8 @@ describe('husmor-conversation', () => {
       });
 
       mockCallClaude.mockRejectedValue(new Error('Claude down'));
+      mockReplyInThread.mockResolvedValueOnce({ ok: true, ts: '1234.5678' }); // thinking msg ok
+      mockUpdateMessage.mockRejectedValue(new Error('Slack update down'));
       mockReplyInThread.mockRejectedValue(new Error('Slack down'));
 
       // Should not throw
