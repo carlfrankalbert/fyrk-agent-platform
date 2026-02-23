@@ -1,0 +1,35 @@
+-- FYRK Mat Agent - Seed seasonal produce
+-- Norwegian seasonal produce calendar (months 1-12)
+
+insert into seasonal_produce (name, category, months_available, months_peak, nutrition_highlight, child_friendly_note) values
+  ('Gulrot', 'vegetable', '{1,2,3,4,5,6,7,8,9,10,11,12}', '{8,9,10}', 'Betakaroten, fiber, K-vitamin', 'Sot og populaer ras og kokt. Fin som fingermat.'),
+  ('Poteter', 'vegetable', '{1,2,3,4,5,6,7,8,9,10,11,12}', '{7,8,9,10}', 'Kalium, C-vitamin, fiber', 'Universelt likt. Mos, bakt, kokt — barn elsker poteter.'),
+  ('Kal (gronkal, spisskol)', 'vegetable', '{1,2,3,9,10,11,12}', '{9,10,11}', 'C-vitamin, K-vitamin, kalsium, jern', 'Chips av gronkal er populaert. Spisskol er mild.'),
+  ('Brokkoli', 'vegetable', '{6,7,8,9,10}', '{7,8,9}', 'C-vitamin, K-vitamin, folat, fiber', 'Kall det sma traer — barn elsker det!'),
+  ('Blomkal', 'vegetable', '{6,7,8,9,10}', '{8,9}', 'C-vitamin, K-vitamin, fiber', 'Mild smak, fin i grateng og mos.'),
+  ('Epler', 'fruit', '{8,9,10,11,12,1,2}', '{9,10}', 'Fiber, C-vitamin, antioksidanter', 'Norges mest populaere frukt. Alle barn liker epler.'),
+  ('Gresskar', 'vegetable', '{9,10,11}', '{10}', 'Betakaroten, fiber, kalium', 'Sott og mildt. Suppe og mos er barnevennlig.'),
+  ('Jordbaer', 'berry', '{6,7}', '{6,7}', 'C-vitamin, mangan, antioksidanter', 'Sommerens favoritt! Perfekt fingermat.'),
+  ('Blaabar', 'berry', '{7,8,9}', '{7,8}', 'Antioksidanter, C-vitamin, mangan', 'Plukk selv — fantastisk barneaktivitet.'),
+  ('Bringebaer', 'berry', '{7,8}', '{7,8}', 'Fiber, C-vitamin, mangan', 'Sot og populaer. Fin i grout og dessert.'),
+  ('Tyttebar', 'berry', '{8,9,10}', '{9}', 'Antioksidanter, C-vitamin', 'Tradisjonell til vilt og kjottboller.'),
+  ('Laks', 'fish', '{1,2,3,4,5,6,7,8,9,10,11,12}', '{6,7,8,9}', 'Omega-3, D-vitamin, protein, B12', 'De fleste barn liker laks. Ovnsbakt er enkelt.'),
+  ('Torsk', 'fish', '{1,2,3,4,10,11,12}', '{1,2,3}', 'Protein, B12, jod, selen', 'Mild smak, fin for barn. Skrei er vintersesong.'),
+  ('Makrell', 'fish', '{5,6,7,8,9}', '{6,7,8}', 'Omega-3, D-vitamin, B12', 'Stekt makrell i broed — norsk klassiker.'),
+  ('Sild', 'fish', '{1,2,3,4,5,6,7,8,9,10,11,12}', '{4,5,6}', 'Omega-3, D-vitamin, kalsium', 'Spekesild og sursild — tradisjonskost.'),
+  ('Reker', 'fish', '{4,5,6,7,8,9}', '{6,7}', 'Protein, selen, B12, omega-3', 'Rekefest er sommerens hoydepunkt!'),
+  ('Sopp (kantarell)', 'mushroom', '{7,8,9,10}', '{8,9}', 'D-vitamin, B-vitaminer, selen', 'Kantarell har mild smak. Fint a plukke sammen.'),
+  ('Sopp (steinsopp)', 'mushroom', '{8,9,10}', '{9}', 'Protein, B-vitaminer, selen', 'Kraftig umami-smak. Fantastisk i risotto.'),
+  ('Vilt (elg)', 'game', '{9,10,11}', '{10}', 'Jern, protein, B12, lavt fett', 'Magert og naeringsrikt. Gryte er barnevennlig.'),
+  ('Vilt (ryper)', 'game', '{9,10,11}', '{10,11}', 'Protein, B-vitaminer, jern', 'Tradisjonskost i Nord-Norge.'),
+  ('Rabarbra', 'fruit', '{5,6,7}', '{6}', 'C-vitamin, K-vitamin, kalsium', 'Sott rabarbrakompott er barnefavoritt.'),
+  ('Plommer', 'fruit', '{8,9}', '{8,9}', 'C-vitamin, K-vitamin, fiber', 'Norske plommer er fantastiske i sesong.'),
+  ('Purre', 'vegetable', '{1,2,3,4,9,10,11,12}', '{9,10,11}', 'K-vitamin, folat, mangan', 'Mild lok-smak. Fint i suppe og grateng.'),
+  ('Roedbet', 'vegetable', '{7,8,9,10,11}', '{9,10}', 'Folat, mangan, jern, fiber', 'Sot smak nar den er bakt. Rosa mat er morsomt!'),
+  ('Nepe/kalrot', 'vegetable', '{9,10,11,12,1,2}', '{10,11}', 'C-vitamin, fiber, kalium', 'Klassiker i lapskaus og rotmos.'),
+  ('Erter', 'vegetable', '{6,7,8}', '{7}', 'Protein, fiber, C-vitamin, jern', 'Barn elsker erter. Perfekt fingermat for sma.'),
+  ('Squash', 'vegetable', '{7,8,9}', '{8}', 'C-vitamin, kalium, fiber', 'Mild smak, skjules lett i saus og broed.'),
+  ('Tomat (norsk)', 'vegetable', '{6,7,8,9}', '{7,8}', 'Lykopen, C-vitamin, kalium', 'Norske tomater er mye soetere enn importerte.'),
+  ('Mais', 'vegetable', '{8,9}', '{8,9}', 'Fiber, B-vitaminer, antioksidanter', 'Barn elsker mais — pa kolbe eller avskjart.'),
+  ('Asparges', 'vegetable', '{5,6}', '{5,6}', 'Folat, K-vitamin, antioksidanter', 'Kort sesong — verdt a utnytte! Barn liker gronne.')
+on conflict (name) do nothing;

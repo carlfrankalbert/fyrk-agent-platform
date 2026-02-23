@@ -1,0 +1,60 @@
+{
+  "weekNumber": 9,
+  "year": 2026,
+  "householdId": "default",
+  "family": {
+    "adults": 2,
+    "children": 2,
+    "allergies": ["notter"],
+    "dislikes": ["lever", "innmat"],
+    "cuisinePreferences": ["norsk", "asiatisk", "italiensk"]
+  },
+  "seasonalProduce": [
+    { "name": "Gulrot", "category": "vegetable" },
+    { "name": "Kal", "category": "vegetable" },
+    { "name": "Poteter", "category": "vegetable" },
+    { "name": "Purre", "category": "vegetable" },
+    { "name": "Torsk", "category": "fish" },
+    { "name": "Laks", "category": "fish" }
+  ],
+  "traditions": [
+    {
+      "name": "Tacofredag",
+      "country": "NO",
+      "period": "Hele aret",
+      "typicalDishes": ["taco", "guacamole", "salsa"],
+      "suggestStrength": "hint",
+      "description": "Fredagstaco er Norges mest populaere fredagstradisjon."
+    }
+  ],
+  "recentMeals": [
+    { "name": "Laksewok", "dayOfWeek": 1 },
+    { "name": "Pasta bolognese", "dayOfWeek": 2 },
+    { "name": "Kyllinggryte", "dayOfWeek": 3, "feedbackEmoji": "thumbsup" },
+    { "name": "Fiskegrateng", "dayOfWeek": 4 },
+    { "name": "Taco", "dayOfWeek": 5 },
+    { "name": "Pizza", "dayOfWeek": 6 },
+    { "name": "Stek med poteter", "dayOfWeek": 7 }
+  ],
+  "nutritionGuidelines": [
+    {
+      "category": "generelt",
+      "topic": "Fisk per uke",
+      "content": "Spis fisk 2-3 ganger per uke, hvorav minst en gang fet fisk.",
+      "appliesTo": "all"
+    },
+    {
+      "category": "barn",
+      "topic": "Jern",
+      "content": "Barn 1-5 ar trenger 8mg jern daglig. Gode kilder: kjott, boenner, linser.",
+      "appliesTo": "children_1_5"
+    }
+  ],
+  "pantryStaples": ["Salt", "Pepper", "Olivenolje", "Hermetiske tomater", "Ris", "Pasta"],
+  "inventoryNotes": [
+    { "itemName": "Brokkoli", "status": "use_soon", "quantity": "1 hode" },
+    { "itemName": "Kyllingfilet", "status": "available", "quantity": "500g" }
+  ],
+  "daysToPlan": 7,
+  "mealsPerDay": 1
+}

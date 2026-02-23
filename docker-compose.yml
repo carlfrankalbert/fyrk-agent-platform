@@ -17,6 +17,9 @@ services:
       - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
       - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
       - SLACK_CHANNEL_LEADS=${SLACK_CHANNEL_LEADS:-#fyrk-leads}
+      - SLACK_MAT_BOT_TOKEN=${SLACK_MAT_BOT_TOKEN}
+      - SLACK_MAT_SIGNING_SECRET=${SLACK_MAT_SIGNING_SECRET}
+      - SLACK_CHANNEL_MAT=${SLACK_CHANNEL_MAT:-#mat}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8787/health"]
       interval: 30s

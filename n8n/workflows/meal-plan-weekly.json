@@ -1,0 +1,310 @@
+{
+  "name": "Meal Plan — Weekly Cron",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule (Sunday 18:00)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "mat-bot-token",
+              "name": "slackMatBotToken",
+              "value": "={{ $env.SLACK_MAT_BOT_TOKEN }}",
+              "type": "string"
+            },
+            {
+              "id": "supabase-url",
+              "name": "supabaseUrl",
+              "value": "={{ $env.SUPABASE_URL }}",
+              "type": "string"
+            },
+            {
+              "id": "supabase-key",
+              "name": "supabaseKey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}",
+              "type": "string"
+            },
+            {
+              "id": "slack-channel",
+              "name": "slackChannelMat",
+              "value": "={{ $env.SLACK_CHANNEL_MAT }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "resolve-config",
+      "name": "Resolve Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const config = $('Resolve Config').first().json;\nconst supabaseUrl = config.supabaseUrl;\nconst supabaseKey = config.supabaseKey;\n\nconst now = new Date();\nconst currentMonth = now.getMonth() + 1;\n\n// Calculate ISO week number\nconst jan1 = new Date(now.getFullYear(), 0, 1);\nconst daysSinceJan1 = Math.floor((now.getTime() - jan1.getTime()) / 86400000);\nconst weekNumber = Math.ceil((daysSinceJan1 + jan1.getDay() + 1) / 7);\nconst year = now.getFullYear();\n\nasync function querySupabase(table, params = '') {\n  try {\n    const res = await this.helpers.httpRequest({\n      method: 'GET',\n      url: `${supabaseUrl}/rest/v1/${table}${params}`,\n      headers: {\n        'apikey': supabaseKey,\n        'Authorization': `Bearer ${supabaseKey}`,\n        'Content-Type': 'application/json'\n      },\n      json: true,\n      timeout: 10000\n    });\n    return res;\n  } catch (e) {\n    return [];\n  }\n}\n\n// Fetch seasonal produce for current month\nconst produce = await querySupabase.call(this, 'seasonal_produce', `?months_available=cs.{${currentMonth}}`);\nconst seasonalProduce = produce.map(p => ({ name: p.name, category: p.category }));\n\n// Fetch traditions for current month\nconst traditions = await querySupabase.call(this, 'food_traditions', `?months=cs.{${currentMonth}}`);\nconst traditionsContext = traditions.map(t => ({\n  name: t.name,\n  country: t.country,\n  period: `Maaned ${currentMonth}`,\n  typicalDishes: t.typical_dishes || [],\n  suggestStrength: t.suggest_strength,\n  description: t.description || ''\n}));\n\n// Fetch family preferences\nconst prefs = await querySupabase.call(this, 'family_preferences', `?household_id=eq.default`);\nconst familyMap = {};\nfor (const p of prefs) {\n  familyMap[p.key] = p.value;\n}\nconst family = prefs.length > 0 ? {\n  adults: familyMap.adults || 2,\n  children: familyMap.children || 0,\n  allergies: familyMap.allergies || [],\n  dislikes: familyMap.dislikes || [],\n  cuisinePreferences: familyMap.cuisinePreferences || []\n} : undefined;\n\n// Fetch pantry staples\nconst staples = await querySupabase.call(this, 'pantry_staples', `?household_id=eq.default`);\nconst pantryStaples = staples.map(s => s.name);\n\n// Fetch nutrition knowledge\nconst knowledge = await querySupabase.call(this, 'nutrition_knowledge');\nconst nutritionGuidelines = knowledge.map(k => ({\n  category: k.category,\n  topic: k.topic,\n  content: k.content,\n  appliesTo: k.applies_to\n}));\n\n// Fetch recent planned meals (last 2 weeks)\nconst twoWeeksAgo = new Date(now.getTime() - 14 * 86400000).toISOString();\nconst recentPlans = await querySupabase.call(this, 'weekly_plans', `?created_at=gte.${twoWeeksAgo}&household_id=eq.default&select=id`);\nlet recentMeals = [];\nif (recentPlans.length > 0) {\n  const planIds = recentPlans.map(p => p.id).join(',');\n  const meals = await querySupabase.call(this, 'planned_meals', `?plan_id=in.(${planIds})&select=name,day_of_week,feedback_emoji`);\n  recentMeals = meals.map(m => ({\n    name: m.name,\n    dayOfWeek: m.day_of_week,\n    feedbackEmoji: m.feedback_emoji\n  }));\n}\n\n// Fetch inventory notes\nconst inventory = await querySupabase.call(this, 'inventory_notes', `?household_id=eq.default&status=in.(available,use_soon)`);\nconst inventoryNotes = inventory.map(i => ({\n  itemName: i.item_name,\n  status: i.status,\n  quantity: i.quantity\n}));\n\nreturn [{\n  json: {\n    weekNumber,\n    year,\n    householdId: 'default',\n    family,\n    seasonalProduce,\n    traditions: traditionsContext,\n    recentMeals,\n    nutritionGuidelines,\n    pantryStaples,\n    inventoryNotes\n  }\n}];"
+      },
+      "id": "gather-context",
+      "name": "Gather Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [710, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const context = $input.first().json;\n\nconst agentResponse = await this.helpers.httpRequest({\n  method: 'POST',\n  url: 'https://fyrk-agent-runtime.fly.dev/run/meal-plan',\n  headers: { 'Content-Type': 'application/json' },\n  body: {\n    version: '0.1',\n    input: context,\n    dryRun: false,\n    publish: true\n  },\n  json: true,\n  timeout: 90000\n});\n\nreturn [{ json: agentResponse }];"
+      },
+      "id": "run-agent",
+      "name": "Run Meal Plan Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [940, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-ok",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-status",
+      "name": "Status OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1170, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-meals",
+              "leftValue": "={{ $json.output.hasMeals }}",
+              "rightValue": "={{ true }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-meals",
+      "name": "Has Meals?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1400, 200]
+    },
+    {
+      "parameters": {
+        "content": "## Agent Failed\n\nThe meal-plan agent returned a non-OK status.\nCheck runtime logs for details.",
+        "height": 180,
+        "width": 320
+      },
+      "id": "alert-note",
+      "name": "Alert — Agent Failed",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1400, 420]
+    },
+    {
+      "parameters": {
+        "content": "## No Meals Generated\n\nAgent returned hasMeals: false.\nThis is unusual — check agent logs.",
+        "height": 180,
+        "width": 320
+      },
+      "id": "no-meals-note",
+      "name": "No Meals",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1860, 420]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const config = $('Resolve Config').first().json;\nconst data = $('Status OK?').first().json;\nconst output = data.output;\nconst supabaseUrl = config.supabaseUrl;\nconst supabaseKey = config.supabaseKey;\n\n// Insert weekly plan\nconst planRes = await this.helpers.httpRequest({\n  method: 'POST',\n  url: `${supabaseUrl}/rest/v1/weekly_plans`,\n  headers: {\n    'apikey': supabaseKey,\n    'Authorization': `Bearer ${supabaseKey}`,\n    'Content-Type': 'application/json',\n    'Prefer': 'return=representation'\n  },\n  body: {\n    household_id: 'default',\n    week_number: output.weekNumber,\n    year: output.year,\n    status: 'proposed',\n    run_id: data.runId\n  },\n  json: true\n});\n\nconst plan = Array.isArray(planRes) ? planRes[0] : planRes;\n\n// Insert planned meals\nif (plan && plan.id && output.meals.length > 0) {\n  const mealsToInsert = output.meals.map(m => ({\n    plan_id: plan.id,\n    day_of_week: m.dayOfWeek,\n    meal_type: 'dinner',\n    name: m.name,\n    description: m.description,\n    estimated_prep_min: m.estimatedPrepMin,\n    tags: m.tags\n  }));\n\n  await this.helpers.httpRequest({\n    method: 'POST',\n    url: `${supabaseUrl}/rest/v1/planned_meals`,\n    headers: {\n      'apikey': supabaseKey,\n      'Authorization': `Bearer ${supabaseKey}`,\n      'Content-Type': 'application/json'\n    },\n    body: mealsToInsert,\n    json: true\n  });\n}\n\nreturn [{ json: { planId: plan?.id, weekNumber: output.weekNumber, year: output.year, mealCount: output.meals.length } }];"
+      },
+      "id": "store-plan",
+      "name": "Store Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1630, 200]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const data = $('Status OK?').first().json;\nconst output = data.output;\nconst planInfo = $input.first().json;\n\nconst dayEmojis = {\n  1: '\\ud83d\\udfe2', // Monday - green\n  2: '\\ud83d\\udfe1', // Tuesday - yellow\n  3: '\\ud83d\\udfe0', // Wednesday - orange\n  4: '\\ud83d\\udd35', // Thursday - blue\n  5: '\\ud83c\\udf89', // Friday - party\n  6: '\\u2728',       // Saturday - sparkles\n  7: '\\u2615'        // Sunday - coffee\n};\n\nconst blocks = [\n  {\n    type: 'header',\n    text: {\n      type: 'plain_text',\n      text: `Ukeplan uke ${output.weekNumber}, ${output.year}`,\n      emoji: true\n    }\n  },\n  {\n    type: 'section',\n    text: {\n      type: 'mrkdwn',\n      text: output.weekSummary\n    }\n  },\n  { type: 'divider' }\n];\n\nfor (const meal of output.meals) {\n  const emoji = dayEmojis[meal.dayOfWeek] || '\\ud83c\\udf7d\\ufe0f';\n  let mealText = `${emoji} *${meal.dayName}: ${meal.name}*\\n${meal.description}`;\n  if (meal.estimatedPrepMin) {\n    mealText += `\\n_ca ${meal.estimatedPrepMin} min_`;\n  }\n  if (meal.childTip) {\n    mealText += `\\n\\ud83d\\udc76 ${meal.childTip}`;\n  }\n  if (meal.batchNote) {\n    mealText += `\\n\\ud83e\\uddf1 ${meal.batchNote}`;\n  }\n  blocks.push({\n    type: 'section',\n    text: { type: 'mrkdwn', text: mealText }\n  });\n}\n\nblocks.push({ type: 'divider' });\n\n// Nutrition & seasonal notes\nconst notesLines = [];\nif (output.nutritionNotes) notesLines.push(`*Naering:* ${output.nutritionNotes}`);\nif (output.seasonalHighlight) notesLines.push(`*Sesong:* ${output.seasonalHighlight}`);\nif (output.traditionNote) notesLines.push(`*Tradisjon:* ${output.traditionNote}`);\n\nif (notesLines.length > 0) {\n  blocks.push({\n    type: 'section',\n    text: { type: 'mrkdwn', text: notesLines.join('\\n\\n') }\n  });\n  blocks.push({ type: 'divider' });\n}\n\n// Shopping highlights\nif (output.shoppingHighlights && output.shoppingHighlights.length > 0) {\n  blocks.push({\n    type: 'section',\n    text: {\n      type: 'mrkdwn',\n      text: `*Handleliste:*\\n${output.shoppingHighlights.map(i => `\\u2022 ${i}`).join('\\n')}`\n    }\n  });\n  blocks.push({ type: 'divider' });\n}\n\n// Emoji legend\nblocks.push({\n  type: 'context',\n  elements: [\n    {\n      type: 'mrkdwn',\n      text: '\\ud83d\\udc4d Godkjenn | \\ud83d\\udc4e Avvis | \\ud83d\\udd01 Ny plan | Run: ' + data.runId\n    }\n  ]\n});\n\nreturn [{ json: { blocks, planId: planInfo.planId, text: `Ukeplan uke ${output.weekNumber}` } }];"
+      },
+      "id": "build-slack-blocks",
+      "name": "Build Slack Blocks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1860, 200]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const config = $('Resolve Config').first().json;\nconst slackData = $input.first().json;\n\nconst channel = config.slackChannelMat || '#mat';\nconst token = config.slackMatBotToken;\n\nif (!token) {\n  throw new Error('SLACK_MAT_BOT_TOKEN is not configured');\n}\n\nconst slackRes = await this.helpers.httpRequest({\n  method: 'POST',\n  url: 'https://slack.com/api/chat.postMessage',\n  headers: {\n    'Authorization': `Bearer ${token}`,\n    'Content-Type': 'application/json'\n  },\n  body: {\n    channel,\n    blocks: slackData.blocks,\n    text: slackData.text\n  },\n  json: true\n});\n\nif (!slackRes.ok) {\n  throw new Error(`Slack error: ${slackRes.error}`);\n}\n\n// Save slack_message_ts back to weekly_plans\nif (slackData.planId && slackRes.ts) {\n  const supabaseUrl = config.supabaseUrl;\n  const supabaseKey = config.supabaseKey;\n  await this.helpers.httpRequest({\n    method: 'PATCH',\n    url: `${supabaseUrl}/rest/v1/weekly_plans?id=eq.${slackData.planId}`,\n    headers: {\n      'apikey': supabaseKey,\n      'Authorization': `Bearer ${supabaseKey}`,\n      'Content-Type': 'application/json'\n    },\n    body: {\n      slack_message_ts: slackRes.ts,\n      slack_channel: slackRes.channel || channel\n    },\n    json: true\n  });\n}\n\nreturn [{ json: { slackSent: true, ts: slackRes.ts, channel: slackRes.channel } }];"
+      },
+      "id": "post-to-slack",
+      "name": "Post to Slack",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2090, 200]
+    }
+  ],
+  "connections": {
+    "Schedule (Sunday 18:00)": {
+      "main": [
+        [
+          {
+            "node": "Resolve Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Config": {
+      "main": [
+        [
+          {
+            "node": "Gather Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gather Context": {
+      "main": [
+        [
+          {
+            "node": "Run Meal Plan Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Meal Plan Agent": {
+      "main": [
+        [
+          {
+            "node": "Status OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status OK?": {
+      "main": [
+        [
+          {
+            "node": "Has Meals?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alert — Agent Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Meals?": {
+      "main": [
+        [
+          {
+            "node": "Store Plan",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Meals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Plan": {
+      "main": [
+        [
+          {
+            "node": "Build Slack Blocks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Slack Blocks": {
+      "main": [
+        [
+          {
+            "node": "Post to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-02-23T00:00:00.000Z",
+  "versionId": "1"
+}
