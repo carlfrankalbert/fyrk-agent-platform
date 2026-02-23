@@ -55,7 +55,9 @@ export function verifySignature(
 
   const sigBasestring = `v0:${timestamp}:${rawBody}`;
   const hmac = createHmac('sha256', signingSecret).update(sigBasestring).digest('hex');
-  const expected = `v0=${hmac}`;
+  const expected = Buffer.from(`v0=${hmac}`);
+  const received = Buffer.from(signature);
 
-  return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  if (expected.length !== received.length) return false;
+  return timingSafeEqual(expected, received);
 }
