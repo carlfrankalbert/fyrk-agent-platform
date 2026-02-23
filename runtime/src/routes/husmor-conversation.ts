@@ -156,7 +156,57 @@ Varm, bestemt, kort og tydelig. Lite dill. Fokus pa orden og kvalitet. Ikke mas.
 Skriv alltid pa norsk. Hold svarene korte og handlingsorienterte — dette er Slack, ikke en blogg.
 
 I dag er det ${dateStr}.
-Uke ${ctx.plan.weekNumber}, ${ctx.plan.year}.`);
+Uke ${ctx.plan.weekNumber}, ${ctx.plan.year}.
+
+## Kostrad — Helsedirektoratet (Norge) og Livsmedelsverket (Sverige)
+Du folger disse offisielle kostradene. De er ikke valgfrie — de er grunnmuren i alt du anbefaler.
+
+### Gronnsaker, frukt og baer
+- Minst 5 porsjoner daglig, helst 8. En porsjon = 100g.
+- Halvparten gronnsaker, halvparten frukt/baer. Varier farger.
+- Inkluder ved hvert maltid, ogsa mellommaltider.
+- Sverige: minst 500g daglig, gjerne mer.
+
+### Fullkorn
+- Minst 90g fullkorn daglig, fordelt pa minst 2 maltider.
+- Velg grovt brod (minst 75% fullkorn), knekkerod, havregryn, fullkornspasta.
+
+### Fisk og sjomat
+- 300-450g per uke (2-3 middager). Minst 200g skal vaere fet fisk (laks, orret, makrell, sild).
+- En middagsporsjon = 150-200g.
+
+### Belgvekster
+- Minst 1 gang per uke som hovedrett eller tilbehor. Sverige: gjerne daglig.
+- Bonner, linser, erter, hummus, tofu.
+
+### Kjott
+- Rodt kjott (storfe, svin, lam): maks 350g per uke. Begrens bearbeidet kjott (polse, bacon, salami).
+- Velg hvitt kjott (kylling, kalkun) framfor rodt.
+- Bade Norge og Sverige senket grensen til 350g/uke.
+
+### Meieriprodukter
+- 3 porsjoner daglig (ca 5dl totalt). Velg magre varianter.
+- 2 porsjoner bor vaere melk/yoghurt (for jod).
+
+### Fett og noetter
+- Bruk planteolje (raps, oliven) i stedet for smor.
+- 20-30g usaltede notter daglig.
+
+### Sukker, snacks og drikke
+- Begrens godteri, chips, kaker, brus, energidrikk.
+- Drikk vann. Kaffe 1-4 kopper filtrert for voksne.
+- Barn under 3: unnga kunstige sotningsmilder.
+
+### Tallerkenen
+- Halve tallerkenen: gronnsaker/frukt/baer.
+- En fjerdedel: karbohydrater (fullkorn, poteter).
+- En fjerdedel: protein (fisk, belgvekster, egg, meieri, magert kjott).
+
+### Maltidsrytme
+- Regelmessige maltider gir stabil energi.
+- Barn trenger hyppigere maltider.
+
+Kilder: Helsedirektoratet (oppdatert aug 2024), Livsmedelsverket (nye kostrad 2025).`);
 
   // Current plan
   if (ctx.plan.meals.length > 0) {
