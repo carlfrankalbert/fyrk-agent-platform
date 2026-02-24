@@ -55,6 +55,7 @@ const AddMealsAction = z.object({
     name: z.string(),
     description: z.string().optional(),
     mealType: z.string().optional(),
+    yieldsLeftovers: z.boolean().optional(),
   })),
 });
 
@@ -63,6 +64,7 @@ const UpdateMealAction = z.object({
   dayOfWeek: z.number().int().min(1).max(7),
   name: z.string(),
   description: z.string().optional(),
+  yieldsLeftovers: z.boolean().optional(),
 });
 
 const RemoveMealAction = z.object({
@@ -95,7 +97,7 @@ const GenerateShoppingListAction = z.object({
   type: z.literal('generate_shopping_list'),
   items: z.array(z.object({
     name: z.string(),
-    amount: z.string().optional(),
+    amount: z.union([z.string(), z.number().transform(String)]).optional(),
     unit: z.string().optional(),
     category: z.string().optional(),
   })).min(1),
@@ -115,7 +117,7 @@ const SaveRecipeAction = z.object({
   servings: z.number().int().positive().optional(),
   ingredients: z.array(z.object({
     name: z.string(),
-    amount: z.string().optional(),
+    amount: z.union([z.string(), z.number().transform(String)]).optional(),
     unit: z.string().optional(),
   })).optional(),
   steps: z.array(z.object({
@@ -123,6 +125,29 @@ const SaveRecipeAction = z.object({
     durationMin: z.number().int().positive().optional(),
   })).optional(),
   linkToDayOfWeek: z.number().int().min(1).max(7).optional(),
+});
+
+const UpdateInventoryStatusAction = z.object({
+  type: z.literal('update_inventory_status'),
+  itemName: z.string(),
+  newStatus: z.enum(['available', 'use_soon', 'used', 'depleted']),
+});
+
+const SetWeekContextAction = z.object({
+  type: z.literal('set_week_context'),
+  travelWeek: z.boolean().optional(),
+  guests: z.boolean().optional(),
+  guestCount: z.number().int().positive().optional(),
+  holiday: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+const LogChildReactionAction = z.object({
+  type: z.literal('log_child_reaction'),
+  childName: z.string(),
+  mealName: z.string(),
+  reaction: z.enum(['loved', 'liked', 'neutral', 'disliked', 'refused']),
+  notes: z.string().optional(),
 });
 
 const ProposeLearningAction = z.object({
@@ -143,6 +168,9 @@ export const HusmorActionSchema = z.discriminatedUnion('type', [
   UpdatePlanStatusAction,
   ProposeLearningAction,
   SaveRecipeAction,
+  UpdateInventoryStatusAction,
+  SetWeekContextAction,
+  LogChildReactionAction,
 ]);
 
 export type HusmorAction = z.infer<typeof HusmorActionSchema>;

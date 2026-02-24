@@ -5,7 +5,7 @@ import {
   type HusmorClaudeResponse,
 } from './husmor-schemas.js';
 import type { DbContext } from './husmor-db.js';
-import { buildLearningsSection, buildPatternsSection } from './husmor-learnings.js';
+import { buildLearningsSection, buildPatternsSection, detectContradictions, buildContradictionsSection } from './husmor-learnings.js';
 
 const PERSONA = `Du er Husmor. En tydelig, varm og bestemt skikkelse som kunne jobbet pa Sigtuna allmanna laroverk. Du har hoy standard for orden, helse og dannelse.
 
@@ -81,8 +81,8 @@ const ACTIONS_DOC = `## Tilgjengelige handlinger
 Du kan utfore handlinger ved a inkludere dem i "actions"-arrayen i JSON-svaret ditt.
 
 Handlingstyper:
-- add_meals: Legg til maltider. meals: [{ dayOfWeek (1=mandag), name, description?, mealType? }]
-- update_meal: Oppdater et maltid. dayOfWeek, name, description?
+- add_meals: Legg til maltider. meals: [{ dayOfWeek (1=mandag), name, description?, mealType?, yieldsLeftovers? }]
+- update_meal: Oppdater et maltid. dayOfWeek, name, description?, yieldsLeftovers?
 - remove_meal: Fjern et maltid. dayOfWeek
 - set_preference: Sett en preferanse. key, value
 - add_inventory_note: Legg til beholdningsnotat. itemName, status? (available|use_soon), quantity?
@@ -91,6 +91,9 @@ Handlingstyper:
 - update_plan_status: Oppdater planstatus. status (draft|proposed|approved|active|completed)
 - propose_learning: Foresla en observasjon for bekreftelse. category, insight, confidence?
 - save_recipe: Lagre en oppskrift. name, description?, prepTimeMin?, cookTimeMin?, servings?, ingredients? [{ name, amount?, unit? }], steps? [{ instruction, durationMin? }], linkToDayOfWeek?
+- update_inventory_status: Oppdater status pa en vare. itemName, newStatus (available|use_soon|used|depleted)
+- set_week_context: Sett ukekontekst. travelWeek?, guests?, guestCount?, holiday?, notes?
+- log_child_reaction: Logg barns reaksjon pa mat. childName, mealName, reaction (loved|liked|neutral|disliked|refused), notes?
 
 Nar brukeren forteller om en middag, spor gjerne "Hvordan var middagen?" slik at vi kan forbedre fremtidige planer.
 
@@ -102,7 +105,13 @@ foretrekker raske middager pa tirsdager — stemmer det?"
 Inkluder forslaget naturlig i reply-teksten din, og legg til propose_learning i actions.
 Ikke foresla mer enn 1 lrdom per samtale.
 
-Nar brukeren ber om handleliste, analyser ukens middager, grupper varene etter kategori (gronnsaker, meieri, kjott, fisk, torrvarer, annet), og trekk fra basisvarer som allerede er pa lager.
+Nar brukeren ber om handleliste, analyser ukens middager, grupper varene etter kategori (gronnsaker, meieri, kjott, fisk, torrvarer, annet), og trekk fra basisvarer som allerede er pa lager. Trekk ogsa fra varer i beholdningen (inventory notes). Etter at handlelisten er generert, bruk update_inventory_status for a markere use_soon-varer som "used" hvis de innga i ukens plan.
+
+Nar en middag gir rester som kan brukes neste dag, sett yieldsLeftovers=true. Planlegg neste dags maltid rundt restene.
+
+Nar brukeren nevner reiseplaner, gjester, hoytider eller andre spesielle omstendigheter, bruk set_week_context for a lagre det. Tilpass middagskompleksiteten deretter.
+
+Nar brukeren forteller om barnas reaksjon pa mat, bruk log_child_reaction for a lagre det. Bruk barnas smaksprofiler til a tilpasse retter og gradvis introdusere nye smaker.
 
 ## Responsformat
 Svar ALLTID med gyldig JSON:
@@ -128,6 +137,21 @@ export function buildSystemPrompt(ctx: DbContext): string {
   // Persona + date + dietary guidelines
   sections.push(PERSONA);
   sections.push(`\nI dag er det ${dateStr}.\nUke ${ctx.plan.weekNumber}, ${ctx.plan.year}.\n`);
+
+  // Week context (Feature 5)
+  if (ctx.plan.context) {
+    const ctxParts: string[] = [];
+    if (ctx.plan.context.travelWeek) ctxParts.push('Travel uke — prioriter enkle, raske middager');
+    if (ctx.plan.context.guests) ctxParts.push(`Gjester${ctx.plan.context.guestCount ? ` (${ctx.plan.context.guestCount} ekstra)` : ''} — juster porsjoner`);
+    if (ctx.plan.context.holiday) ctxParts.push(`Hoytid: ${ctx.plan.context.holiday} — vurder tradisjonelle retter`);
+    if (ctx.plan.context.notes) ctxParts.push(ctx.plan.context.notes);
+    if (ctxParts.length > 0) {
+      sections.push('## Ukekontekst');
+      for (const part of ctxParts) sections.push(`- ${part}`);
+      sections.push('');
+    }
+  }
+
   sections.push(DIETARY_GUIDELINES);
 
   // Food traditions for current month
@@ -163,7 +187,8 @@ export function buildSystemPrompt(ctx: DbContext): string {
     sections.push('\n## Gjeldende ukeplan');
     for (const m of ctx.plan.meals) {
       const desc = m.description ? ` — ${m.description}` : '';
-      sections.push(`- ${m.dayName}: ${m.name}${desc}`);
+      const leftovers = m.yieldsLeftovers ? ' (gir rester)' : '';
+      sections.push(`- ${m.dayName}: ${m.name}${desc}${leftovers}`);
     }
     sections.push(`Status: ${ctx.plan.status}`);
   } else {
@@ -190,6 +215,13 @@ export function buildSystemPrompt(ctx: DbContext): string {
     sections.push(`\n${patternsSection}`);
   }
 
+  // Contradictions (Feature 4)
+  const contradictions = detectContradictions(ctx.learnings, ctx.mealPatterns);
+  const contradictionsSection = buildContradictionsSection(contradictions);
+  if (contradictionsSection) {
+    sections.push(`\n${contradictionsSection}`);
+  }
+
   // Pantry staples
   if (ctx.pantryStaples.length > 0) {
     sections.push(`\n## Alltid pa lager\n${ctx.pantryStaples.join(', ')}`);
@@ -207,6 +239,25 @@ export function buildSystemPrompt(ctx: DbContext): string {
   // Seasonal
   if (ctx.seasonalProduce.length > 0) {
     sections.push(`\n## I sesong na\n${ctx.seasonalProduce.join(', ')}`);
+  }
+
+  // Child taste profiles (Feature 6)
+  if (ctx.childReactions.length > 0) {
+    sections.push('\n## Barnas smaksprofiler');
+    const byChild = new Map<string, typeof ctx.childReactions>();
+    for (const r of ctx.childReactions) {
+      const existing = byChild.get(r.childName) ?? [];
+      existing.push(r);
+      byChild.set(r.childName, existing);
+    }
+    for (const [child, reactions] of byChild) {
+      sections.push(`\n### ${child}`);
+      const loved = reactions.filter(r => r.reaction === 'loved' || r.reaction === 'liked');
+      const disliked = reactions.filter(r => r.reaction === 'disliked' || r.reaction === 'refused');
+      if (loved.length > 0) sections.push(`Liker: ${loved.map(r => r.mealName).join(', ')}`);
+      if (disliked.length > 0) sections.push(`Liker ikke: ${disliked.map(r => r.mealName).join(', ')}`);
+    }
+    sections.push('\nBruk barnas smaksprofiler til a gradvis utvide paletten. Introduser nye smaker i kjente kombinasjoner.');
   }
 
   // Recent meals (last 3 weeks)
@@ -231,14 +282,19 @@ export function buildSystemPrompt(ctx: DbContext): string {
     sections.push('\nBruk nylige middager til a unnga gjentakelser og ta hensyn til feedback.');
   }
 
-  // Nutrition balance instruction
-  sections.push(`\n## Naeringsbalanse
+  // Nutrition balance + estimation (Feature 7)
+  sections.push(`\n## Naeringsbalanse og ernaeringssporing
 Nar du lager eller vurderer en ukeplan, tell opp:
 - Fiskedager (mal: 2-3)
 - Vegetardager (mal: minst 1)
 - Rodt kjott-dager (mal: maks 2, helst 1)
 - Belgvekst-dager (mal: minst 1)
-Sammenlikn med kostradene over. Gi kort tilbakemelding om balansen er god eller hva som kan forbedres.`);
+Sammenlikn med kostradene over. Gi kort tilbakemelding om balansen er god eller hva som kan forbedres.
+
+Nar brukeren ber om det, eller ved ukeslutt, estimer ukens samlede naeringsinnhold:
+- Protein, fiber, jern, omega-3, D-vitamin, kalsium (grove estimater)
+- Identifiser mangler basert pa kostradene og familiens sammensetning (barn/voksne)
+- Foresla konkrete justeringer for neste uke (f.eks. "legg til en fiskemiddag" eller "mer belgvekster")`);
 
   // Saved recipes
   if (ctx.savedRecipes.length > 0) {
@@ -251,8 +307,9 @@ Sammenlikn med kostradene over. Gi kort tilbakemelding om balansen er god eller 
     }
   }
 
-  // Recipe instruction
+  // Recipe instruction (Feature 3: aktiv gjenbruk)
   sections.push(`\n## Oppskrifter
+Nar du planlegger middager, foresla lagrede oppskrifter med hoy rating for du genererer nye.
 Nar brukeren ber om oppskrift, sjekk forst om det finnes en lagret oppskrift.
 Nar brukeren er fornoyd med en generert oppskrift, bruk save_recipe for a lagre den.
 Generer steg-for-steg instruksjoner i svaret ditt. Inkluder ingrediensliste med mengder, og estimer total tid.`);
@@ -270,8 +327,17 @@ export function parseClaudeResponse(text: string): HusmorClaudeResponse {
     const parsed = JSON.parse(jsonStr);
     return HusmorClaudeResponseSchema.parse(parsed);
   } catch {
+    // Zod validation may fail on actions (e.g. type mismatches) while reply is fine.
+    // Try to salvage the reply field from valid JSON.
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (typeof parsed.reply === 'string') {
+        return { reply: parsed.reply, actions: [] };
+      }
+    } catch {
+      // Not valid JSON at all
+    }
     // Claude sometimes responds in plain text despite JSON instructions.
-    // Salvage the text as a reply with no actions.
     return { reply: text.trim(), actions: [] };
   }
 }

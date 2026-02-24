@@ -5,12 +5,28 @@ import type { Learning, MealPattern } from './husmor-learnings.js';
 
 // --- Types ---
 
+export interface WeekContext {
+  travelWeek?: boolean;
+  guests?: boolean;
+  guestCount?: number;
+  holiday?: string;
+  notes?: string;
+}
+
 export interface WeekPlanContext {
   planId: string | null;
   weekNumber: number;
   year: number;
   status: string;
-  meals: Array<{ dayOfWeek: number; dayName: string; name: string; description: string | null; mealType: string }>;
+  context: WeekContext | null;
+  meals: Array<{ dayOfWeek: number; dayName: string; name: string; description: string | null; mealType: string; yieldsLeftovers: boolean }>;
+}
+
+export interface ChildReactionSummary {
+  childName: string;
+  mealName: string;
+  reaction: string;
+  count: number;
 }
 
 export interface FoodTradition {
@@ -61,6 +77,7 @@ export interface DbContext {
   learnings: Learning[];
   mealPatterns: MealPattern[];
   savedRecipes: SavedRecipe[];
+  childReactions: ChildReactionSummary[];
 }
 
 // --- Week calculation ---
@@ -79,10 +96,10 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
   const { week, year } = getCurrentWeekNumber();
   const currentMonth = new Date().getMonth() + 1;
 
-  const [planResult, prefsResult, pantryResult, inventoryResult, seasonalResult, traditionsResult, nutritionResult, learningsResult, mealPatternsResult, savedRecipesResult] = await Promise.all([
+  const [planResult, prefsResult, pantryResult, inventoryResult, seasonalResult, traditionsResult, nutritionResult, learningsResult, mealPatternsResult, savedRecipesResult, childReactionsResult] = await Promise.all([
     supabase
       .from('weekly_plans')
-      .select('id, status, week_number, year')
+      .select('id, status, week_number, year, context')
       .eq('household_id', 'default')
       .eq('week_number', week)
       .eq('year', year)
@@ -114,13 +131,14 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
     loadLearnings(supabase),
     computeMealPatterns(supabase),
     loadSavedRecipes(supabase),
+    loadChildReactions(supabase),
   ]);
 
   let meals: WeekPlanContext['meals'] = [];
   if (planResult.data?.id) {
     const { data: mealRows } = await supabase
       .from('planned_meals')
-      .select('day_of_week, name, description, meal_type')
+      .select('day_of_week, name, description, meal_type, yields_leftovers')
       .eq('plan_id', planResult.data.id)
       .order('day_of_week', { ascending: true });
 
@@ -130,6 +148,7 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
       name: m.name,
       description: m.description,
       mealType: m.meal_type,
+      yieldsLeftovers: m.yields_leftovers ?? false,
     }));
   }
 
@@ -141,6 +160,7 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
       weekNumber: week,
       year,
       status: planResult.data?.status ?? 'none',
+      context: (planResult.data?.context as WeekContext) ?? null,
       meals,
     },
     preferences: (prefsResult.data ?? []).map((p) => ({ key: p.key, value: p.value })),
@@ -168,6 +188,7 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
     learnings: learningsResult,
     mealPatterns: mealPatternsResult,
     savedRecipes: savedRecipesResult,
+    childReactions: childReactionsResult,
   };
 }
 
@@ -208,6 +229,33 @@ async function loadRecentMeals(supabase: SupabaseClient, currentWeek: number, cu
       feedbackText: m.feedback_text ?? null,
     };
   });
+}
+
+// --- Child meal reactions ---
+
+async function loadChildReactions(supabase: SupabaseClient): Promise<ChildReactionSummary[]> {
+  const { data } = await supabase
+    .from('child_meal_reactions')
+    .select('child_name, meal_name, reaction')
+    .eq('household_id', 'default')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (!data || data.length === 0) return [];
+
+  // Aggregate: per child+meal, count reactions
+  const summaryMap = new Map<string, { childName: string; mealName: string; reaction: string; count: number }>();
+  for (const r of data) {
+    const key = `${r.child_name}::${r.meal_name}::${r.reaction}`;
+    const existing = summaryMap.get(key);
+    if (existing) {
+      existing.count++;
+    } else {
+      summaryMap.set(key, { childName: r.child_name, mealName: r.meal_name, reaction: r.reaction, count: 1 });
+    }
+  }
+
+  return [...summaryMap.values()];
 }
 
 // --- Saved recipes ---

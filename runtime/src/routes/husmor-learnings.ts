@@ -433,6 +433,74 @@ export async function computeMealPatterns(supabase: SupabaseClient): Promise<Mea
   return patterns;
 }
 
+// --- Mechanism 3: Cross-signal contradiction detection ---
+
+export interface Contradiction {
+  description: string;
+}
+
+export function detectContradictions(learnings: Learning[], patterns: MealPattern[]): Contradiction[] {
+  const contradictions: Contradiction[] = [];
+
+  // Check: learning says "liker X" but pattern says X scores low
+  const favoriteLearnings = learnings.filter(l =>
+    l.category === 'preference' && /liker|elsker|favoritt/i.test(l.insight),
+  );
+  const avoidPatterns = patterns.filter(p => p.type === 'avoid');
+
+  for (const learning of favoriteLearnings) {
+    for (const pattern of avoidPatterns) {
+      // Extract meal name from both — simple word overlap check
+      const learningWords = learning.insight.toLowerCase().split(/\s+/);
+      const patternLower = pattern.description.toLowerCase();
+      for (const word of learningWords) {
+        if (word.length >= 4 && patternLower.includes(word)) {
+          contradictions.push({
+            description: `Lrdom sier "${learning.insight}" men monster viser "${pattern.description}"`,
+          });
+          break;
+        }
+      }
+    }
+  }
+
+  // Check: learning says "misliker X" but pattern shows X is a favorite
+  const dislikeLearnings = learnings.filter(l =>
+    l.category === 'preference' && /misliker|liker ikke|unnga/i.test(l.insight),
+  );
+  const favoritePatterns = patterns.filter(p => p.type === 'favorite');
+
+  for (const learning of dislikeLearnings) {
+    for (const pattern of favoritePatterns) {
+      const learningWords = learning.insight.toLowerCase().split(/\s+/);
+      const patternLower = pattern.description.toLowerCase();
+      for (const word of learningWords) {
+        if (word.length >= 4 && patternLower.includes(word)) {
+          contradictions.push({
+            description: `Lrdom sier "${learning.insight}" men monster viser "${pattern.description}"`,
+          });
+          break;
+        }
+      }
+    }
+  }
+
+  return contradictions;
+}
+
+export function buildContradictionsSection(contradictions: Contradiction[]): string | null {
+  if (contradictions.length === 0) return null;
+
+  const lines: string[] = [
+    '## Motstridende signaler',
+    'Disse motsetningene er oppdaget mellom lrdommer og monstre. Vurder a sporre familien for a avklare.\n',
+  ];
+  for (const c of contradictions) {
+    lines.push(`- ${c.description}`);
+  }
+  return lines.join('\n');
+}
+
 // --- Build patterns section for prompt ---
 
 export function buildPatternsSection(patterns: MealPattern[]): string | null {

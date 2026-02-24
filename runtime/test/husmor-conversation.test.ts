@@ -57,7 +57,7 @@ import { buildSystemPrompt, parseClaudeResponse, cleanMessageOrder } from '../sr
 import { executeActions, } from '../src/routes/husmor-actions.js';
 import { buildCanvasMarkdown } from '../src/routes/husmor-canvas.js';
 import type { DbContext } from '../src/routes/husmor-db.js';
-import { buildLearningsSection, buildPatternsSection, type Learning, type MealPattern } from '../src/routes/husmor-learnings.js';
+import { buildLearningsSection, buildPatternsSection, detectContradictions, buildContradictionsSection, type Learning, type MealPattern } from '../src/routes/husmor-learnings.js';
 import {
   HusmorSlackMessageEvent,
   HusmorSlackEventEnvelope,
@@ -81,7 +81,7 @@ const mockLogger = {
 
 function makeDbContext(overrides?: Partial<DbContext>): DbContext {
   return {
-    plan: { planId: null, weekNumber: 9, year: 2026, status: 'none', meals: [] },
+    plan: { planId: null, weekNumber: 9, year: 2026, status: 'none', context: null, meals: [] },
     preferences: [],
     pantryStaples: [],
     inventoryNotes: [],
@@ -92,6 +92,7 @@ function makeDbContext(overrides?: Partial<DbContext>): DbContext {
     learnings: [],
     mealPatterns: [],
     savedRecipes: [],
+    childReactions: [],
     ...overrides,
   };
 }
@@ -196,8 +197,8 @@ describe('husmor-conversation', () => {
     it('should include current meals in prompt', () => {
       const ctx = makeDbContext({
         plan: {
-          planId: 'p1', weekNumber: 9, year: 2026, status: 'draft',
-          meals: [{ dayOfWeek: 1, dayName: 'Mandag', name: 'Laks', description: 'Med brokkoli', mealType: 'dinner' }],
+          planId: 'p1', weekNumber: 9, year: 2026, status: 'draft', context: null,
+          meals: [{ dayOfWeek: 1, dayName: 'Mandag', name: 'Laks', description: 'Med brokkoli', mealType: 'dinner', yieldsLeftovers: false }],
         },
       });
       const prompt = buildSystemPrompt(ctx);
@@ -268,8 +269,8 @@ describe('husmor-conversation', () => {
     it('should include recent meals grouped by week', () => {
       const ctx = makeDbContext({
         recentMeals: [
-          { weekNumber: 8, year: 2026, dayOfWeek: 1, dayName: 'Mandag', name: 'Laks', feedbackEmoji: null, rating: 4 },
-          { weekNumber: 8, year: 2026, dayOfWeek: 3, dayName: 'Onsdag', name: 'Taco', feedbackEmoji: '👍', rating: null },
+          { weekNumber: 8, year: 2026, dayOfWeek: 1, dayName: 'Mandag', name: 'Laks', feedbackEmoji: null, rating: 4, feedbackText: null },
+          { weekNumber: 8, year: 2026, dayOfWeek: 3, dayName: 'Onsdag', name: 'Taco', feedbackEmoji: '👍', rating: null, feedbackText: null },
         ],
       });
       const prompt = buildSystemPrompt(ctx);
@@ -1126,6 +1127,268 @@ describe('husmor-conversation', () => {
       expect(prompt).toContain('Lagrede oppskrifter');
       expect(prompt).toContain('Laksegryte');
       expect(prompt).toContain('4.5/5');
+    });
+  });
+
+  describe('update_inventory_status action', () => {
+    it('should validate update_inventory_status action', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'update_inventory_status',
+        itemName: 'Spinat',
+        newStatus: 'used',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject invalid status', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'update_inventory_status',
+        itemName: 'Spinat',
+        newStatus: 'rotten',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should execute update_inventory_status action', async () => {
+      const updateFn = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+        }),
+      });
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'inventory_notes') return { update: updateFn };
+        return chainMock({ data: null, error: null });
+      });
+
+      const actions: HusmorAction[] = [
+        { type: 'update_inventory_status', itemName: 'Spinat', newStatus: 'used' },
+      ];
+      await executeActions(mockSupabaseClient as any, actions, mockLogger);
+      expect(updateFn).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'used' }),
+      );
+    });
+
+    it('should include update_inventory_status in system prompt', () => {
+      const prompt = buildSystemPrompt(makeDbContext());
+      expect(prompt).toContain('update_inventory_status');
+    });
+  });
+
+  describe('set_week_context action', () => {
+    it('should validate set_week_context action', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'set_week_context',
+        travelWeek: true,
+        notes: 'Pa fjellet',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate set_week_context with guests', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'set_week_context',
+        guests: true,
+        guestCount: 4,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should execute set_week_context action', async () => {
+      const updateFn = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+      });
+      const upsertChain = chainMock({ data: { id: 'plan-1' }, error: null });
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'weekly_plans') {
+          return {
+            ...upsertChain,
+            update: updateFn,
+          };
+        }
+        return chainMock({ data: null, error: null });
+      });
+
+      const actions: HusmorAction[] = [
+        { type: 'set_week_context', travelWeek: true, notes: 'Pa fjellet' },
+      ];
+      await executeActions(mockSupabaseClient as any, actions, mockLogger);
+      expect(updateFn).toHaveBeenCalledWith(
+        expect.objectContaining({ context: { travelWeek: true, notes: 'Pa fjellet' } }),
+      );
+    });
+
+    it('should show week context in prompt', () => {
+      const ctx = makeDbContext({
+        plan: {
+          planId: 'p1', weekNumber: 9, year: 2026, status: 'draft',
+          context: { travelWeek: true, guests: true, guestCount: 3, holiday: 'Paaske' },
+          meals: [],
+        },
+      });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).toContain('Ukekontekst');
+      expect(prompt).toContain('Travel uke');
+      expect(prompt).toContain('Gjester');
+      expect(prompt).toContain('3 ekstra');
+      expect(prompt).toContain('Paaske');
+    });
+
+    it('should not show week context section when context is null', () => {
+      const prompt = buildSystemPrompt(makeDbContext());
+      expect(prompt).not.toContain('Ukekontekst');
+    });
+  });
+
+  describe('log_child_reaction action', () => {
+    it('should validate log_child_reaction action', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'log_child_reaction',
+        childName: 'Emma',
+        mealName: 'Laks',
+        reaction: 'loved',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject invalid reaction', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'log_child_reaction',
+        childName: 'Emma',
+        mealName: 'Laks',
+        reaction: 'hated',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should execute log_child_reaction action', async () => {
+      const insertFn = vi.fn().mockResolvedValue({ data: null, error: null });
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'child_meal_reactions') return { insert: insertFn };
+        return chainMock({ data: null, error: null });
+      });
+
+      const actions: HusmorAction[] = [
+        { type: 'log_child_reaction', childName: 'Emma', mealName: 'Laks', reaction: 'loved', notes: 'Spiste to porsjoner' },
+      ];
+      await executeActions(mockSupabaseClient as any, actions, mockLogger);
+      expect(insertFn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          child_name: 'Emma',
+          meal_name: 'Laks',
+          reaction: 'loved',
+          notes: 'Spiste to porsjoner',
+        }),
+      );
+    });
+
+    it('should show child taste profiles in prompt', () => {
+      const ctx = makeDbContext({
+        childReactions: [
+          { childName: 'Emma', mealName: 'Laks', reaction: 'loved', count: 3 },
+          { childName: 'Emma', mealName: 'Brokkoli', reaction: 'refused', count: 2 },
+          { childName: 'Oscar', mealName: 'Taco', reaction: 'liked', count: 4 },
+        ],
+      });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).toContain('Barnas smaksprofiler');
+      expect(prompt).toContain('Emma');
+      expect(prompt).toContain('Oscar');
+      expect(prompt).toContain('Liker: Laks');
+      expect(prompt).toContain('Liker ikke: Brokkoli');
+    });
+
+    it('should not show child profiles section when empty', () => {
+      const prompt = buildSystemPrompt(makeDbContext());
+      expect(prompt).not.toContain('Barnas smaksprofiler');
+    });
+  });
+
+  describe('yieldsLeftovers in prompt', () => {
+    it('should show "(gir rester)" for meals with yieldsLeftovers', () => {
+      const ctx = makeDbContext({
+        plan: {
+          planId: 'p1', weekNumber: 9, year: 2026, status: 'draft', context: null,
+          meals: [
+            { dayOfWeek: 1, dayName: 'Mandag', name: 'Laksegryte', description: null, mealType: 'dinner', yieldsLeftovers: true },
+            { dayOfWeek: 2, dayName: 'Tirsdag', name: 'Rester', description: null, mealType: 'dinner', yieldsLeftovers: false },
+          ],
+        },
+      });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).toContain('Laksegryte (gir rester)');
+      expect(prompt).not.toContain('Rester (gir rester)');
+    });
+  });
+
+  describe('contradiction detection', () => {
+    it('should detect contradiction between favorite learning and avoid pattern', () => {
+      const learnings: Learning[] = [
+        { id: '1', category: 'preference', insight: 'Familien liker laks', confidence: 0.9, confirmed: true, source: 'extraction' },
+      ];
+      const patterns: MealPattern[] = [
+        { type: 'avoid', description: 'Laks scorer 1.5/5 i snitt — vurder a droppe' },
+      ];
+      const contradictions = detectContradictions(learnings, patterns);
+      expect(contradictions).toHaveLength(1);
+      expect(contradictions[0].description).toContain('liker laks');
+    });
+
+    it('should detect contradiction between dislike learning and favorite pattern', () => {
+      const learnings: Learning[] = [
+        { id: '1', category: 'preference', insight: 'Barna misliker fisk', confidence: 0.8, confirmed: null, source: 'extraction' },
+      ];
+      const patterns: MealPattern[] = [
+        { type: 'favorite', description: 'Fiskegrateng scorer 4.5/5 i snitt (servert 5 ganger)' },
+      ];
+      const contradictions = detectContradictions(learnings, patterns);
+      expect(contradictions).toHaveLength(1);
+      expect(contradictions[0].description).toContain('misliker fisk');
+    });
+
+    it('should return empty when no contradictions', () => {
+      const learnings: Learning[] = [
+        { id: '1', category: 'preference', insight: 'Familien liker taco', confidence: 0.9, confirmed: true, source: 'extraction' },
+      ];
+      const patterns: MealPattern[] = [
+        { type: 'favorite', description: 'Taco scorer 4.8/5 i snitt (servert 8 ganger)' },
+      ];
+      const contradictions = detectContradictions(learnings, patterns);
+      expect(contradictions).toHaveLength(0);
+    });
+
+    it('should include contradictions section in prompt', () => {
+      const ctx = makeDbContext({
+        learnings: [
+          { id: '1', category: 'preference', insight: 'Familien liker laks', confidence: 0.9, confirmed: true, source: 'extraction' },
+        ],
+        mealPatterns: [
+          { type: 'avoid', description: 'Laks scorer 1.5/5 i snitt — vurder a droppe' },
+        ],
+      });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).toContain('Motstridende signaler');
+    });
+
+    it('should build contradictions section', () => {
+      const result = buildContradictionsSection([
+        { description: 'Lrdom sier "liker laks" men monster viser "laks scorer lavt"' },
+      ]);
+      expect(result).toContain('Motstridende signaler');
+      expect(result).toContain('liker laks');
+    });
+
+    it('should return null for empty contradictions', () => {
+      expect(buildContradictionsSection([])).toBeNull();
+    });
+  });
+
+  describe('nutrition estimation in prompt', () => {
+    it('should include nutrition estimation instruction', () => {
+      const prompt = buildSystemPrompt(makeDbContext());
+      expect(prompt).toContain('ernaeringssporing');
+      expect(prompt).toContain('Protein');
+      expect(prompt).toContain('omega-3');
     });
   });
 });

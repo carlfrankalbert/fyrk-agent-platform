@@ -54,6 +54,15 @@ export async function executeActions(
         case 'save_recipe':
           await handleSaveRecipe(supabase, action, logger);
           break;
+        case 'update_inventory_status':
+          await handleUpdateInventoryStatus(supabase, action, logger);
+          break;
+        case 'set_week_context':
+          await handleSetWeekContext(supabase, action, logger);
+          break;
+        case 'log_child_reaction':
+          await handleLogChildReaction(supabase, action, logger);
+          break;
       }
     } catch (err) {
       logger.error({ action: action.type, err }, 'Failed to execute action');
@@ -73,6 +82,7 @@ async function handleAddMeals(
     name: m.name,
     description: m.description ?? null,
     meal_type: m.mealType ?? 'dinner',
+    yields_leftovers: m.yieldsLeftovers ?? false,
   }));
   await supabase.from('planned_meals').insert(rows);
   logger.info({ planId, count: rows.length }, 'Added meals to plan');
@@ -89,6 +99,7 @@ async function handleUpdateMeal(
     updated_at: new Date().toISOString(),
   };
   if (action.description !== undefined) updateData.description = action.description;
+  if (action.yieldsLeftovers !== undefined) updateData.yields_leftovers = action.yieldsLeftovers;
   await supabase
     .from('planned_meals')
     .update(updateData)
@@ -314,4 +325,53 @@ async function handleSaveRecipe(
   }
 
   logger.info({ recipeId: recipe.id, name: action.name }, 'Saved recipe');
+}
+
+async function handleUpdateInventoryStatus(
+  supabase: SupabaseClient,
+  action: Extract<HusmorAction, { type: 'update_inventory_status' }>,
+  logger: Logger,
+): Promise<void> {
+  await supabase
+    .from('inventory_notes')
+    .update({ status: action.newStatus, updated_at: new Date().toISOString() })
+    .eq('household_id', 'default')
+    .eq('item_name', action.itemName);
+  logger.info({ item: action.itemName, newStatus: action.newStatus }, 'Updated inventory status');
+}
+
+async function handleSetWeekContext(
+  supabase: SupabaseClient,
+  action: Extract<HusmorAction, { type: 'set_week_context' }>,
+  logger: Logger,
+): Promise<void> {
+  const planId = await getOrCreateCurrentWeekPlan(supabase);
+  const context: Record<string, unknown> = {};
+  if (action.travelWeek !== undefined) context.travelWeek = action.travelWeek;
+  if (action.guests !== undefined) context.guests = action.guests;
+  if (action.guestCount !== undefined) context.guestCount = action.guestCount;
+  if (action.holiday !== undefined) context.holiday = action.holiday;
+  if (action.notes !== undefined) context.notes = action.notes;
+  await supabase
+    .from('weekly_plans')
+    .update({ context, updated_at: new Date().toISOString() })
+    .eq('id', planId);
+  logger.info({ planId, context }, 'Set week context');
+}
+
+async function handleLogChildReaction(
+  supabase: SupabaseClient,
+  action: Extract<HusmorAction, { type: 'log_child_reaction' }>,
+  logger: Logger,
+): Promise<void> {
+  await supabase
+    .from('child_meal_reactions')
+    .insert({
+      household_id: 'default',
+      child_name: action.childName,
+      meal_name: action.mealName,
+      reaction: action.reaction,
+      notes: action.notes ?? null,
+    });
+  logger.info({ child: action.childName, meal: action.mealName, reaction: action.reaction }, 'Logged child reaction');
 }
