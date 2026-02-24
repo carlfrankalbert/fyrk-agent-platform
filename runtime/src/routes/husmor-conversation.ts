@@ -8,7 +8,7 @@ import { executeActions } from './husmor-actions.js';
 import { buildSystemPrompt, parseClaudeResponse, cleanMessageOrder } from './husmor-prompt.js';
 import { extractLearnings } from './husmor-learnings.js';
 
-export const HUSMOR_MODEL = 'claude-sonnet-4-5-20250929';
+export const HUSMOR_MODEL = 'claude-opus-4-6';
 export const THINKING_MSG = 'Husmor tenker...';
 export const ERROR_MSG = 'Beklager, noe gikk galt. Prov igjen om litt!';
 
@@ -42,13 +42,14 @@ async function sendReply(
 
 export async function handleHusmorMessage(params: HusmorMessageParams): Promise<void> {
   const { text, channel, threadTs, userId, isThreadReply, logger } = params;
+  logger.info({ userId, channel, threadTs, textLen: text.length }, 'handleHusmorMessage started');
   const env = getEnv();
 
   const botToken = env.SLACK_HUSMOR_BOT_TOKEN;
   const apiKey = env.ANTHROPIC_API_KEY;
 
   if (!botToken || !apiKey) {
-    logger.error('Missing SLACK_HUSMOR_BOT_TOKEN or ANTHROPIC_API_KEY');
+    logger.error({ hasBotToken: !!botToken, hasApiKey: !!apiKey }, 'Missing SLACK_HUSMOR_BOT_TOKEN or ANTHROPIC_API_KEY');
     return;
   }
 
@@ -81,7 +82,7 @@ export async function handleHusmorMessage(params: HusmorMessageParams): Promise<
     // 4. Call Claude
     const response = await callClaude(apiKey, {
       model: HUSMOR_MODEL,
-      max_tokens: 2048,
+      max_tokens: 4096,
       system: systemPrompt,
       messages,
     });
