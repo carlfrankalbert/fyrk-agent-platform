@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { z } from 'zod';
 import { getEnv } from '../lib/env.js';
 import { verifySignature } from '../lib/slack.js';
 import { getSupabase } from '../lib/supabase.js';
@@ -10,6 +11,11 @@ import {
   HusmorSlackMessageEvent,
 } from './husmor-schemas.js';
 import { handleHusmorMessage } from './husmor-conversation.js';
+import { handleProactiveMessage, type ProactiveType } from './husmor-proactive.js';
+
+const ProactiveRequestSchema = z.object({
+  type: z.enum(['inventory_reminder', 'midweek_checkin', 'weekend_prep']),
+});
 
 // Reaction → plan status mapping
 const REACTION_MAP: Record<string, string> = {
@@ -36,6 +42,35 @@ function isDuplicate(eventTs: string): boolean {
 }
 
 export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
+  // Proactive messages endpoint (outside Slack Events sub-plugin — no raw body parsing needed)
+  fastify.post('/husmor/proactive', async (request: FastifyRequest, reply: FastifyReply) => {
+    const env = getEnv();
+    const botToken = env.SLACK_HUSMOR_BOT_TOKEN;
+    const apiKey = env.ANTHROPIC_API_KEY;
+    const channel = env.SLACK_CHANNEL_HUSMOR;
+
+    if (!botToken || !apiKey || !channel) {
+      return reply.status(500).send({ error: 'Missing SLACK_HUSMOR_BOT_TOKEN, ANTHROPIC_API_KEY, or SLACK_CHANNEL_HUSMOR' });
+    }
+
+    const parsed = ProactiveRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.message });
+    }
+
+    const supabase = getSupabase();
+    const result = await handleProactiveMessage(
+      parsed.data.type as ProactiveType,
+      supabase,
+      botToken,
+      channel,
+      apiKey,
+      fastify.log,
+    );
+
+    return { ok: true, ...result };
+  });
+
   // Encapsulated sub-plugin for custom JSON parser (raw body for signature verification)
   await fastify.register(async function husmorSlackEventsPlugin(scope) {
     registerRawBodyParser(scope);

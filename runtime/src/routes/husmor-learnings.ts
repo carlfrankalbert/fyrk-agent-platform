@@ -240,6 +240,7 @@ interface MealRow {
   day_of_week: number;
   rating: number | null;
   feedback_emoji: string | null;
+  feedback_text: string | null;
   week_number: number;
 }
 
@@ -259,7 +260,7 @@ export async function computeMealPatterns(supabase: SupabaseClient): Promise<Mea
 
   const { data: meals } = await supabase
     .from('planned_meals')
-    .select('plan_id, name, day_of_week, rating, feedback_emoji')
+    .select('plan_id, name, day_of_week, rating, feedback_emoji, feedback_text')
     .in('plan_id', planIds);
 
   if (!meals || meals.length === 0) return [];
@@ -271,6 +272,7 @@ export async function computeMealPatterns(supabase: SupabaseClient): Promise<Mea
       day_of_week: m.day_of_week as number,
       rating: m.rating as number | null,
       feedback_emoji: m.feedback_emoji as string | null,
+      feedback_text: (m.feedback_text as string | null) ?? null,
       week_number: plan?.week_number ?? 0,
     };
   });
@@ -382,6 +384,50 @@ export async function computeMealPatterns(supabase: SupabaseClient): Promise<Mea
       type: 'balance',
       description: `${label}: ${perWeek.toFixed(1)} ganger/uke`,
     });
+  }
+
+  // --- Feedback text keyword analysis ---
+  const POSITIVE_KEYWORDS = ['spiste alt', 'favoritt', 'barnevennlig', 'kjempegod', 'veldig god'];
+  const NEGATIVE_KEYWORDS = ['for salt', 'for krydret', 'ingen likte', 'ville ikke spise', 'for lang tid'];
+
+  const positiveMentions = new Map<string, number>();
+  const negativeMentions = new Map<string, number>();
+
+  for (const m of enrichedMeals) {
+    if (!m.feedback_text) continue;
+    const text = m.feedback_text.toLowerCase();
+    const mealKey = m.name.toLowerCase();
+
+    for (const kw of POSITIVE_KEYWORDS) {
+      if (text.includes(kw)) {
+        positiveMentions.set(mealKey, (positiveMentions.get(mealKey) ?? 0) + 1);
+      }
+    }
+    for (const kw of NEGATIVE_KEYWORDS) {
+      if (text.includes(kw)) {
+        negativeMentions.set(mealKey, (negativeMentions.get(mealKey) ?? 0) + 1);
+      }
+    }
+  }
+
+  for (const [meal, count] of positiveMentions) {
+    if (count >= 2) {
+      const original = enrichedMeals.find(m => m.name.toLowerCase() === meal)?.name ?? meal;
+      patterns.push({
+        type: 'favorite',
+        description: `${original} har ${count} positive tilbakemeldinger`,
+      });
+    }
+  }
+
+  for (const [meal, count] of negativeMentions) {
+    if (count >= 2) {
+      const original = enrichedMeals.find(m => m.name.toLowerCase() === meal)?.name ?? meal;
+      patterns.push({
+        type: 'avoid',
+        description: `${original} har ${count} negative tilbakemeldinger`,
+      });
+    }
   }
 
   return patterns;

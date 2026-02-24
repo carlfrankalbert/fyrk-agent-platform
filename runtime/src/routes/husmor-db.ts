@@ -36,6 +36,17 @@ export interface RecentMeal {
   name: string;
   feedbackEmoji: string | null;
   rating: number | null;
+  feedbackText: string | null;
+}
+
+export interface SavedRecipe {
+  id: string;
+  name: string;
+  prepTimeMin: number | null;
+  cookTimeMin: number | null;
+  avgRating: number | null;
+  lastUsedWeek: number | null;
+  lastUsedYear: number | null;
 }
 
 export interface DbContext {
@@ -49,6 +60,7 @@ export interface DbContext {
   recentMeals: RecentMeal[];
   learnings: Learning[];
   mealPatterns: MealPattern[];
+  savedRecipes: SavedRecipe[];
 }
 
 // --- Week calculation ---
@@ -67,7 +79,7 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
   const { week, year } = getCurrentWeekNumber();
   const currentMonth = new Date().getMonth() + 1;
 
-  const [planResult, prefsResult, pantryResult, inventoryResult, seasonalResult, traditionsResult, nutritionResult, learningsResult, mealPatternsResult] = await Promise.all([
+  const [planResult, prefsResult, pantryResult, inventoryResult, seasonalResult, traditionsResult, nutritionResult, learningsResult, mealPatternsResult, savedRecipesResult] = await Promise.all([
     supabase
       .from('weekly_plans')
       .select('id, status, week_number, year')
@@ -101,6 +113,7 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
       .select('category, topic, content, applies_to'),
     loadLearnings(supabase),
     computeMealPatterns(supabase),
+    loadSavedRecipes(supabase),
   ]);
 
   let meals: WeekPlanContext['meals'] = [];
@@ -154,6 +167,7 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
     recentMeals,
     learnings: learningsResult,
     mealPatterns: mealPatternsResult,
+    savedRecipes: savedRecipesResult,
   };
 }
 
@@ -176,7 +190,7 @@ async function loadRecentMeals(supabase: SupabaseClient, currentWeek: number, cu
   const pastPlanIds = pastPlans.map((p) => p.id);
   const { data: recentMealRows } = await supabase
     .from('planned_meals')
-    .select('plan_id, day_of_week, name, feedback_emoji, rating')
+    .select('plan_id, day_of_week, name, feedback_emoji, rating, feedback_text')
     .in('plan_id', pastPlanIds)
     .order('day_of_week', { ascending: true });
 
@@ -191,6 +205,70 @@ async function loadRecentMeals(supabase: SupabaseClient, currentWeek: number, cu
       name: m.name,
       feedbackEmoji: m.feedback_emoji,
       rating: m.rating,
+      feedbackText: m.feedback_text ?? null,
+    };
+  });
+}
+
+// --- Saved recipes ---
+
+async function loadSavedRecipes(supabase: SupabaseClient): Promise<SavedRecipe[]> {
+  const { data: recipes } = await supabase
+    .from('recipes')
+    .select('id, name, prep_time_min, cook_time_min')
+    .eq('household_id', 'default')
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  if (!recipes || recipes.length === 0) return [];
+
+  const recipeIds = recipes.map((r: { id: string }) => r.id);
+
+  const { data: linkedMeals } = await supabase
+    .from('planned_meals')
+    .select('recipe_id, rating, plan_id')
+    .in('recipe_id', recipeIds);
+
+  // Fetch plan metadata for week/year
+  const planIds = [...new Set((linkedMeals ?? []).map((m: { plan_id: string }) => m.plan_id))];
+  const planLookup = new Map<string, { week_number: number; year: number }>();
+  if (planIds.length > 0) {
+    const { data: plans } = await supabase
+      .from('weekly_plans')
+      .select('id, week_number, year')
+      .in('id', planIds);
+    for (const p of plans ?? []) {
+      planLookup.set(p.id, { week_number: p.week_number, year: p.year });
+    }
+  }
+
+  return recipes.map((r: { id: string; name: string; prep_time_min: number | null; cook_time_min: number | null }) => {
+    const meals = (linkedMeals ?? []).filter((m: { recipe_id: string }) => m.recipe_id === r.id);
+    const ratings = meals
+      .map((m: { rating: number | null }) => m.rating)
+      .filter((v: number | null): v is number => v != null);
+    const avgRating = ratings.length > 0 ? ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length : null;
+
+    let lastUsedWeek: number | null = null;
+    let lastUsedYear: number | null = null;
+    for (const m of meals) {
+      const plan = planLookup.get((m as { plan_id: string }).plan_id);
+      if (plan) {
+        if (lastUsedYear === null || plan.year > lastUsedYear || (plan.year === lastUsedYear && plan.week_number > (lastUsedWeek ?? 0))) {
+          lastUsedWeek = plan.week_number;
+          lastUsedYear = plan.year;
+        }
+      }
+    }
+
+    return {
+      id: r.id,
+      name: r.name,
+      prepTimeMin: r.prep_time_min,
+      cookTimeMin: r.cook_time_min,
+      avgRating,
+      lastUsedWeek,
+      lastUsedYear,
     };
   });
 }

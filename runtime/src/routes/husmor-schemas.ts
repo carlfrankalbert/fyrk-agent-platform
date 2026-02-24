@@ -88,6 +88,7 @@ const RateMealAction = z.object({
   dayOfWeek: z.number().int().min(1).max(7),
   feedbackEmoji: z.string().optional(),
   rating: z.number().int().min(1).max(5).optional(),
+  feedbackText: z.string().max(300).optional(),
 });
 
 const GenerateShoppingListAction = z.object({
@@ -103,6 +104,25 @@ const GenerateShoppingListAction = z.object({
 const UpdatePlanStatusAction = z.object({
   type: z.literal('update_plan_status'),
   status: z.enum(['draft', 'proposed', 'approved', 'active', 'completed']),
+});
+
+const SaveRecipeAction = z.object({
+  type: z.literal('save_recipe'),
+  name: z.string(),
+  description: z.string().optional(),
+  prepTimeMin: z.number().int().positive().optional(),
+  cookTimeMin: z.number().int().positive().optional(),
+  servings: z.number().int().positive().optional(),
+  ingredients: z.array(z.object({
+    name: z.string(),
+    amount: z.string().optional(),
+    unit: z.string().optional(),
+  })).optional(),
+  steps: z.array(z.object({
+    instruction: z.string(),
+    durationMin: z.number().int().positive().optional(),
+  })).optional(),
+  linkToDayOfWeek: z.number().int().min(1).max(7).optional(),
 });
 
 const ProposeLearningAction = z.object({
@@ -122,6 +142,7 @@ export const HusmorActionSchema = z.discriminatedUnion('type', [
   GenerateShoppingListAction,
   UpdatePlanStatusAction,
   ProposeLearningAction,
+  SaveRecipeAction,
 ]);
 
 export type HusmorAction = z.infer<typeof HusmorActionSchema>;

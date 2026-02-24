@@ -51,6 +51,9 @@ export async function executeActions(
         case 'propose_learning':
           await handleProposeLearning(supabase, action, logger, slackToken, actionCtx?.channel, actionCtx?.threadTs);
           break;
+        case 'save_recipe':
+          await handleSaveRecipe(supabase, action, logger);
+          break;
       }
     } catch (err) {
       logger.error({ action: action.type, err }, 'Failed to execute action');
@@ -154,6 +157,7 @@ async function handleRateMeal(
   };
   if (action.feedbackEmoji !== undefined) updateData.feedback_emoji = action.feedbackEmoji;
   if (action.rating !== undefined) updateData.rating = action.rating;
+  if (action.feedbackText !== undefined) updateData.feedback_text = action.feedbackText;
   await supabase
     .from('planned_meals')
     .update(updateData)
@@ -254,4 +258,60 @@ async function handleProposeLearning(
   }
 
   logger.info({ learningId: learning.id, category: action.category }, 'Proposed learning');
+}
+
+async function handleSaveRecipe(
+  supabase: SupabaseClient,
+  action: Extract<HusmorAction, { type: 'save_recipe' }>,
+  logger: Logger,
+): Promise<void> {
+  const { data: recipe } = await supabase
+    .from('recipes')
+    .insert({
+      household_id: 'default',
+      name: action.name,
+      description: action.description ?? null,
+      prep_time_min: action.prepTimeMin ?? null,
+      cook_time_min: action.cookTimeMin ?? null,
+      servings: action.servings ?? null,
+    })
+    .select('id')
+    .single();
+
+  if (!recipe?.id) {
+    logger.warn('Failed to insert recipe');
+    return;
+  }
+
+  if (action.ingredients && action.ingredients.length > 0) {
+    const rows = action.ingredients.map((ing, i) => ({
+      recipe_id: recipe.id,
+      name: ing.name,
+      amount: ing.amount ?? null,
+      unit: ing.unit ?? null,
+      sort_order: i + 1,
+    }));
+    await supabase.from('recipe_ingredients').insert(rows);
+  }
+
+  if (action.steps && action.steps.length > 0) {
+    const rows = action.steps.map((step, i) => ({
+      recipe_id: recipe.id,
+      step_number: i + 1,
+      instruction: step.instruction,
+      duration_min: step.durationMin ?? null,
+    }));
+    await supabase.from('recipe_steps').insert(rows);
+  }
+
+  if (action.linkToDayOfWeek) {
+    const planId = await getOrCreateCurrentWeekPlan(supabase);
+    await supabase
+      .from('planned_meals')
+      .update({ recipe_id: recipe.id })
+      .eq('plan_id', planId)
+      .eq('day_of_week', action.linkToDayOfWeek);
+  }
+
+  logger.info({ recipeId: recipe.id, name: action.name }, 'Saved recipe');
 }

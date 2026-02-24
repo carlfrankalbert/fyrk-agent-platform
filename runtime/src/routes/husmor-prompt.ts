@@ -86,12 +86,15 @@ Handlingstyper:
 - remove_meal: Fjern et maltid. dayOfWeek
 - set_preference: Sett en preferanse. key, value
 - add_inventory_note: Legg til beholdningsnotat. itemName, status? (available|use_soon), quantity?
-- rate_meal: Gi tilbakemelding pa et maltid. dayOfWeek, feedbackEmoji?, rating? (1-5)
+- rate_meal: Gi tilbakemelding pa et maltid. dayOfWeek, feedbackEmoji?, rating? (1-5), feedbackText? (kort fritekst om smak/tid/barnevennlighet)
 - generate_shopping_list: Generer handleliste. items: [{ name, amount?, unit?, category? }]
 - update_plan_status: Oppdater planstatus. status (draft|proposed|approved|active|completed)
 - propose_learning: Foresla en observasjon for bekreftelse. category, insight, confidence?
+- save_recipe: Lagre en oppskrift. name, description?, prepTimeMin?, cookTimeMin?, servings?, ingredients? [{ name, amount?, unit? }], steps? [{ instruction, durationMin? }], linkToDayOfWeek?
 
 Nar brukeren forteller om en middag, spor gjerne "Hvordan var middagen?" slik at vi kan forbedre fremtidige planer.
+
+Nar brukeren forteller konkret om hvordan en rett smakte, hvem som likte det, eller hvor lang tid det tok, bruk rate_meal med feedbackText for a lagre det.
 
 Nar du oppdager et monster over flere samtaler, bruk propose_learning for a
 foresla det som en varig lrdom. Eksempel: "Jeg legger merke til at dere
@@ -221,7 +224,8 @@ export function buildSystemPrompt(ctx: DbContext): string {
       for (const m of meals) {
         const feedback = m.feedbackEmoji ? ` ${m.feedbackEmoji}` : '';
         const rating = m.rating ? ` (${m.rating}/5)` : '';
-        sections.push(`- ${m.dayName}: ${m.name}${feedback}${rating}`);
+        const text = m.feedbackText ? ` — "${m.feedbackText}"` : '';
+        sections.push(`- ${m.dayName}: ${m.name}${feedback}${rating}${text}`);
       }
     }
     sections.push('\nBruk nylige middager til a unnga gjentakelser og ta hensyn til feedback.');
@@ -236,9 +240,22 @@ Nar du lager eller vurderer en ukeplan, tell opp:
 - Belgvekst-dager (mal: minst 1)
 Sammenlikn med kostradene over. Gi kort tilbakemelding om balansen er god eller hva som kan forbedres.`);
 
+  // Saved recipes
+  if (ctx.savedRecipes.length > 0) {
+    sections.push('\n## Lagrede oppskrifter');
+    for (const r of ctx.savedRecipes) {
+      const time = [r.prepTimeMin && `prep ${r.prepTimeMin}min`, r.cookTimeMin && `tilb ${r.cookTimeMin}min`].filter(Boolean).join(', ');
+      const rating = r.avgRating ? ` (${r.avgRating.toFixed(1)}/5)` : '';
+      const lastUsed = r.lastUsedWeek ? ` — sist uke ${r.lastUsedWeek}/${r.lastUsedYear}` : '';
+      sections.push(`- ${r.name}${time ? ` [${time}]` : ''}${rating}${lastUsed}`);
+    }
+  }
+
   // Recipe instruction
   sections.push(`\n## Oppskrifter
-Nar brukeren ber om oppskrift for en rett, generer steg-for-steg instruksjoner i svaret ditt. Inkluder ingrediensliste med mengder, og estimer total tid.`);
+Nar brukeren ber om oppskrift, sjekk forst om det finnes en lagret oppskrift.
+Nar brukeren er fornoyd med en generert oppskrift, bruk save_recipe for a lagre den.
+Generer steg-for-steg instruksjoner i svaret ditt. Inkluder ingrediensliste med mengder, og estimer total tid.`);
 
   // Actions documentation + response format
   sections.push(`\n${ACTIONS_DOC}`);

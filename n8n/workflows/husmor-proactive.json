@@ -1,0 +1,129 @@
+{
+  "name": "Husmor Proactive Messages",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "triggerAtHour": 9 }]
+        }
+      },
+      "id": "schedule-daily-09",
+      "name": "Daily 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "triggerAtHour": 16, "triggerAtDay": 3 }]
+        }
+      },
+      "id": "schedule-wed-16",
+      "name": "Wednesday 16:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "triggerAtHour": 8, "triggerAtDay": 5 }]
+        }
+      },
+      "id": "schedule-fri-08",
+      "name": "Friday 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 600]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "runtimeUrl", "value": "={{ $env.RUNTIME_URL || 'https://fyrk-agent-runtime.fly.dev' }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "resolve-config-inventory",
+      "name": "Resolve Config (Inventory)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [460, 0]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "runtimeUrl", "value": "={{ $env.RUNTIME_URL || 'https://fyrk-agent-runtime.fly.dev' }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "resolve-config-midweek",
+      "name": "Resolve Config (Midweek)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "runtimeUrl", "value": "={{ $env.RUNTIME_URL || 'https://fyrk-agent-runtime.fly.dev' }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "resolve-config-weekend",
+      "name": "Resolve Config (Weekend)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [460, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "const runtimeUrl = $('Resolve Config (Inventory)').first().json.runtimeUrl;\n\nconst response = await this.helpers.httpRequest({\n  method: 'POST',\n  url: `${runtimeUrl}/husmor/proactive`,\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ type: 'inventory_reminder' }),\n  returnFullResponse: true,\n});\n\nreturn [{ json: { status: response.statusCode, body: JSON.parse(response.body) } }];"
+      },
+      "id": "call-inventory",
+      "name": "Call inventory_reminder",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const runtimeUrl = $('Resolve Config (Midweek)').first().json.runtimeUrl;\n\nconst response = await this.helpers.httpRequest({\n  method: 'POST',\n  url: `${runtimeUrl}/husmor/proactive`,\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ type: 'midweek_checkin' }),\n  returnFullResponse: true,\n});\n\nreturn [{ json: { status: response.statusCode, body: JSON.parse(response.body) } }];"
+      },
+      "id": "call-midweek",
+      "name": "Call midweek_checkin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const runtimeUrl = $('Resolve Config (Weekend)').first().json.runtimeUrl;\n\nconst response = await this.helpers.httpRequest({\n  method: 'POST',\n  url: `${runtimeUrl}/husmor/proactive`,\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ type: 'weekend_prep' }),\n  returnFullResponse: true,\n});\n\nreturn [{ json: { status: response.statusCode, body: JSON.parse(response.body) } }];"
+      },
+      "id": "call-weekend",
+      "name": "Call weekend_prep",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 600]
+    }
+  ],
+  "connections": {
+    "Daily 09:00": { "main": [[{ "node": "Resolve Config (Inventory)", "type": "main", "index": 0 }]] },
+    "Wednesday 16:00": { "main": [[{ "node": "Resolve Config (Midweek)", "type": "main", "index": 0 }]] },
+    "Friday 08:00": { "main": [[{ "node": "Resolve Config (Weekend)", "type": "main", "index": 0 }]] },
+    "Resolve Config (Inventory)": { "main": [[{ "node": "Call inventory_reminder", "type": "main", "index": 0 }]] },
+    "Resolve Config (Midweek)": { "main": [[{ "node": "Call midweek_checkin", "type": "main", "index": 0 }]] },
+    "Resolve Config (Weekend)": { "main": [[{ "node": "Call weekend_prep", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Oslo"
+  },
+  "tags": [{ "name": "husmor" }]
+}

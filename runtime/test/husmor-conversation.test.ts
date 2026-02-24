@@ -91,6 +91,7 @@ function makeDbContext(overrides?: Partial<DbContext>): DbContext {
     recentMeals: [],
     learnings: [],
     mealPatterns: [],
+    savedRecipes: [],
     ...overrides,
   };
 }
@@ -983,6 +984,148 @@ describe('husmor-conversation', () => {
       const prompt = buildSystemPrompt(makeDbContext());
       expect(prompt).toContain('propose_learning');
       expect(prompt).toContain('Foresla en observasjon for bekreftelse');
+    });
+  });
+
+  describe('feedbackText on rate_meal', () => {
+    it('should validate rate_meal with feedbackText', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'rate_meal',
+        dayOfWeek: 1,
+        rating: 4,
+        feedbackText: 'Barna spiste alt, kjempegod!',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject feedbackText over 300 chars', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'rate_meal',
+        dayOfWeek: 1,
+        feedbackText: 'x'.repeat(301),
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should include feedbackText in system prompt for recent meals', () => {
+      const ctx = makeDbContext({
+        recentMeals: [
+          { weekNumber: 8, year: 2026, dayOfWeek: 1, dayName: 'Mandag', name: 'Laks', feedbackEmoji: null, rating: 4, feedbackText: 'Barna elsket det' },
+        ],
+      });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).toContain('"Barna elsket det"');
+    });
+
+    it('should include feedbackText instruction in ACTIONS_DOC', () => {
+      const prompt = buildSystemPrompt(makeDbContext());
+      expect(prompt).toContain('feedbackText');
+      expect(prompt).toContain('kort fritekst');
+    });
+
+    it('should execute rate_meal with feedbackText', async () => {
+      const updateFn = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+        }),
+      });
+      const upsertChain = chainMock({ data: { id: 'plan-1' }, error: null });
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'weekly_plans') return upsertChain;
+        if (table === 'planned_meals') return { update: updateFn };
+        return chainMock({ data: null, error: null });
+      });
+
+      const actions: HusmorAction[] = [
+        { type: 'rate_meal', dayOfWeek: 1, rating: 5, feedbackText: 'Perfekt middag' },
+      ];
+      await executeActions(mockSupabaseClient as any, actions, mockLogger);
+      expect(updateFn).toHaveBeenCalledWith(
+        expect.objectContaining({ rating: 5, feedback_text: 'Perfekt middag' }),
+      );
+    });
+  });
+
+  describe('save_recipe action', () => {
+    it('should validate save_recipe action', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'save_recipe',
+        name: 'Laksegryte',
+        prepTimeMin: 10,
+        cookTimeMin: 25,
+        servings: 4,
+        ingredients: [{ name: 'Laks', amount: '400', unit: 'g' }],
+        steps: [{ instruction: 'Stek laksen', durationMin: 5 }],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate save_recipe with only name', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'save_recipe',
+        name: 'Taco',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject save_recipe without name', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'save_recipe',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should include save_recipe in system prompt actions doc', () => {
+      const prompt = buildSystemPrompt(makeDbContext());
+      expect(prompt).toContain('save_recipe');
+      expect(prompt).toContain('Lagre en oppskrift');
+    });
+
+    it('should execute save_recipe action', async () => {
+      const recipeInsertFn = vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { id: 'recipe-1' }, error: null }),
+        }),
+      });
+      const ingredientInsertFn = vi.fn().mockResolvedValue({ data: null, error: null });
+      const stepInsertFn = vi.fn().mockResolvedValue({ data: null, error: null });
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'recipes') return { insert: recipeInsertFn };
+        if (table === 'recipe_ingredients') return { insert: ingredientInsertFn };
+        if (table === 'recipe_steps') return { insert: stepInsertFn };
+        return chainMock({ data: null, error: null });
+      });
+
+      const actions: HusmorAction[] = [{
+        type: 'save_recipe',
+        name: 'Laksegryte',
+        prepTimeMin: 10,
+        cookTimeMin: 25,
+        ingredients: [{ name: 'Laks', amount: '400', unit: 'g' }],
+        steps: [{ instruction: 'Stek laksen', durationMin: 5 }],
+      }];
+      await executeActions(mockSupabaseClient as any, actions, mockLogger);
+      expect(recipeInsertFn).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Laksegryte', prep_time_min: 10 }),
+      );
+      expect(ingredientInsertFn).toHaveBeenCalledWith([
+        expect.objectContaining({ recipe_id: 'recipe-1', name: 'Laks', sort_order: 1 }),
+      ]);
+      expect(stepInsertFn).toHaveBeenCalledWith([
+        expect.objectContaining({ recipe_id: 'recipe-1', step_number: 1, instruction: 'Stek laksen' }),
+      ]);
+    });
+
+    it('should include saved recipes in system prompt', () => {
+      const ctx = makeDbContext({
+        savedRecipes: [
+          { id: 'r1', name: 'Laksegryte', prepTimeMin: 10, cookTimeMin: 25, avgRating: 4.5, lastUsedWeek: 7, lastUsedYear: 2026 },
+        ],
+      });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).toContain('Lagrede oppskrifter');
+      expect(prompt).toContain('Laksegryte');
+      expect(prompt).toContain('4.5/5');
     });
   });
 });
