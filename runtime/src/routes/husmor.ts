@@ -14,7 +14,7 @@ import { handleHusmorMessage } from './husmor-conversation.js';
 import { handleProactiveMessage, type ProactiveType } from './husmor-proactive.js';
 
 const ProactiveRequestSchema = z.object({
-  type: z.enum(['inventory_reminder', 'midweek_checkin', 'weekend_prep']),
+  type: z.enum(['inventory_reminder', 'midweek_checkin', 'weekend_prep', 'weekly_learning_summary']),
 });
 
 // Reaction → plan status mapping
@@ -126,14 +126,10 @@ export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
         }
 
         const reaction = reactionResult.data;
-        const newStatus = REACTION_MAP[reaction.reaction];
-        if (!newStatus) {
-          return { ok: true, ignored: true };
-        }
-
         const supabase = getSupabase();
 
-        // Check if reaction is on a proposed learning
+        // Check if reaction is on a proposed learning (before REACTION_MAP check,
+        // since white_check_mark/x are not in REACTION_MAP)
         if (reaction.reaction === 'white_check_mark' || reaction.reaction === 'x') {
           const { data: learning } = await supabase
             .from('household_learnings')
@@ -155,6 +151,23 @@ export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
 
             return { ok: true, learningId: learning.id, confirmed };
           }
+        }
+
+        const newStatus = REACTION_MAP[reaction.reaction];
+        if (!newStatus) {
+          // Store unknown reactions for mining
+          try {
+            await supabase.from('message_reactions').insert({
+              household_id: 'default',
+              message_ts: reaction.item.ts,
+              channel: reaction.item.channel,
+              reaction: reaction.reaction,
+              user_id: reaction.user,
+            });
+          } catch (err) {
+            scope.log.warn({ err, reaction: reaction.reaction }, 'Failed to store reaction (non-fatal)');
+          }
+          return { ok: true, stored_reaction: true };
         }
 
         const { data: plan, error: findError } = await supabase
@@ -189,10 +202,12 @@ export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
       if (eventType === 'message') {
         const msgResult = HusmorSlackMessageEvent.safeParse(rawEvent);
         if (!msgResult.success) {
+          scope.log.warn({ parseErrors: msgResult.error.issues }, 'Husmor message parse failed');
           return { ok: true, ignored: true };
         }
 
         const msg = msgResult.data;
+        scope.log.info({ user: msg.user, text: msg.text?.slice(0, 50), bot_id: msg.bot_id, subtype: msg.subtype, channel: msg.channel }, 'Husmor message event received');
 
         // Filter: skip bot messages
         if (msg.bot_id) {
@@ -212,12 +227,14 @@ export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
         // Ignore Slack retries
         const retryNum = request.headers['x-slack-retry-num'];
         if (retryNum) {
+          scope.log.info({ retryNum }, 'Ignoring Slack retry');
           return { ok: true, ignored: true, reason: 'retry' };
         }
 
         // Dedup on event_ts
         const eventTs = msg.event_ts ?? msg.ts;
         if (isDuplicate(eventTs)) {
+          scope.log.info({ eventTs }, 'Ignoring duplicate event');
           return { ok: true, ignored: true, reason: 'duplicate' };
         }
 
@@ -226,6 +243,7 @@ export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
         const isThreadReply = !!(msg.thread_ts && msg.thread_ts !== msg.ts);
         const threadTs = msg.thread_ts ?? msg.ts;
         const logger = scope.log;
+        scope.log.info({ threadTs, isThreadReply }, 'Dispatching to handleHusmorMessage');
         setImmediate(() => {
           handleHusmorMessage({
             text: msg.text!,

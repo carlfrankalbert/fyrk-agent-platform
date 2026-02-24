@@ -5,7 +5,16 @@ import {
   type HusmorClaudeResponse,
 } from './husmor-schemas.js';
 import type { DbContext } from './husmor-db.js';
-import { buildLearningsSection, buildPatternsSection, detectContradictions, buildContradictionsSection } from './husmor-learnings.js';
+import {
+  buildLearningsSection,
+  buildPatternsSection,
+  detectContradictions,
+  buildContradictionsSection,
+  buildSuggestionMetricsSection,
+  buildRejectionPatternsSection,
+  buildReactionSummarySection,
+  buildKnowledgeGapsSection,
+} from './husmor-learnings.js';
 
 const PERSONA = `Du er Husmor. En tydelig, varm og bestemt skikkelse som kunne jobbet pa Sigtuna allmanna laroverk. Du har hoy standard for orden, helse og dannelse.
 
@@ -207,6 +216,12 @@ export function buildSystemPrompt(ctx: DbContext): string {
   const learningsSection = buildLearningsSection(ctx.learnings);
   if (learningsSection) {
     sections.push(`\n${learningsSection}`);
+    sections.push(`\n## Bruk det du har laert
+Vis aktivt at du husker og bruker lerdommene over. Eksempler:
+- "Jeg vet dere liker laks, sa hva med laks i dag?"
+- "Siden barna elsket kyllinggryte sist, foreslar jeg det igjen"
+- "Dere foretrekker raske middager pa tirsdager, sa her er et 20-minuttersforslag"
+Ikke bare list opp lerdommer — flett dem naturlig inn i svarene dine. Det viser at du kjenner familien.`);
   }
 
   // Meal patterns
@@ -220,6 +235,30 @@ export function buildSystemPrompt(ctx: DbContext): string {
   const contradictionsSection = buildContradictionsSection(contradictions);
   if (contradictionsSection) {
     sections.push(`\n${contradictionsSection}`);
+  }
+
+  // Suggestion feedback (Feature #1)
+  const suggestionSection = buildSuggestionMetricsSection(ctx.suggestionMetrics);
+  if (suggestionSection) {
+    sections.push(`\n${suggestionSection}`);
+  }
+
+  // Rejection patterns (Feature #6)
+  const rejectionSection = buildRejectionPatternsSection(ctx.rejectionPatterns);
+  if (rejectionSection) {
+    sections.push(`\n${rejectionSection}`);
+  }
+
+  // Reaction signals (Feature #8)
+  const reactionSection = buildReactionSummarySection(ctx.reactionSummary);
+  if (reactionSection) {
+    sections.push(`\n${reactionSection}`);
+  }
+
+  // Knowledge gaps (Feature #3)
+  const knowledgeSection = buildKnowledgeGapsSection(ctx.knowledgeGaps);
+  if (knowledgeSection) {
+    sections.push(`\n${knowledgeSection}`);
   }
 
   // Pantry staples
@@ -340,6 +379,68 @@ export function parseClaudeResponse(text: string): HusmorClaudeResponse {
     // Claude sometimes responds in plain text despite JSON instructions.
     return { reply: text.trim(), actions: [] };
   }
+}
+
+/** Build a system prompt for proactive messages that includes full DB context. */
+export function buildProactiveSystemPrompt(ctx: DbContext): string {
+  const sections: string[] = [];
+
+  sections.push(`Du er Husmor, en varm og bestemt matplanlegger for en norsk familie. Du sender en proaktiv melding — ingen har spurt deg, sa vaer ekstra vennlig og naturlig. Skriv ren tekst pa norsk, ikke JSON.`);
+
+  const dateStr = new Date().toLocaleDateString('nb-NO', {
+    timeZone: 'Europe/Oslo',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  sections.push(`\nI dag er det ${dateStr}.\nUke ${ctx.plan.weekNumber}, ${ctx.plan.year}.\n`);
+
+  // Learnings
+  const learningsSection = buildLearningsSection(ctx.learnings);
+  if (learningsSection) {
+    sections.push(learningsSection);
+    sections.push('Bruk lerdommene naturlig — vis at du kjenner familien.');
+  }
+
+  // Patterns
+  const patternsSection = buildPatternsSection(ctx.mealPatterns);
+  if (patternsSection) {
+    sections.push(patternsSection);
+  }
+
+  // Current plan
+  if (ctx.plan.meals.length > 0) {
+    sections.push('\n## Gjeldende ukeplan');
+    for (const m of ctx.plan.meals) {
+      const desc = m.description ? ` — ${m.description}` : '';
+      sections.push(`- ${m.dayName}: ${m.name}${desc}`);
+    }
+  }
+
+  // Preferences
+  if (ctx.preferences.length > 0) {
+    sections.push('\n## Familiepreferanser');
+    for (const p of ctx.preferences) {
+      sections.push(`- ${p.key}: ${JSON.stringify(p.value)}`);
+    }
+  }
+
+  // Seasonal
+  if (ctx.seasonalProduce.length > 0) {
+    sections.push(`\n## I sesong na\n${ctx.seasonalProduce.join(', ')}`);
+  }
+
+  // Inventory
+  if (ctx.inventoryNotes.length > 0) {
+    sections.push('\n## Ma brukes opp');
+    for (const n of ctx.inventoryNotes) {
+      const qty = n.quantity ? ` (${n.quantity})` : '';
+      sections.push(`- ${n.itemName}${qty} — ${n.status}`);
+    }
+  }
+
+  return sections.join('\n');
 }
 
 /** Ensure messages alternate user/assistant and start with user (Claude API requirement) */

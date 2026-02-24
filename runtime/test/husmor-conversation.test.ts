@@ -57,7 +57,23 @@ import { buildSystemPrompt, parseClaudeResponse, cleanMessageOrder } from '../sr
 import { executeActions, } from '../src/routes/husmor-actions.js';
 import { buildCanvasMarkdown } from '../src/routes/husmor-canvas.js';
 import type { DbContext } from '../src/routes/husmor-db.js';
-import { buildLearningsSection, buildPatternsSection, detectContradictions, buildContradictionsSection, type Learning, type MealPattern } from '../src/routes/husmor-learnings.js';
+import {
+  buildLearningsSection,
+  buildPatternsSection,
+  detectContradictions,
+  buildContradictionsSection,
+  buildSuggestionMetricsSection,
+  buildRejectionPatternsSection,
+  buildReactionSummarySection,
+  buildKnowledgeGapsSection,
+  detectKnowledgeGaps,
+  type Learning,
+  type MealPattern,
+  type SuggestionMetrics,
+  type RejectionPattern,
+  type ReactionSummary,
+  type KnowledgeGap,
+} from '../src/routes/husmor-learnings.js';
 import {
   HusmorSlackMessageEvent,
   HusmorSlackEventEnvelope,
@@ -93,6 +109,10 @@ function makeDbContext(overrides?: Partial<DbContext>): DbContext {
     mealPatterns: [],
     savedRecipes: [],
     childReactions: [],
+    suggestionMetrics: null,
+    rejectionPatterns: [],
+    reactionSummary: null,
+    knowledgeGaps: [],
     ...overrides,
   };
 }
@@ -114,7 +134,7 @@ function makeClaudeResponse(reply: string, actions?: HusmorAction[]) {
   const response = {
     id: 'msg_test',
     content: [{ type: 'text', text: json }],
-    model: 'claude-haiku-4-5-20251001',
+    model: 'claude-opus-4-6',
     stop_reason: 'end_turn',
     usage: { input_tokens: 200, output_tokens: 100 },
   };
@@ -346,10 +366,11 @@ describe('husmor-conversation', () => {
           eq: vi.fn().mockResolvedValue({ data: null, error: null }),
         }),
       });
+      const selectChain = chainMock({ data: { name: 'Taco', suggested_by: 'user' }, error: null });
       const upsertChain = chainMock({ data: { id: 'plan-1' }, error: null });
       mockFrom.mockImplementation((table: string) => {
         if (table === 'weekly_plans') return upsertChain;
-        if (table === 'planned_meals') return { delete: deleteFn };
+        if (table === 'planned_meals') return { ...selectChain, delete: deleteFn };
         return chainMock({ data: null, error: null });
       });
 
@@ -487,7 +508,7 @@ describe('husmor-conversation', () => {
 
       expect(mockCallClaude).toHaveBeenCalledTimes(1);
       expect(mockCallClaude.mock.calls[0][0]).toBe('test-api-key');
-      expect(mockCallClaude.mock.calls[0][1].model).toBe('claude-sonnet-4-5-20250929');
+      expect(mockCallClaude.mock.calls[0][1].model).toBe('claude-opus-4-6');
       expect(mockReplyInThread).toHaveBeenCalledWith(
         'xoxb-test-token',
         'C-husmor',
@@ -877,6 +898,23 @@ describe('husmor-conversation', () => {
       const ctx = makeDbContext({ learnings: [] });
       const prompt = buildSystemPrompt(ctx);
       expect(prompt).not.toContain('Lerdommer fra tidligere samtaler');
+    });
+
+    it('should include "use learnings actively" section when learnings present', () => {
+      const ctx = makeDbContext({
+        learnings: [
+          { id: '1', category: 'preference', insight: 'Liker fisk', confidence: 0.9, confirmed: true, source: 'extraction' },
+        ],
+      });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).toContain('Bruk det du har laert');
+      expect(prompt).toContain('Jeg vet dere liker laks');
+    });
+
+    it('should not include "use learnings actively" when no learnings', () => {
+      const ctx = makeDbContext({ learnings: [] });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).not.toContain('Bruk det du har laert');
     });
   });
 
@@ -1389,6 +1427,233 @@ describe('husmor-conversation', () => {
       expect(prompt).toContain('ernaeringssporing');
       expect(prompt).toContain('Protein');
       expect(prompt).toContain('omega-3');
+    });
+  });
+
+  describe('Feature #1: Suggestion metrics', () => {
+    it('should build metrics section with enough data', () => {
+      const metrics: SuggestionMetrics = {
+        totalSuggested: 10,
+        accepted: 7,
+        modified: 2,
+        removed: 1,
+        acceptanceRate: 0.7,
+        categoryBreakdown: {
+          fisk: { suggested: 4, accepted: 3 },
+          kylling: { suggested: 3, accepted: 2 },
+        },
+      };
+      const result = buildSuggestionMetricsSection(metrics);
+      expect(result).toContain('Forslagsstatus');
+      expect(result).toContain('10 forslag');
+      expect(result).toContain('70%');
+      expect(result).toContain('Fisk');
+      expect(result).toContain('Kylling');
+    });
+
+    it('should return null when too few suggestions', () => {
+      const metrics: SuggestionMetrics = {
+        totalSuggested: 2,
+        accepted: 2,
+        modified: 0,
+        removed: 0,
+        acceptanceRate: 1,
+        categoryBreakdown: {},
+      };
+      expect(buildSuggestionMetricsSection(metrics)).toBeNull();
+    });
+
+    it('should return null for null metrics', () => {
+      expect(buildSuggestionMetricsSection(null)).toBeNull();
+    });
+
+    it('should include suggestion metrics in prompt when present', () => {
+      const ctx = makeDbContext({
+        suggestionMetrics: {
+          totalSuggested: 10,
+          accepted: 8,
+          modified: 1,
+          removed: 1,
+          acceptanceRate: 0.8,
+          categoryBreakdown: { fisk: { suggested: 5, accepted: 4 } },
+        },
+      });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).toContain('Forslagsstatus');
+    });
+
+    it('should not include suggestion metrics when null', () => {
+      const prompt = buildSystemPrompt(makeDbContext());
+      expect(prompt).not.toContain('Forslagsstatus');
+    });
+
+    it('should set suggested_by husmor on add_meals', async () => {
+      const insertFn = vi.fn().mockResolvedValue({ data: null, error: null });
+      const upsertChain = chainMock({ data: { id: 'plan-1' }, error: null });
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'weekly_plans') return upsertChain;
+        if (table === 'planned_meals') return { insert: insertFn };
+        return chainMock({ data: null, error: null });
+      });
+
+      const actions: HusmorAction[] = [
+        { type: 'add_meals', meals: [{ dayOfWeek: 1, name: 'Laks' }] },
+      ];
+      await executeActions(mockSupabaseClient as any, actions, mockLogger);
+      expect(insertFn).toHaveBeenCalledWith([
+        expect.objectContaining({ suggested_by: 'husmor' }),
+      ]);
+    });
+  });
+
+  describe('Feature #6: Rejection patterns', () => {
+    it('should build rejection patterns section', () => {
+      const patterns: RejectionPattern[] = [
+        { type: 'category', description: 'Vegetar-forslag avvist 4 ganger' },
+        { type: 'day', description: 'Mandag: forslag endres ofte til kylling' },
+      ];
+      const result = buildRejectionPatternsSection(patterns);
+      expect(result).toContain('Avvisningsmonstre');
+      expect(result).toContain('Vegetar-forslag avvist 4 ganger');
+      expect(result).toContain('Mandag: forslag endres ofte til kylling');
+    });
+
+    it('should return null for empty patterns', () => {
+      expect(buildRejectionPatternsSection([])).toBeNull();
+    });
+
+    it('should include rejection patterns in prompt when present', () => {
+      const ctx = makeDbContext({
+        rejectionPatterns: [
+          { type: 'meal', description: 'linsesuppe avvist 3 ganger' },
+        ],
+      });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).toContain('Avvisningsmonstre');
+      expect(prompt).toContain('linsesuppe avvist 3 ganger');
+    });
+
+    it('should not include rejection patterns when empty', () => {
+      const prompt = buildSystemPrompt(makeDbContext());
+      expect(prompt).not.toContain('Avvisningsmonstre');
+    });
+  });
+
+  describe('Feature #8: Reaction mining', () => {
+    it('should build reaction summary section', () => {
+      const summary: ReactionSummary = {
+        positive: 8,
+        negative: 2,
+        topPositive: ['thumbsup', 'heart'],
+        topNegative: ['thumbsdown'],
+      };
+      const result = buildReactionSummarySection(summary);
+      expect(result).toContain('Reaksjonssignal');
+      expect(result).toContain('8 positive');
+      expect(result).toContain('2 negative');
+      expect(result).toContain('80%');
+      expect(result).toContain(':thumbsup:');
+      expect(result).toContain(':heart:');
+    });
+
+    it('should return null for null summary', () => {
+      expect(buildReactionSummarySection(null)).toBeNull();
+    });
+
+    it('should include reaction summary in prompt when present', () => {
+      const ctx = makeDbContext({
+        reactionSummary: {
+          positive: 5,
+          negative: 1,
+          topPositive: ['fire'],
+          topNegative: [],
+        },
+      });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).toContain('Reaksjonssignal');
+    });
+
+    it('should not include reaction summary when null', () => {
+      const prompt = buildSystemPrompt(makeDbContext());
+      expect(prompt).not.toContain('Reaksjonssignal');
+    });
+  });
+
+  describe('Feature #3: Knowledge gaps', () => {
+    it('should detect gaps when no preferences or learnings', () => {
+      const gaps = detectKnowledgeGaps([], []);
+      expect(gaps.length).toBe(6);
+      expect(gaps[0].priority).toBe(1);
+      expect(gaps[0].category).toBe('allergier');
+    });
+
+    it('should not detect gaps covered by preferences', () => {
+      const prefs = [
+        { key: 'allergies', value: ['melk'] },
+        { key: 'adults', value: 2 },
+      ];
+      const gaps = detectKnowledgeGaps([], prefs);
+      expect(gaps.find(g => g.category === 'allergier')).toBeUndefined();
+      expect(gaps.find(g => g.category === 'familiestorrelse')).toBeUndefined();
+      expect(gaps.find(g => g.category === 'tidsbruk')).toBeDefined();
+    });
+
+    it('should not detect gaps covered by learnings', () => {
+      const learnings: Learning[] = [
+        { id: '1', category: 'constraint', insight: 'Familien har allergi mot notter', confidence: 0.9, confirmed: true, source: 'extraction' },
+        { id: '2', category: 'household_info', insight: 'To voksne og tre barn', confidence: 0.9, confirmed: true, source: 'extraction' },
+      ];
+      const gaps = detectKnowledgeGaps(learnings, []);
+      expect(gaps.find(g => g.category === 'allergier')).toBeUndefined();
+      expect(gaps.find(g => g.category === 'familiestorrelse')).toBeUndefined();
+    });
+
+    it('should sort gaps by priority', () => {
+      const gaps = detectKnowledgeGaps([], []);
+      for (let i = 1; i < gaps.length; i++) {
+        expect(gaps[i].priority).toBeGreaterThanOrEqual(gaps[i - 1].priority);
+      }
+    });
+
+    it('should build knowledge gaps section', () => {
+      const gaps: KnowledgeGap[] = [
+        { category: 'allergier', priority: 1, question: 'Har noen i familien allergier?' },
+        { category: 'familiestorrelse', priority: 1, question: 'Hvor mange er dere?' },
+      ];
+      const result = buildKnowledgeGapsSection(gaps);
+      expect(result).toContain('Kunnskapshull');
+      expect(result).toContain('allergier');
+      expect(result).toContain('familiestorrelse');
+      expect(result).toContain('ETT sporsmal');
+    });
+
+    it('should return null for no gaps', () => {
+      expect(buildKnowledgeGapsSection([])).toBeNull();
+    });
+
+    it('should limit to top 3 gaps', () => {
+      const gaps: KnowledgeGap[] = Array.from({ length: 6 }, (_, i) => ({
+        category: `cat${i}`,
+        priority: i + 1,
+        question: `Question ${i}?`,
+      }));
+      const result = buildKnowledgeGapsSection(gaps)!;
+      expect(result.split('- ').length - 1).toBe(3);
+    });
+
+    it('should include knowledge gaps in prompt when present', () => {
+      const ctx = makeDbContext({
+        knowledgeGaps: [
+          { category: 'allergier', priority: 1, question: 'Har noen allergier?' },
+        ],
+      });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).toContain('Kunnskapshull');
+    });
+
+    it('should not include knowledge gaps when empty', () => {
+      const prompt = buildSystemPrompt(makeDbContext());
+      expect(prompt).not.toContain('Kunnskapshull');
     });
   });
 });

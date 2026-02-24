@@ -83,6 +83,7 @@ async function handleAddMeals(
     description: m.description ?? null,
     meal_type: m.mealType ?? 'dinner',
     yields_leftovers: m.yieldsLeftovers ?? false,
+    suggested_by: 'husmor',
   }));
   await supabase.from('planned_meals').insert(rows);
   logger.info({ planId, count: rows.length }, 'Added meals to plan');
@@ -94,12 +95,35 @@ async function handleUpdateMeal(
   logger: Logger,
 ): Promise<void> {
   const planId = await getOrCreateCurrentWeekPlan(supabase);
+
+  // Check if this was a Husmor suggestion being modified
+  const { data: existing } = await supabase
+    .from('planned_meals')
+    .select('name, suggested_by')
+    .eq('plan_id', planId)
+    .eq('day_of_week', action.dayOfWeek)
+    .maybeSingle();
+
+  if (existing?.suggested_by === 'husmor' && existing.name !== action.name) {
+    // Track the modification
+    await supabase.from('suggestion_modifications').insert({
+      household_id: 'default',
+      plan_id: planId,
+      day_of_week: action.dayOfWeek,
+      original_meal: existing.name,
+      replacement_meal: action.name,
+    });
+  }
+
   const updateData: Record<string, unknown> = {
     name: action.name,
     updated_at: new Date().toISOString(),
   };
   if (action.description !== undefined) updateData.description = action.description;
   if (action.yieldsLeftovers !== undefined) updateData.yields_leftovers = action.yieldsLeftovers;
+  if (existing?.suggested_by === 'husmor' && existing.name !== action.name) {
+    updateData.original_suggestion = existing.name;
+  }
   await supabase
     .from('planned_meals')
     .update(updateData)
@@ -114,6 +138,25 @@ async function handleRemoveMeal(
   logger: Logger,
 ): Promise<void> {
   const planId = await getOrCreateCurrentWeekPlan(supabase);
+
+  // Check if this was a Husmor suggestion being removed
+  const { data: existing } = await supabase
+    .from('planned_meals')
+    .select('name, suggested_by')
+    .eq('plan_id', planId)
+    .eq('day_of_week', action.dayOfWeek)
+    .maybeSingle();
+
+  if (existing?.suggested_by === 'husmor') {
+    await supabase.from('suggestion_modifications').insert({
+      household_id: 'default',
+      plan_id: planId,
+      day_of_week: action.dayOfWeek,
+      original_meal: existing.name,
+      replacement_meal: null,
+    });
+  }
+
   await supabase
     .from('planned_meals')
     .delete()

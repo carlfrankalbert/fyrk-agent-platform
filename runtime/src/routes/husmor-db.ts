@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DAY_NAMES } from '../lib/constants.js';
-import { loadLearnings, computeMealPatterns } from './husmor-learnings.js';
-import type { Learning, MealPattern } from './husmor-learnings.js';
+import { loadLearnings, computeMealPatterns, computeSuggestionMetrics, computeRejectionPatterns, loadReactionSummary, detectKnowledgeGaps } from './husmor-learnings.js';
+import type { Learning, MealPattern, SuggestionMetrics, RejectionPattern, ReactionSummary, KnowledgeGap } from './husmor-learnings.js';
 
 // --- Types ---
 
@@ -78,6 +78,10 @@ export interface DbContext {
   mealPatterns: MealPattern[];
   savedRecipes: SavedRecipe[];
   childReactions: ChildReactionSummary[];
+  suggestionMetrics: SuggestionMetrics | null;
+  rejectionPatterns: RejectionPattern[];
+  reactionSummary: ReactionSummary | null;
+  knowledgeGaps: KnowledgeGap[];
 }
 
 // --- Week calculation ---
@@ -96,7 +100,7 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
   const { week, year } = getCurrentWeekNumber();
   const currentMonth = new Date().getMonth() + 1;
 
-  const [planResult, prefsResult, pantryResult, inventoryResult, seasonalResult, traditionsResult, nutritionResult, learningsResult, mealPatternsResult, savedRecipesResult, childReactionsResult] = await Promise.all([
+  const [planResult, prefsResult, pantryResult, inventoryResult, seasonalResult, traditionsResult, nutritionResult, learningsResult, mealPatternsResult, savedRecipesResult, childReactionsResult, suggestionMetricsResult, rejectionPatternsResult, reactionSummaryResult] = await Promise.all([
     supabase
       .from('weekly_plans')
       .select('id, status, week_number, year, context')
@@ -132,6 +136,9 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
     computeMealPatterns(supabase),
     loadSavedRecipes(supabase),
     loadChildReactions(supabase),
+    computeSuggestionMetrics(supabase),
+    computeRejectionPatterns(supabase),
+    loadReactionSummary(supabase),
   ]);
 
   let meals: WeekPlanContext['meals'] = [];
@@ -153,6 +160,8 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
   }
 
   const recentMeals = await loadRecentMeals(supabase, week, year);
+  const prefs = (prefsResult.data ?? []).map((p) => ({ key: p.key, value: p.value }));
+  const knowledgeGaps = detectKnowledgeGaps(learningsResult, prefs);
 
   return {
     plan: {
@@ -163,7 +172,7 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
       context: (planResult.data?.context as WeekContext) ?? null,
       meals,
     },
-    preferences: (prefsResult.data ?? []).map((p) => ({ key: p.key, value: p.value })),
+    preferences: prefs,
     pantryStaples: (pantryResult.data ?? []).map((p) => p.name),
     inventoryNotes: (inventoryResult.data ?? []).map((n) => ({
       itemName: n.item_name,
@@ -189,6 +198,10 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
     mealPatterns: mealPatternsResult,
     savedRecipes: savedRecipesResult,
     childReactions: childReactionsResult,
+    suggestionMetrics: suggestionMetricsResult,
+    rejectionPatterns: rejectionPatternsResult,
+    reactionSummary: reactionSummaryResult,
+    knowledgeGaps,
   };
 }
 
