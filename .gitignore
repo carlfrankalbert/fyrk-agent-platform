@@ -29,5 +29,9 @@ coverage/
 
 # n8n data
 n8n-data/
-.env
-.env
+
+# Supabase CLI temp
+supabase/.temp/
+
+# MCP config (local, may contain secrets)
+.mcp.json
