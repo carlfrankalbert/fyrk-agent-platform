@@ -1,5 +1,7 @@
 -- Add portions to lookup_food return for unit conversion (e.g. "stk" → grams)
-CREATE OR REPLACE FUNCTION lookup_food(query_text text, result_limit int DEFAULT 5)
+-- Must DROP first because changing return type is not allowed by CREATE OR REPLACE
+DROP FUNCTION IF EXISTS lookup_food(text, int);
+CREATE FUNCTION lookup_food(query_text text, result_limit int DEFAULT 5)
 RETURNS TABLE (
   id text,
   "foodName" text,
