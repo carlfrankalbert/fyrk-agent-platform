@@ -141,7 +141,12 @@ export function buildSystemPrompt(ctx: DbContext): string {
     for (const m of ctx.plan.meals) {
       const desc = m.description ? ` — ${m.description}` : '';
       const leftovers = m.yieldsLeftovers ? ' (gir rester)' : '';
-      sections.push(`- ${m.dayName}: ${m.name}${desc}${leftovers}`);
+      let nutritionStr = '';
+      if (m.nutrition) {
+        const src = m.nutrition.source === 'recipe' ? 'oppskrift' : 'estimat';
+        nutritionStr = ` — ${Math.round(m.nutrition.caloriesKcal)} kcal, ${Math.round(m.nutrition.proteinG)}g protein, ${Math.round(m.nutrition.fatG)}g fett (${src})`;
+      }
+      sections.push(`- ${m.dayName}: ${m.name}${desc}${leftovers}${nutritionStr}`);
     }
     sections.push(`Status: ${ctx.plan.status}`);
   } else {
@@ -265,19 +270,37 @@ Ikke bare list opp lerdommer — flett dem naturlig inn i svarene dine. Det vise
     sections.push('\nBruk nylige middager til a unnga gjentakelser og ta hensyn til feedback.');
   }
 
-  // Nutrition balance + estimation (Feature 7)
+  // Nutrition balance from Matvaretabellen
   sections.push(`\n## Naeringsbalanse og ernaeringssporing
 Nar du lager eller vurderer en ukeplan, tell opp:
 - Fiskedager (mal: 2-3)
 - Vegetardager (mal: minst 1)
 - Rodt kjott-dager (mal: maks 2, helst 1)
 - Belgvekst-dager (mal: minst 1)
-Sammenlikn med kostradene over. Gi kort tilbakemelding om balansen er god eller hva som kan forbedres.
+Sammenlikn med kostradene over. Gi kort tilbakemelding om balansen er god eller hva som kan forbedres.`);
 
-Nar brukeren ber om det, eller ved ukeslutt, estimer ukens samlede naeringsinnhold:
-- Protein, fiber, jern, omega-3, D-vitamin, kalsium (grove estimater)
-- Identifiser mangler basert pa kostradene og familiens sammensetning (barn/voksne)
-- Foresla konkrete justeringer for neste uke (f.eks. "legg til en fiskemiddag" eller "mer belgvekster")`);
+  if (ctx.weeklyNutrition) {
+    const wn = ctx.weeklyNutrition;
+    const t = wn.totals;
+    sections.push(`\n## Naeringsdata fra Matvaretabellen
+Du har tilgang til faktiske naeringsverdier fra den norske matvaretabellen (2121 matvarer).
+Oppskrifter med ingredienser berikes automatisk med naeringsdata per porsjon.
+
+Ukens naeringsbalanse (middager med data: ${wn.mealsWithData}/${wn.totalMeals}):
+- Kalorier: ${Math.round(t.caloriesKcal)} kcal | Protein: ${Math.round(t.proteinG)}g | Fett: ${Math.round(t.fatG)}g | Karbo: ${Math.round(t.carbsG)}g | Fiber: ${Math.round(t.fiberG)}g
+- Jern: ${t.ironMg.toFixed(1)}mg | Omega-3: ${t.omega3G.toFixed(1)}g | D-vitamin: ${t.vitaminDUg.toFixed(1)}ug | Kalsium: ${Math.round(t.calciumMg)}mg
+
+Bruk disse tallene aktivt:
+- Papek mangler ("Ukeplanen er lav pa omega-3 — legg til en fiskemiddag")
+- Begrunn forslag med data ("Laks gir 2.4g omega-3 per porsjon")
+- Nar brukeren ber om naeringsoversikt, referer til de faktiske tallene
+- For maltider uten data, oppfordre til a lagre oppskriften (save_recipe) for a fa naeringsberegning`);
+  } else {
+    sections.push(`\n## Naeringsdata fra Matvaretabellen
+Du har tilgang til faktiske naeringsverdier fra den norske matvaretabellen (2121 matvarer).
+Oppskrifter med ingredienser berikes automatisk med naeringsdata per porsjon.
+Ingen av ukens maltider har naeringsdata enna. Oppfordre brukeren til a lagre oppskrifter (save_recipe) for a fa beregning.`);
+  }
 
   // Saved recipes
   if (ctx.savedRecipes.length > 0) {

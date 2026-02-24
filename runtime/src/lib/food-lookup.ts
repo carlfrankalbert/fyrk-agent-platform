@@ -1,5 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+export interface FoodPortion {
+  portionName: string;
+  portionUnit: string;
+  quantity: number;
+  gramsPrQuantity: number;
+}
+
 export interface FoodMatch {
   id: string;
   foodName: string;
@@ -19,6 +26,7 @@ export interface FoodMatch {
   sodiumMg: number | null;
   seleniumUg: number | null;
   zincMg: number | null;
+  portions: FoodPortion[] | null;
   similarity: number;
 }
 

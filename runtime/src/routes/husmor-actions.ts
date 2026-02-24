@@ -4,6 +4,7 @@ import { syncCanvas } from './husmor-canvas.js';
 import { replyInThread } from '../lib/slack.js';
 import type { HusmorAction } from './husmor-schemas.js';
 import { invalidateCache } from './husmor-cache.js';
+import { enrichRecipeNutrition } from '../lib/nutrition-enrichment.js';
 
 type Logger = { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
 
@@ -355,6 +356,31 @@ async function handleSaveRecipe(
       duration_min: step.durationMin ?? null,
     }));
     await supabase.from('recipe_steps').insert(rows);
+  }
+
+  // Enrich with nutrition data from Matvaretabellen (non-fatal)
+  if (action.ingredients && action.ingredients.length > 0 && action.servings) {
+    try {
+      const ingredients = action.ingredients.map((ing) => ({
+        name: ing.name,
+        amount: ing.amount ? parseFloat(ing.amount) || null : null,
+        unit: ing.unit ?? null,
+      }));
+      const nutrition = await enrichRecipeNutrition(
+        supabase,
+        ingredients,
+        action.servings,
+      );
+      if (nutrition) {
+        await supabase
+          .from('recipes')
+          .update({ nutrition_per_serving: nutrition })
+          .eq('id', recipe.id);
+        logger.info({ recipeId: recipe.id, coverage: nutrition.coverage }, 'Enriched recipe nutrition');
+      }
+    } catch (err) {
+      logger.warn({ err }, 'Nutrition enrichment failed (non-fatal)');
+    }
   }
 
   if (action.linkToDayOfWeek) {

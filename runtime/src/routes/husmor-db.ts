@@ -3,6 +3,8 @@ import { DAY_NAMES } from '../lib/constants.js';
 import { loadLearnings, computeMealPatterns, computeSuggestionMetrics, computeRejectionPatterns, loadReactionSummary, detectKnowledgeGaps } from './husmor-learnings.js';
 import type { Learning, MealPattern, SuggestionMetrics, RejectionPattern, ReactionSummary, KnowledgeGap } from './husmor-learnings.js';
 import { getCached, setCached } from './husmor-cache.js';
+import { lookupFood } from '../lib/food-lookup.js';
+import type { NutritionPerServing } from '../lib/nutrition-enrichment.js';
 
 // --- Types ---
 
@@ -20,7 +22,7 @@ export interface WeekPlanContext {
   year: number;
   status: string;
   context: WeekContext | null;
-  meals: Array<{ dayOfWeek: number; dayName: string; name: string; description: string | null; mealType: string; yieldsLeftovers: boolean }>;
+  meals: Array<{ dayOfWeek: number; dayName: string; name: string; description: string | null; mealType: string; yieldsLeftovers: boolean; nutrition?: MealNutrition }>;
 }
 
 export interface ChildReactionSummary {
@@ -43,6 +45,31 @@ export interface NutritionEntry {
   topic: string;
   content: string;
   appliesTo: string | null;
+}
+
+export interface MealNutrition {
+  caloriesKcal: number;
+  proteinG: number;
+  fatG: number;
+  carbsG: number;
+  fiberG: number;
+  source: 'recipe' | 'estimate';
+}
+
+export interface WeeklyNutrition {
+  totals: {
+    caloriesKcal: number;
+    proteinG: number;
+    fatG: number;
+    carbsG: number;
+    fiberG: number;
+    ironMg: number;
+    omega3G: number;
+    vitaminDUg: number;
+    calciumMg: number;
+  };
+  mealsWithData: number;
+  totalMeals: number;
 }
 
 export interface RecentMeal {
@@ -83,6 +110,7 @@ export interface DbContext {
   rejectionPatterns: RejectionPattern[];
   reactionSummary: ReactionSummary | null;
   knowledgeGaps: KnowledgeGap[];
+  weeklyNutrition: WeeklyNutrition | null;
 }
 
 // --- Week calculation ---
@@ -178,26 +206,111 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
   ]);
 
   let meals: WeekPlanContext['meals'] = [];
+  const recipeLookup = new Map<string, NutritionPerServing>();
   if (planResult.data?.id) {
     const { data: mealRows } = await supabase
       .from('planned_meals')
-      .select('day_of_week, name, description, meal_type, yields_leftovers')
+      .select('day_of_week, name, description, meal_type, yields_leftovers, recipe_id')
       .eq('plan_id', planResult.data.id)
       .order('day_of_week', { ascending: true });
 
-    meals = (mealRows ?? []).map((m) => ({
-      dayOfWeek: m.day_of_week,
-      dayName: DAY_NAMES[m.day_of_week] ?? `Dag ${m.day_of_week}`,
-      name: m.name,
-      description: m.description,
-      mealType: m.meal_type,
-      yieldsLeftovers: m.yields_leftovers ?? false,
-    }));
+    // Fetch nutrition for meals with linked recipes
+    const recipeIds = (mealRows ?? [])
+      .map((m) => m.recipe_id)
+      .filter((id): id is string => id != null);
+    if (recipeIds.length > 0) {
+      const { data: recipes } = await supabase
+        .from('recipes')
+        .select('id, nutrition_per_serving')
+        .in('id', recipeIds);
+      for (const r of recipes ?? []) {
+        if (r.nutrition_per_serving) {
+          recipeLookup.set(r.id, r.nutrition_per_serving as NutritionPerServing);
+        }
+      }
+    }
+
+    meals = await Promise.all(
+      (mealRows ?? []).map(async (m) => {
+        let nutrition: MealNutrition | undefined;
+
+        // Try recipe-based nutrition first
+        if (m.recipe_id && recipeLookup.has(m.recipe_id)) {
+          const n = recipeLookup.get(m.recipe_id)!;
+          nutrition = {
+            caloriesKcal: n.caloriesKcal,
+            proteinG: n.proteinG,
+            fatG: n.fatG,
+            carbsG: n.carbsG,
+            fiberG: n.fiberG,
+            source: 'recipe',
+          };
+        } else {
+          // Fuzzy estimate from meal name
+          try {
+            const matches = await lookupFood(supabase, m.name, 1);
+            if (matches.length > 0 && matches[0].similarity >= 0.3) {
+              const f = matches[0];
+              nutrition = {
+                caloriesKcal: f.caloriesKcal ?? 0,
+                proteinG: f.proteinG ?? 0,
+                fatG: f.fatG ?? 0,
+                carbsG: f.carbsG ?? 0,
+                fiberG: f.fiberG ?? 0,
+                source: 'estimate',
+              };
+            }
+          } catch {
+            // Non-fatal: skip nutrition for this meal
+          }
+        }
+
+        return {
+          dayOfWeek: m.day_of_week,
+          dayName: DAY_NAMES[m.day_of_week] ?? `Dag ${m.day_of_week}`,
+          name: m.name,
+          description: m.description,
+          mealType: m.meal_type,
+          yieldsLeftovers: m.yields_leftovers ?? false,
+          nutrition,
+        };
+      }),
+    );
   }
 
   const recentMeals = await loadRecentMeals(supabase, week, year);
   const prefs = (prefsResult.data ?? []).map((p) => ({ key: p.key, value: p.value }));
   const knowledgeGaps = detectKnowledgeGaps(learningsResult, prefs);
+
+  // Compute weekly nutrition totals from meals with data
+  const mealsWithNutrition = meals.filter((m) => m.nutrition);
+  let weeklyNutrition: WeeklyNutrition | null = null;
+  if (mealsWithNutrition.length > 0) {
+    const totals = {
+      caloriesKcal: 0, proteinG: 0, fatG: 0, carbsG: 0, fiberG: 0,
+      ironMg: 0, omega3G: 0, vitaminDUg: 0, calciumMg: 0,
+    };
+    for (const m of mealsWithNutrition) {
+      const n = m.nutrition!;
+      totals.caloriesKcal += n.caloriesKcal;
+      totals.proteinG += n.proteinG;
+      totals.fatG += n.fatG;
+      totals.carbsG += n.carbsG;
+      totals.fiberG += n.fiberG;
+    }
+    // Add micronutrients from recipe-based nutrition (full data in recipeLookup)
+    for (const fullNutrition of recipeLookup.values()) {
+      totals.ironMg += fullNutrition.ironMg;
+      totals.omega3G += fullNutrition.omega3G;
+      totals.vitaminDUg += fullNutrition.vitaminDUg;
+      totals.calciumMg += fullNutrition.calciumMg;
+    }
+    weeklyNutrition = {
+      totals,
+      mealsWithData: mealsWithNutrition.length,
+      totalMeals: meals.length,
+    };
+  }
 
   return {
     plan: {
@@ -238,6 +351,7 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
     rejectionPatterns: rejectionPatternsResult,
     reactionSummary: reactionSummaryResult,
     knowledgeGaps,
+    weeklyNutrition,
   };
 }
 

@@ -113,6 +113,7 @@ function makeDbContext(overrides?: Partial<DbContext>): DbContext {
     rejectionPatterns: [],
     reactionSummary: null,
     knowledgeGaps: [],
+    weeklyNutrition: null,
     ...overrides,
   };
 }
@@ -1419,11 +1420,28 @@ describe('husmor-conversation', () => {
   });
 
   describe('nutrition estimation in prompt', () => {
-    it('should include nutrition estimation instruction', () => {
+    it('should include nutrition section from Matvaretabellen', () => {
       const prompt = buildSystemPrompt(makeDbContext());
       expect(prompt).toContain('ernaeringssporing');
+      expect(prompt).toContain('Naeringsdata fra Matvaretabellen');
+      expect(prompt).toContain('save_recipe');
+    });
+
+    it('should show weekly totals when nutrition data exists', () => {
+      const ctx = makeDbContext({
+        weeklyNutrition: {
+          totals: {
+            caloriesKcal: 2800, proteinG: 140, fatG: 90, carbsG: 280, fiberG: 35,
+            ironMg: 12, omega3G: 3.5, vitaminDUg: 8.2, calciumMg: 650,
+          },
+          mealsWithData: 5,
+          totalMeals: 7,
+        },
+      });
+      const prompt = buildSystemPrompt(ctx);
       expect(prompt).toContain('Protein');
-      expect(prompt).toContain('omega-3');
+      expect(prompt).toContain('Omega-3');
+      expect(prompt).toContain('5/7');
     });
   });
 
