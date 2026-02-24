@@ -3,16 +3,9 @@ import { getOrCreateCurrentWeekPlan } from './husmor-db.js';
 import { syncCanvas } from './husmor-canvas.js';
 import { replyInThread } from '../lib/slack.js';
 import type { HusmorAction } from './husmor-schemas.js';
+import { invalidateCache } from './husmor-cache.js';
 
 type Logger = { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
-
-export interface ActionContext {
-  supabase: SupabaseClient;
-  logger: Logger;
-  slackToken?: string;
-  channel?: string;
-  threadTs?: string;
-}
 
 export async function executeActions(
   supabase: SupabaseClient,
@@ -67,6 +60,12 @@ export async function executeActions(
     } catch (err) {
       logger.error({ action: action.type, err }, 'Failed to execute action');
     }
+  }
+
+  // Invalidate cached aggregations if any data-modifying actions were executed
+  const CACHE_INVALIDATING_ACTIONS = new Set(['add_meals', 'update_meal', 'remove_meal', 'rate_meal', 'save_recipe']);
+  if (actions.some(a => CACHE_INVALIDATING_ACTIONS.has(a.type))) {
+    invalidateCache('husmor:');
   }
 }
 

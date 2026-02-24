@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { DAY_NAMES } from '../lib/constants.js';
 import { loadLearnings, computeMealPatterns, computeSuggestionMetrics, computeRejectionPatterns, loadReactionSummary, detectKnowledgeGaps } from './husmor-learnings.js';
 import type { Learning, MealPattern, SuggestionMetrics, RejectionPattern, ReactionSummary, KnowledgeGap } from './husmor-learnings.js';
+import { getCached, setCached } from './husmor-cache.js';
 
 // --- Types ---
 
@@ -100,6 +101,41 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
   const { week, year } = getCurrentWeekNumber();
   const currentMonth = new Date().getMonth() + 1;
 
+  // Cache keys for expensive aggregations
+  const CACHE_KEY_PATTERNS = 'husmor:mealPatterns';
+  const CACHE_KEY_SUGGESTIONS = 'husmor:suggestionMetrics';
+  const CACHE_KEY_REJECTIONS = 'husmor:rejectionPatterns';
+  const CACHE_KEY_REACTIONS = 'husmor:reactionSummary';
+
+  const cachedMealPatterns = async () => {
+    const cached = getCached<MealPattern[]>(CACHE_KEY_PATTERNS);
+    if (cached) return cached;
+    const result = await computeMealPatterns(supabase);
+    setCached(CACHE_KEY_PATTERNS, result);
+    return result;
+  };
+  const cachedSuggestionMetrics = async () => {
+    const cached = getCached<SuggestionMetrics | null>(CACHE_KEY_SUGGESTIONS);
+    if (cached !== undefined) return cached;
+    const result = await computeSuggestionMetrics(supabase);
+    setCached(CACHE_KEY_SUGGESTIONS, result);
+    return result;
+  };
+  const cachedRejectionPatterns = async () => {
+    const cached = getCached<RejectionPattern[]>(CACHE_KEY_REJECTIONS);
+    if (cached) return cached;
+    const result = await computeRejectionPatterns(supabase);
+    setCached(CACHE_KEY_REJECTIONS, result);
+    return result;
+  };
+  const cachedReactionSummary = async () => {
+    const cached = getCached<ReactionSummary | null>(CACHE_KEY_REACTIONS);
+    if (cached !== undefined) return cached;
+    const result = await loadReactionSummary(supabase);
+    setCached(CACHE_KEY_REACTIONS, result);
+    return result;
+  };
+
   const [planResult, prefsResult, pantryResult, inventoryResult, seasonalResult, traditionsResult, nutritionResult, learningsResult, mealPatternsResult, savedRecipesResult, childReactionsResult, suggestionMetricsResult, rejectionPatternsResult, reactionSummaryResult] = await Promise.all([
     supabase
       .from('weekly_plans')
@@ -133,12 +169,12 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
       .from('nutrition_knowledge')
       .select('category, topic, content, applies_to'),
     loadLearnings(supabase),
-    computeMealPatterns(supabase),
+    cachedMealPatterns(),
     loadSavedRecipes(supabase),
     loadChildReactions(supabase),
-    computeSuggestionMetrics(supabase),
-    computeRejectionPatterns(supabase),
-    loadReactionSummary(supabase),
+    cachedSuggestionMetrics(),
+    cachedRejectionPatterns(),
+    cachedReactionSummary(),
   ]);
 
   let meals: WeekPlanContext['meals'] = [];

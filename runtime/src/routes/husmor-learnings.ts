@@ -172,22 +172,19 @@ export async function extractLearnings(
 // --- Load active learnings ---
 
 export async function loadLearnings(supabase: SupabaseClient): Promise<Learning[]> {
+  const now = new Date().toISOString();
   const { data } = await supabase
     .from('household_learnings')
-    .select('id, category, insight, confidence, confirmed, source')
+    .select('id, category, insight, confidence, confirmed, source, expires_at')
     .eq('household_id', 'default')
     .is('superseded_by', null)
     .not('confirmed', 'eq', false)
     .gte('confidence', 0.5)
+    .or(`expires_at.is.null,expires_at.gt.${now}`)
     .order('created_at', { ascending: false })
     .limit(30);
 
-  // Filter out expired (can't do expires_at > now() easily in supabase-js with OR null)
-  const now = new Date().toISOString();
-  return (data ?? []).filter((l: Record<string, unknown>) => {
-    const expires = l.expires_at as string | null;
-    return !expires || expires > now;
-  }).map((l: Record<string, unknown>) => ({
+  return (data ?? []).map((l: Record<string, unknown>) => ({
     id: l.id as string,
     category: l.category as string,
     insight: l.insight as string,
@@ -411,6 +408,11 @@ export async function computeMealPatterns(supabase: SupabaseClient): Promise<Mea
   }
 
   // --- Feedback text keyword analysis ---
+  function matchesKeywords(text: string, phrases: string[], words: string[]): boolean {
+    return phrases.some(kw => text.includes(kw))
+      || words.some(kw => new RegExp(`\\b${kw}\\b`).test(text));
+  }
+
   // Phrases (multi-word) matched via includes, single words via word boundary regex
   const POSITIVE_PHRASES = [
     'spiste alt', 'veldig god', 'kjempegod', 'super god', 'alle likte',
@@ -439,14 +441,12 @@ export async function computeMealPatterns(supabase: SupabaseClient): Promise<Mea
     const text = m.feedback_text.toLowerCase();
     const mealKey = m.name.toLowerCase();
 
-    const hasPositive = POSITIVE_PHRASES.some(kw => text.includes(kw))
-      || POSITIVE_WORDS.some(kw => new RegExp(`\\b${kw}\\b`).test(text));
+    const hasPositive = matchesKeywords(text, POSITIVE_PHRASES, POSITIVE_WORDS);
     if (hasPositive) {
       positiveMentions.set(mealKey, (positiveMentions.get(mealKey) ?? 0) + 1);
     }
 
-    const hasNegative = NEGATIVE_PHRASES.some(kw => text.includes(kw))
-      || NEGATIVE_WORDS.some(kw => new RegExp(`\\b${kw}\\b`).test(text));
+    const hasNegative = matchesKeywords(text, NEGATIVE_PHRASES, NEGATIVE_WORDS);
     if (hasNegative) {
       negativeMentions.set(mealKey, (negativeMentions.get(mealKey) ?? 0) + 1);
     }

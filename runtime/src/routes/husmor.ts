@@ -29,12 +29,26 @@ const REACTION_MAP: Record<string, string> = {
 // Dedup: in-memory Map on event_ts with 60s TTL
 const recentEvents = new Map<string, number>();
 const DEDUP_TTL_MS = 60_000;
+const DEDUP_CLEANUP_THRESHOLD = 500;
+const MAX_DEDUP_ENTRIES = 1000;
 
 function isDuplicate(eventTs: string): boolean {
   const now = Date.now();
-  // Clean expired entries
-  for (const [ts, expires] of recentEvents) {
-    if (now > expires) recentEvents.delete(ts);
+  // Only run TTL cleanup when map exceeds threshold
+  if (recentEvents.size > DEDUP_CLEANUP_THRESHOLD) {
+    for (const [ts, expires] of recentEvents) {
+      if (now > expires) recentEvents.delete(ts);
+    }
+    // Hard cap: evict oldest entries (Map iterates in insertion order)
+    if (recentEvents.size > MAX_DEDUP_ENTRIES) {
+      const excess = recentEvents.size - MAX_DEDUP_ENTRIES;
+      let removed = 0;
+      for (const key of recentEvents.keys()) {
+        if (removed >= excess) break;
+        recentEvents.delete(key);
+        removed++;
+      }
+    }
   }
   if (recentEvents.has(eventTs)) return true;
   recentEvents.set(eventTs, now + DEDUP_TTL_MS);

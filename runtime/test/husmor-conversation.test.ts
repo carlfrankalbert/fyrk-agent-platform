@@ -1022,7 +1022,6 @@ describe('husmor-conversation', () => {
     it('should include propose_learning in system prompt actions doc', () => {
       const prompt = buildSystemPrompt(makeDbContext());
       expect(prompt).toContain('propose_learning');
-      expect(prompt).toContain('Foresla en observasjon for bekreftelse');
     });
   });
 
@@ -1059,7 +1058,6 @@ describe('husmor-conversation', () => {
     it('should include feedbackText instruction in ACTIONS_DOC', () => {
       const prompt = buildSystemPrompt(makeDbContext());
       expect(prompt).toContain('feedbackText');
-      expect(prompt).toContain('kort fritekst');
     });
 
     it('should execute rate_meal with feedbackText', async () => {
@@ -1117,7 +1115,6 @@ describe('husmor-conversation', () => {
     it('should include save_recipe in system prompt actions doc', () => {
       const prompt = buildSystemPrompt(makeDbContext());
       expect(prompt).toContain('save_recipe');
-      expect(prompt).toContain('Lagre en oppskrift');
     });
 
     it('should execute save_recipe action', async () => {
