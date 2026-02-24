@@ -31,6 +31,17 @@ vi.mock('../src/lib/slack.js', () => ({
   editCanvas: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
+// Mock husmor-learnings (loadLearnings and computeMealPatterns are tested separately)
+vi.mock('../src/routes/husmor-learnings.js', async (importOriginal) => {
+  const actual = await importOriginal() as Record<string, unknown>;
+  return {
+    ...actual,
+    loadLearnings: vi.fn().mockResolvedValue([]),
+    computeMealPatterns: vi.fn().mockResolvedValue([]),
+    extractLearnings: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
 // Mock Supabase
 const mockFrom = vi.fn();
 const mockSupabaseClient = { from: mockFrom };
@@ -46,6 +57,7 @@ import { buildSystemPrompt, parseClaudeResponse, cleanMessageOrder } from '../sr
 import { executeActions, } from '../src/routes/husmor-actions.js';
 import { buildCanvasMarkdown } from '../src/routes/husmor-canvas.js';
 import type { DbContext } from '../src/routes/husmor-db.js';
+import { buildLearningsSection, buildPatternsSection, type Learning, type MealPattern } from '../src/routes/husmor-learnings.js';
 import {
   HusmorSlackMessageEvent,
   HusmorSlackEventEnvelope,
@@ -77,6 +89,8 @@ function makeDbContext(overrides?: Partial<DbContext>): DbContext {
     foodTraditions: [],
     nutritionKnowledge: [],
     recentMeals: [],
+    learnings: [],
+    mealPatterns: [],
     ...overrides,
   };
 }
@@ -786,6 +800,189 @@ describe('husmor-conversation', () => {
         items: [],
       });
       expect(result.success).toBe(false);
+    });
+
+    it('should validate propose_learning action', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'propose_learning',
+        category: 'preference',
+        insight: 'Familien foretrekker taco pa fredager',
+        confidence: 0.9,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate propose_learning without confidence', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'propose_learning',
+        category: 'routine',
+        insight: 'Raske middager pa tirsdager',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject propose_learning with invalid category', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'propose_learning',
+        category: 'invalid_category',
+        insight: 'test',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject propose_learning with confidence out of range', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'propose_learning',
+        category: 'preference',
+        insight: 'test',
+        confidence: 1.5,
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('buildLearningsSection', () => {
+    it('should return null for empty learnings', () => {
+      expect(buildLearningsSection([])).toBeNull();
+    });
+
+    it('should group learnings by category', () => {
+      const learnings: Learning[] = [
+        { id: '1', category: 'preference', insight: 'Familien liker laks', confidence: 0.9, confirmed: true, source: 'extraction' },
+        { id: '2', category: 'preference', insight: 'Barna liker ikke sopp', confidence: 0.8, confirmed: null, source: 'extraction' },
+        { id: '3', category: 'routine', insight: 'Taco pa fredager', confidence: 0.95, confirmed: true, source: 'proposed' },
+      ];
+      const result = buildLearningsSection(learnings)!;
+      expect(result).toContain('Matpreferanser');
+      expect(result).toContain('Rutiner');
+      expect(result).toContain('Familien liker laks');
+      expect(result).toContain('(bekreftet)');
+      expect(result).toContain('Taco pa fredager');
+    });
+
+    it('should include learnings in system prompt when present', () => {
+      const ctx = makeDbContext({
+        learnings: [
+          { id: '1', category: 'preference', insight: 'Liker fisk', confidence: 0.9, confirmed: true, source: 'extraction' },
+        ],
+      });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).toContain('Lerdommer fra tidligere samtaler');
+      expect(prompt).toContain('Liker fisk');
+    });
+
+    it('should not include learnings section when empty', () => {
+      const ctx = makeDbContext({ learnings: [] });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).not.toContain('Lerdommer fra tidligere samtaler');
+    });
+  });
+
+  describe('buildPatternsSection', () => {
+    it('should return null for empty patterns', () => {
+      expect(buildPatternsSection([])).toBeNull();
+    });
+
+    it('should group patterns by type', () => {
+      const patterns: MealPattern[] = [
+        { type: 'favorite', description: 'Laks scorer 4.5/5 i snitt (servert 5 ganger)' },
+        { type: 'weekday', description: 'Fredag: Taco (5 av 8 uker)' },
+        { type: 'balance', description: 'Fisk: 2.1 ganger/uke' },
+      ];
+      const result = buildPatternsSection(patterns)!;
+      expect(result).toContain('Favoritter');
+      expect(result).toContain('Ukedagsmonstre');
+      expect(result).toContain('Balanse siste uker');
+      expect(result).toContain('Laks scorer 4.5/5');
+      expect(result).toContain('Fredag: Taco');
+      expect(result).toContain('Fisk: 2.1 ganger/uke');
+    });
+
+    it('should include avoid section when present', () => {
+      const patterns: MealPattern[] = [
+        { type: 'avoid', description: 'Grot scorer 1.5/5 i snitt — vurder a droppe' },
+      ];
+      const result = buildPatternsSection(patterns)!;
+      expect(result).toContain('Unnga');
+      expect(result).toContain('Grot scorer 1.5/5');
+    });
+
+    it('should include patterns in system prompt when present', () => {
+      const ctx = makeDbContext({
+        mealPatterns: [
+          { type: 'favorite', description: 'Taco scorer 4.8/5 i snitt (servert 8 ganger)' },
+        ],
+      });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).toContain('Maltidsmonstre');
+      expect(prompt).toContain('Taco scorer 4.8/5');
+    });
+  });
+
+  describe('propose_learning action', () => {
+    it('should execute propose_learning action and insert learning', async () => {
+      const insertFn = vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { id: 'learning-1' }, error: null }),
+        }),
+      });
+      const updateFn = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+      });
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'household_learnings') return { insert: insertFn, update: updateFn };
+        return chainMock({ data: null, error: null });
+      });
+
+      const actions: HusmorAction[] = [
+        { type: 'propose_learning', category: 'preference', insight: 'Familien liker taco', confidence: 0.9 },
+      ];
+      await executeActions(mockSupabaseClient as any, actions, mockLogger, 'xoxb-test-token', { channel: 'C-husmor', threadTs: '1700000000.000001' });
+
+      expect(insertFn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: 'preference',
+          insight: 'Familien liker taco',
+          confidence: 0.9,
+          source: 'proposed',
+        }),
+      );
+    });
+
+    it('should post confirmation message in Slack thread', async () => {
+      const insertFn = vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { id: 'learning-1' }, error: null }),
+        }),
+      });
+      const updateFn = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+      });
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'household_learnings') return { insert: insertFn, update: updateFn };
+        return chainMock({ data: null, error: null });
+      });
+
+      const mockReply = vi.mocked(replyInThread);
+      mockReply.mockResolvedValue({ ok: true, ts: '9999.1234' });
+
+      const actions: HusmorAction[] = [
+        { type: 'propose_learning', category: 'routine', insight: 'Raske middager pa tirsdager' },
+      ];
+      await executeActions(mockSupabaseClient as any, actions, mockLogger, 'xoxb-test-token', { channel: 'C-husmor', threadTs: '1700000000.000001' });
+
+      // Should have called replyInThread (once for the learning proposal, plus potentially for thinking)
+      const proposalCalls = mockReply.mock.calls.filter(
+        (c) => typeof c[3] === 'string' && c[3].includes('Husker du dette?'),
+      );
+      expect(proposalCalls).toHaveLength(1);
+      expect(proposalCalls[0][3]).toContain('Raske middager pa tirsdager');
+    });
+
+    it('should include propose_learning in system prompt actions doc', () => {
+      const prompt = buildSystemPrompt(makeDbContext());
+      expect(prompt).toContain('propose_learning');
+      expect(prompt).toContain('Foresla en observasjon for bekreftelse');
     });
   });
 });

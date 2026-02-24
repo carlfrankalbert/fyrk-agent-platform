@@ -105,6 +105,13 @@ const UpdatePlanStatusAction = z.object({
   status: z.enum(['draft', 'proposed', 'approved', 'active', 'completed']),
 });
 
+const ProposeLearningAction = z.object({
+  type: z.literal('propose_learning'),
+  category: z.enum(['preference', 'household_info', 'feedback', 'constraint', 'routine']),
+  insight: z.string(),
+  confidence: z.number().min(0).max(1).optional(),
+});
+
 export const HusmorActionSchema = z.discriminatedUnion('type', [
   AddMealsAction,
   UpdateMealAction,
@@ -114,6 +121,7 @@ export const HusmorActionSchema = z.discriminatedUnion('type', [
   RateMealAction,
   GenerateShoppingListAction,
   UpdatePlanStatusAction,
+  ProposeLearningAction,
 ]);
 
 export type HusmorAction = z.infer<typeof HusmorActionSchema>;

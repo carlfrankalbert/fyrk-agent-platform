@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DAY_NAMES } from '../lib/constants.js';
+import { loadLearnings, computeMealPatterns } from './husmor-learnings.js';
+import type { Learning, MealPattern } from './husmor-learnings.js';
 
 // --- Types ---
 
@@ -45,6 +47,8 @@ export interface DbContext {
   foodTraditions: FoodTradition[];
   nutritionKnowledge: NutritionEntry[];
   recentMeals: RecentMeal[];
+  learnings: Learning[];
+  mealPatterns: MealPattern[];
 }
 
 // --- Week calculation ---
@@ -63,7 +67,7 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
   const { week, year } = getCurrentWeekNumber();
   const currentMonth = new Date().getMonth() + 1;
 
-  const [planResult, prefsResult, pantryResult, inventoryResult, seasonalResult, traditionsResult, nutritionResult] = await Promise.all([
+  const [planResult, prefsResult, pantryResult, inventoryResult, seasonalResult, traditionsResult, nutritionResult, learningsResult, mealPatternsResult] = await Promise.all([
     supabase
       .from('weekly_plans')
       .select('id, status, week_number, year')
@@ -95,6 +99,8 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
     supabase
       .from('nutrition_knowledge')
       .select('category, topic, content, applies_to'),
+    loadLearnings(supabase),
+    computeMealPatterns(supabase),
   ]);
 
   let meals: WeekPlanContext['meals'] = [];
@@ -146,6 +152,8 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
       appliesTo: n.applies_to,
     })),
     recentMeals,
+    learnings: learningsResult,
+    mealPatterns: mealPatternsResult,
   };
 }
 

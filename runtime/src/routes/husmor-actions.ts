@@ -1,15 +1,25 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getOrCreateCurrentWeekPlan } from './husmor-db.js';
 import { syncCanvas } from './husmor-canvas.js';
+import { replyInThread } from '../lib/slack.js';
 import type { HusmorAction } from './husmor-schemas.js';
 
 type Logger = { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
+
+export interface ActionContext {
+  supabase: SupabaseClient;
+  logger: Logger;
+  slackToken?: string;
+  channel?: string;
+  threadTs?: string;
+}
 
 export async function executeActions(
   supabase: SupabaseClient,
   actions: HusmorAction[],
   logger: Logger,
   slackToken?: string,
+  actionCtx?: { channel?: string; threadTs?: string },
 ): Promise<void> {
   for (const action of actions) {
     try {
@@ -37,6 +47,9 @@ export async function executeActions(
           break;
         case 'update_plan_status':
           await handleUpdatePlanStatus(supabase, action, logger);
+          break;
+        case 'propose_learning':
+          await handleProposeLearning(supabase, action, logger, slackToken, actionCtx?.channel, actionCtx?.threadTs);
           break;
       }
     } catch (err) {
@@ -195,4 +208,50 @@ async function handleUpdatePlanStatus(
     .update({ status: action.status, updated_at: new Date().toISOString() })
     .eq('id', planId);
   logger.info({ planId, status: action.status }, 'Updated plan status');
+}
+
+async function handleProposeLearning(
+  supabase: SupabaseClient,
+  action: Extract<HusmorAction, { type: 'propose_learning' }>,
+  logger: Logger,
+  slackToken?: string,
+  channel?: string,
+  threadTs?: string,
+): Promise<void> {
+  // Insert learning with source='proposed', confirmed=null
+  const { data: learning } = await supabase
+    .from('household_learnings')
+    .insert({
+      household_id: 'default',
+      category: action.category,
+      insight: action.insight,
+      confidence: action.confidence ?? 0.7,
+      source: 'proposed',
+      confirmed: null,
+    })
+    .select('id')
+    .single();
+
+  if (!learning) {
+    logger.warn('Failed to insert proposed learning');
+    return;
+  }
+
+  // Post confirmation message in thread
+  if (slackToken && channel && threadTs) {
+    const confirmMsg = `Husker du dette?\n> ${action.insight}\nReager med :white_check_mark: for a bekrefte eller :x: for a avvise.`;
+    try {
+      const result = await replyInThread(slackToken, channel, threadTs, confirmMsg);
+      if (result.ts) {
+        await supabase
+          .from('household_learnings')
+          .update({ slack_message_ts: result.ts })
+          .eq('id', learning.id);
+      }
+    } catch (err) {
+      logger.warn({ err }, 'Failed to post learning confirmation message');
+    }
+  }
+
+  logger.info({ learningId: learning.id, category: action.category }, 'Proposed learning');
 }

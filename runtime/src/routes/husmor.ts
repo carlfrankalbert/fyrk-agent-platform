@@ -98,6 +98,30 @@ export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
 
         const supabase = getSupabase();
 
+        // Check if reaction is on a proposed learning
+        if (reaction.reaction === 'white_check_mark' || reaction.reaction === 'x') {
+          const { data: learning } = await supabase
+            .from('household_learnings')
+            .select('id')
+            .eq('slack_message_ts', reaction.item.ts)
+            .maybeSingle();
+
+          if (learning) {
+            const confirmed = reaction.reaction === 'white_check_mark';
+            await supabase
+              .from('household_learnings')
+              .update({ confirmed })
+              .eq('id', learning.id);
+
+            scope.log.info(
+              { learningId: learning.id, confirmed },
+              'Learning confirmation updated via reaction',
+            );
+
+            return { ok: true, learningId: learning.id, confirmed };
+          }
+        }
+
         const { data: plan, error: findError } = await supabase
           .from('weekly_plans')
           .select('id, status')

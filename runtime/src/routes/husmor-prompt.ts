@@ -5,6 +5,7 @@ import {
   type HusmorClaudeResponse,
 } from './husmor-schemas.js';
 import type { DbContext } from './husmor-db.js';
+import { buildLearningsSection, buildPatternsSection } from './husmor-learnings.js';
 
 const PERSONA = `Du er Husmor. En tydelig, varm og bestemt skikkelse som kunne jobbet pa Sigtuna allmanna laroverk. Du har hoy standard for orden, helse og dannelse.
 
@@ -88,8 +89,15 @@ Handlingstyper:
 - rate_meal: Gi tilbakemelding pa et maltid. dayOfWeek, feedbackEmoji?, rating? (1-5)
 - generate_shopping_list: Generer handleliste. items: [{ name, amount?, unit?, category? }]
 - update_plan_status: Oppdater planstatus. status (draft|proposed|approved|active|completed)
+- propose_learning: Foresla en observasjon for bekreftelse. category, insight, confidence?
 
 Nar brukeren forteller om en middag, spor gjerne "Hvordan var middagen?" slik at vi kan forbedre fremtidige planer.
+
+Nar du oppdager et monster over flere samtaler, bruk propose_learning for a
+foresla det som en varig lrdom. Eksempel: "Jeg legger merke til at dere
+foretrekker raske middager pa tirsdager — stemmer det?"
+Inkluder forslaget naturlig i reply-teksten din, og legg til propose_learning i actions.
+Ikke foresla mer enn 1 lrdom per samtale.
 
 Nar brukeren ber om handleliste, analyser ukens middager, grupper varene etter kategori (gronnsaker, meieri, kjott, fisk, torrvarer, annet), og trekk fra basisvarer som allerede er pa lager.
 
@@ -165,6 +173,18 @@ export function buildSystemPrompt(ctx: DbContext): string {
     for (const p of ctx.preferences) {
       sections.push(`- ${p.key}: ${JSON.stringify(p.value)}`);
     }
+  }
+
+  // Learnings from previous conversations
+  const learningsSection = buildLearningsSection(ctx.learnings);
+  if (learningsSection) {
+    sections.push(`\n${learningsSection}`);
+  }
+
+  // Meal patterns
+  const patternsSection = buildPatternsSection(ctx.mealPatterns);
+  if (patternsSection) {
+    sections.push(`\n${patternsSection}`);
   }
 
   // Pantry staples

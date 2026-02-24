@@ -6,6 +6,7 @@ import { getSupabase } from '../lib/supabase.js';
 import { loadDbContext } from './husmor-db.js';
 import { executeActions } from './husmor-actions.js';
 import { buildSystemPrompt, parseClaudeResponse, cleanMessageOrder } from './husmor-prompt.js';
+import { extractLearnings } from './husmor-learnings.js';
 
 export const HUSMOR_MODEL = 'claude-sonnet-4-5-20250929';
 export const THINKING_MSG = 'Husmor tenker...';
@@ -92,8 +93,12 @@ export async function handleHusmorMessage(params: HusmorMessageParams): Promise<
 
     // 6. Execute actions
     if (parsed.actions && parsed.actions.length > 0) {
-      await executeActions(supabase, parsed.actions, logger, botToken);
+      await executeActions(supabase, parsed.actions, logger, botToken, { channel, threadTs });
     }
+
+    // 7. Fire-and-forget: extract learnings from conversation
+    extractLearnings(supabase, apiKey, threadTs, messages, dbContext.learnings, logger)
+      .catch(err => logger.error({ err }, 'Learning extraction failed (non-fatal)'));
 
     logger.info({ userId, actionsCount: parsed.actions?.length ?? 0 }, 'Husmor message handled');
   } catch (err) {
