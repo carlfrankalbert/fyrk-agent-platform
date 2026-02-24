@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Mock env
 vi.mock('../src/lib/env.js', () => ({
@@ -27,6 +27,8 @@ vi.mock('../src/lib/slack.js', () => ({
   updateMessage: vi.fn().mockResolvedValue({ ok: true, ts: '1234.5678' }),
   getThreadHistory: vi.fn().mockResolvedValue([]),
   verifySignature: vi.fn().mockReturnValue(true),
+  createCanvas: vi.fn().mockResolvedValue({ ok: true, canvas_id: 'canvas-1' }),
+  editCanvas: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
 // Mock Supabase
@@ -39,16 +41,11 @@ vi.mock('@supabase/supabase-js', () => ({
 
 import { callClaude, extractText } from '../src/lib/claude.js';
 import { replyInThread, updateMessage, getThreadHistory } from '../src/lib/slack.js';
-import {
-  handleHusmorMessage,
-  loadDbContext,
-  buildSystemPrompt,
-  parseClaudeResponse,
-  executeActions,
-  getOrCreateCurrentWeekPlan,
-  cleanMessageOrder,
-  type HusmorMessageParams,
-} from '../src/routes/husmor-conversation.js';
+import { handleHusmorMessage, THINKING_MSG, ERROR_MSG, type HusmorMessageParams } from '../src/routes/husmor-conversation.js';
+import { buildSystemPrompt, parseClaudeResponse, cleanMessageOrder } from '../src/routes/husmor-prompt.js';
+import { executeActions, } from '../src/routes/husmor-actions.js';
+import { buildCanvasMarkdown } from '../src/routes/husmor-canvas.js';
+import type { DbContext } from '../src/routes/husmor-db.js';
 import {
   HusmorSlackMessageEvent,
   HusmorSlackEventEnvelope,
@@ -67,6 +64,22 @@ const mockLogger = {
   warn: vi.fn(),
   error: vi.fn(),
 };
+
+// --- Test helpers ---
+
+function makeDbContext(overrides?: Partial<DbContext>): DbContext {
+  return {
+    plan: { planId: null, weekNumber: 9, year: 2026, status: 'none', meals: [] },
+    preferences: [],
+    pantryStaples: [],
+    inventoryNotes: [],
+    seasonalProduce: [],
+    foodTraditions: [],
+    nutritionKnowledge: [],
+    recentMeals: [],
+    ...overrides,
+  };
+}
 
 function makeParams(overrides?: Partial<HusmorMessageParams>): HusmorMessageParams {
   return {
@@ -94,20 +107,27 @@ function makeClaudeResponse(reply: string, actions?: HusmorAction[]) {
 }
 
 // Chain helper for Supabase mock
+// The chain is a thenable that resolves to result when awaited directly,
+// but also supports chaining via .eq(), .order(), .limit(), etc.
 function chainMock(result: { data: unknown; error: unknown }) {
   const chain: Record<string, unknown> = {};
-  const methods = ['select', 'insert', 'update', 'upsert', 'delete', 'eq', 'in', 'contains', 'maybeSingle', 'single', 'order'];
+  const methods = ['select', 'insert', 'update', 'upsert', 'delete', 'eq', 'in', 'contains', 'maybeSingle', 'single', 'order', 'gte', 'limit'];
   for (const m of methods) {
     chain[m] = vi.fn().mockReturnValue(chain);
   }
   chain['maybeSingle'] = vi.fn().mockResolvedValue(result);
   chain['single'] = vi.fn().mockResolvedValue(result);
+  // Make the chain itself thenable so `await supabase.from(...).select(...).order(...)` resolves
+  chain['then'] = (resolve: (v: unknown) => void, reject: (e: unknown) => void) => {
+    return Promise.resolve(result).then(resolve, reject);
+  };
   // Make terminal methods resolve the result
   const insertChain = { ...chain };
   chain['insert'] = vi.fn().mockReturnValue(insertChain);
-  chain['order'] = vi.fn().mockResolvedValue(result);
   return chain;
 }
+
+// --- Tests ---
 
 describe('husmor-conversation', () => {
   beforeEach(() => {
@@ -159,73 +179,129 @@ describe('husmor-conversation', () => {
 
   describe('buildSystemPrompt', () => {
     it('should include current meals in prompt', () => {
-      const ctx = {
+      const ctx = makeDbContext({
         plan: {
           planId: 'p1', weekNumber: 9, year: 2026, status: 'draft',
           meals: [{ dayOfWeek: 1, dayName: 'Mandag', name: 'Laks', description: 'Med brokkoli', mealType: 'dinner' }],
         },
-        preferences: [], pantryStaples: [], inventoryNotes: [], seasonalProduce: [],
-      };
+      });
       const prompt = buildSystemPrompt(ctx);
       expect(prompt).toContain('Mandag: Laks');
       expect(prompt).toContain('Med brokkoli');
     });
 
     it('should show "no plan" when meals are empty', () => {
-      const ctx = {
-        plan: { planId: null, weekNumber: 9, year: 2026, status: 'none', meals: [] },
-        preferences: [], pantryStaples: [], inventoryNotes: [], seasonalProduce: [],
-      };
-      const prompt = buildSystemPrompt(ctx);
+      const prompt = buildSystemPrompt(makeDbContext());
       expect(prompt).toContain('Ingen plan enna');
     });
 
     it('should include preferences', () => {
-      const ctx = {
-        plan: { planId: null, weekNumber: 9, year: 2026, status: 'none', meals: [] },
-        preferences: [{ key: 'allergies', value: ['melk'] }],
-        pantryStaples: [], inventoryNotes: [], seasonalProduce: [],
-      };
+      const ctx = makeDbContext({ preferences: [{ key: 'allergies', value: ['melk'] }] });
       const prompt = buildSystemPrompt(ctx);
       expect(prompt).toContain('allergies');
       expect(prompt).toContain('melk');
     });
 
     it('should include seasonal produce', () => {
-      const ctx = {
-        plan: { planId: null, weekNumber: 9, year: 2026, status: 'none', meals: [] },
-        preferences: [], pantryStaples: [], inventoryNotes: [],
-        seasonalProduce: ['Gulrot', 'Kal'],
-      };
+      const ctx = makeDbContext({ seasonalProduce: ['Gulrot', 'Kal'] });
       const prompt = buildSystemPrompt(ctx);
       expect(prompt).toContain('Gulrot');
       expect(prompt).toContain('Kal');
     });
 
     it('should include inventory notes', () => {
-      const ctx = {
-        plan: { planId: null, weekNumber: 9, year: 2026, status: 'none', meals: [] },
-        preferences: [], pantryStaples: [],
+      const ctx = makeDbContext({
         inventoryNotes: [{ itemName: 'Spinat', status: 'use_soon', quantity: '200g' }],
-        seasonalProduce: [],
-      };
+      });
       const prompt = buildSystemPrompt(ctx);
       expect(prompt).toContain('Spinat');
       expect(prompt).toContain('200g');
     });
 
     it('should include available action types', () => {
-      const ctx = {
-        plan: { planId: null, weekNumber: 9, year: 2026, status: 'none', meals: [] },
-        preferences: [], pantryStaples: [], inventoryNotes: [], seasonalProduce: [],
-      };
-      const prompt = buildSystemPrompt(ctx);
+      const prompt = buildSystemPrompt(makeDbContext());
       expect(prompt).toContain('add_meals');
       expect(prompt).toContain('update_meal');
       expect(prompt).toContain('remove_meal');
       expect(prompt).toContain('set_preference');
       expect(prompt).toContain('add_inventory_note');
       expect(prompt).toContain('update_plan_status');
+    });
+
+    it('should include food traditions when present', () => {
+      const ctx = makeDbContext({
+        foodTraditions: [{ name: 'Fettisdagen', country: 'SE', typicalDishes: ['Semlor'], suggestStrength: 'strong', description: 'Svensk tradisjon' }],
+      });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).toContain('Mattradisjoner denne maneden');
+      expect(prompt).toContain('Fettisdagen');
+      expect(prompt).toContain('Semlor');
+      expect(prompt).toContain('sterk anbefaling');
+    });
+
+    it('should include nutrition knowledge when present', () => {
+      const ctx = makeDbContext({
+        nutritionKnowledge: [{ category: 'barn', topic: 'Jern', content: 'Barn trenger ekstra jern', appliesTo: 'children_1_3' }],
+      });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).toContain('Utfyllende kostholdsrad');
+      expect(prompt).toContain('barn');
+      expect(prompt).toContain('Jern');
+      expect(prompt).toContain('children_1_3');
+    });
+
+    it('should include recent meals grouped by week', () => {
+      const ctx = makeDbContext({
+        recentMeals: [
+          { weekNumber: 8, year: 2026, dayOfWeek: 1, dayName: 'Mandag', name: 'Laks', feedbackEmoji: null, rating: 4 },
+          { weekNumber: 8, year: 2026, dayOfWeek: 3, dayName: 'Onsdag', name: 'Taco', feedbackEmoji: '👍', rating: null },
+        ],
+      });
+      const prompt = buildSystemPrompt(ctx);
+      expect(prompt).toContain('Nylige middager');
+      expect(prompt).toContain('Uke 8, 2026');
+      expect(prompt).toContain('Mandag: Laks');
+      expect(prompt).toContain('(4/5)');
+      expect(prompt).toContain('Taco');
+    });
+
+    it('should include nutrition balance section', () => {
+      const prompt = buildSystemPrompt(makeDbContext());
+      expect(prompt).toContain('Naeringsbalanse');
+      expect(prompt).toContain('Fiskedager');
+      expect(prompt).toContain('Vegetardager');
+    });
+
+    it('should include recipe instruction', () => {
+      const prompt = buildSystemPrompt(makeDbContext());
+      expect(prompt).toContain('Oppskrifter');
+      expect(prompt).toContain('steg-for-steg');
+    });
+  });
+
+  describe('buildCanvasMarkdown', () => {
+    it('should build markdown with meals and shopping list', () => {
+      const meals = [
+        { dayOfWeek: 1, dayName: 'Mandag', name: 'Laks', description: 'Med brokkoli' },
+        { dayOfWeek: 3, dayName: 'Onsdag', name: 'Taco', description: null },
+      ];
+      const items = [
+        { name: 'Laks', amount: '400', unit: 'g', category: 'Fisk' },
+        { name: 'Brokkoli', amount: '1', unit: 'stk', category: 'Gronnsaker' },
+      ];
+      const md = buildCanvasMarkdown(9, 2026, meals, items);
+      expect(md).toContain('# Ukeplan uke 9, 2026');
+      expect(md).toContain('**Mandag:** Laks');
+      expect(md).toContain('Med brokkoli');
+      expect(md).toContain('**Onsdag:** Taco');
+      expect(md).toContain('### Fisk');
+      expect(md).toContain('- [ ] Laks 400 g');
+      expect(md).toContain('### Gronnsaker');
+    });
+
+    it('should handle empty meals', () => {
+      const md = buildCanvasMarkdown(9, 2026, []);
+      expect(md).toContain('Ingen middager planlagt');
     });
   });
 
@@ -306,7 +382,6 @@ describe('husmor-conversation', () => {
       const upsertChain = chainMock({ data: { id: 'plan-1' }, error: null });
       mockFrom.mockImplementation((table: string) => {
         if (table === 'weekly_plans') {
-          // Return upsertChain for getOrCreate, but need to handle both upsert and update
           return {
             ...upsertChain,
             update: updateFn,
@@ -322,6 +397,55 @@ describe('husmor-conversation', () => {
       );
     });
 
+    it('should execute rate_meal action', async () => {
+      const updateFn = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+        }),
+      });
+      const upsertChain = chainMock({ data: { id: 'plan-1' }, error: null });
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'weekly_plans') return upsertChain;
+        if (table === 'planned_meals') return { update: updateFn };
+        return chainMock({ data: null, error: null });
+      });
+
+      const actions: HusmorAction[] = [
+        { type: 'rate_meal', dayOfWeek: 1, rating: 4, feedbackEmoji: '👍' },
+      ];
+      await executeActions(mockSupabaseClient as any, actions, mockLogger);
+      expect(updateFn).toHaveBeenCalledWith(
+        expect.objectContaining({ feedback_emoji: '👍', rating: 4 }),
+      );
+    });
+
+    it('should execute generate_shopping_list action', async () => {
+      const insertFn = vi.fn().mockResolvedValue({ data: null, error: null });
+      const listInsertChain = {
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { id: 'list-1' }, error: null }),
+          }),
+        }),
+      };
+      const upsertChain = chainMock({ data: { id: 'plan-1' }, error: null });
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'weekly_plans') return upsertChain;
+        if (table === 'shopping_lists') return listInsertChain;
+        if (table === 'shopping_items') return { insert: insertFn };
+        return chainMock({ data: null, error: null });
+      });
+
+      const actions: HusmorAction[] = [
+        { type: 'generate_shopping_list', items: [{ name: 'Laks', amount: '400', unit: 'g', category: 'fisk' }] },
+      ];
+      await executeActions(mockSupabaseClient as any, actions, mockLogger);
+      expect(listInsertChain.insert).toHaveBeenCalled();
+      expect(insertFn).toHaveBeenCalledWith([
+        expect.objectContaining({ list_id: 'list-1', name: 'Laks', amount: 400, unit: 'g', category: 'fisk' }),
+      ]);
+    });
+
     it('should not throw when individual action fails', async () => {
       mockFrom.mockImplementation(() => {
         throw new Error('DB connection lost');
@@ -330,7 +454,6 @@ describe('husmor-conversation', () => {
       const actions: HusmorAction[] = [
         { type: 'add_inventory_note', itemName: 'Spinat' },
       ];
-      // Should not throw
       await executeActions(mockSupabaseClient as any, actions, mockLogger);
       expect(mockLogger.error).toHaveBeenCalled();
     });
@@ -338,7 +461,6 @@ describe('husmor-conversation', () => {
 
   describe('handleHusmorMessage', () => {
     it('should call Claude and update thinking message with reply', async () => {
-      // Setup Supabase mocks for context loading
       mockFrom.mockImplementation(() => {
         return chainMock({ data: null, error: null });
       });
@@ -350,14 +472,12 @@ describe('husmor-conversation', () => {
       expect(mockCallClaude).toHaveBeenCalledTimes(1);
       expect(mockCallClaude.mock.calls[0][0]).toBe('test-api-key');
       expect(mockCallClaude.mock.calls[0][1].model).toBe('claude-sonnet-4-5-20250929');
-      // First call: thinking indicator
       expect(mockReplyInThread).toHaveBeenCalledWith(
         'xoxb-test-token',
         'C-husmor',
         '1700000000.000001',
-        'Husmor tenker...',
+        THINKING_MSG,
       );
-      // Then: update the thinking message with the real reply
       expect(mockUpdateMessage).toHaveBeenCalledWith(
         'xoxb-test-token',
         'C-husmor',
@@ -383,7 +503,6 @@ describe('husmor-conversation', () => {
       const insertFn = vi.fn().mockResolvedValue({ data: null, error: null });
       mockFrom.mockImplementation((table: string) => {
         if (table === 'inventory_notes') {
-          // Must support both context loading (select chain) and action execution (insert)
           const chain = chainMock({ data: [], error: null });
           chain['insert'] = insertFn;
           return chain;
@@ -413,7 +532,7 @@ describe('husmor-conversation', () => {
         'xoxb-test-token',
         'C-husmor',
         '1234.5678',
-        'Beklager, noe gikk galt. Prov igjen om litt!',
+        ERROR_MSG,
       );
     });
 
@@ -423,11 +542,10 @@ describe('husmor-conversation', () => {
       });
 
       mockCallClaude.mockRejectedValue(new Error('Claude down'));
-      mockReplyInThread.mockResolvedValueOnce({ ok: true, ts: '1234.5678' }); // thinking msg ok
+      mockReplyInThread.mockResolvedValueOnce({ ok: true, ts: '1234.5678' });
       mockUpdateMessage.mockRejectedValue(new Error('Slack update down'));
       mockReplyInThread.mockRejectedValue(new Error('Slack down'));
 
-      // Should not throw
       await handleHusmorMessage(makeParams());
       expect(mockLogger.error).toHaveBeenCalled();
     });
@@ -446,7 +564,6 @@ describe('husmor-conversation', () => {
       await handleHusmorMessage(makeParams({ isThreadReply: true, text: 'kan vi bytte til taco?' }));
 
       expect(mockGetThreadHistory).toHaveBeenCalledWith('xoxb-test-token', 'C-husmor', '1700000000.000001');
-      // Should send multi-turn messages to Claude
       const messages = mockCallClaude.mock.calls[0][1].messages;
       expect(messages.length).toBeGreaterThan(1);
     });
@@ -474,7 +591,6 @@ describe('husmor-conversation', () => {
       const messages = mockCallClaude.mock.calls[0][1].messages;
       const assistantMsg = messages.find((m: { role: string }) => m.role === 'assistant');
       expect(assistantMsg).toBeDefined();
-      // Bot messages should be wrapped in JSON format
       const parsed = JSON.parse(assistantMsg!.content);
       expect(parsed.reply).toBe('Hei! Hva kan jeg hjelpe med?');
       expect(parsed.actions).toEqual([]);
@@ -484,7 +600,7 @@ describe('husmor-conversation', () => {
       mockFrom.mockImplementation(() => chainMock({ data: null, error: null }));
       mockGetThreadHistory.mockResolvedValue([
         { user: 'U12345', text: 'hei', ts: '1700000000.000001' },
-        { bot_id: 'B1', text: 'Beklager, noe gikk galt. Prov igjen om litt!', ts: '1700000000.000002' },
+        { bot_id: 'B1', text: ERROR_MSG, ts: '1700000000.000002' },
         { user: 'U12345', text: 'prov igjen', ts: '1700000000.000003' },
       ]);
       makeClaudeResponse('Ok!');
@@ -500,7 +616,7 @@ describe('husmor-conversation', () => {
       mockFrom.mockImplementation(() => chainMock({ data: null, error: null }));
       mockGetThreadHistory.mockResolvedValue([
         { user: 'U12345', text: 'hei', ts: '1700000000.000001' },
-        { bot_id: 'B1', text: 'Husmor tenker...', ts: '1700000000.000002' },
+        { bot_id: 'B1', text: THINKING_MSG, ts: '1700000000.000002' },
         { bot_id: 'B1', text: 'Hei! Hva kan jeg hjelpe med?', ts: '1700000000.000002' },
         { user: 'U12345', text: 'taco i dag?', ts: '1700000000.000003' },
       ]);
@@ -633,6 +749,41 @@ describe('husmor-conversation', () => {
       const result = HusmorActionSchema.safeParse({
         type: 'update_plan_status',
         status: 'invalid_status',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should validate rate_meal action', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'rate_meal',
+        dayOfWeek: 1,
+        rating: 4,
+        feedbackEmoji: '👍',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject rate_meal with invalid rating', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'rate_meal',
+        dayOfWeek: 1,
+        rating: 6,
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should validate generate_shopping_list action', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'generate_shopping_list',
+        items: [{ name: 'Laks', amount: '400', unit: 'g', category: 'fisk' }],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject generate_shopping_list with empty items', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'generate_shopping_list',
+        items: [],
       });
       expect(result.success).toBe(false);
     });

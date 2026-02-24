@@ -124,6 +124,63 @@ export async function getThreadHistory(
   return data.messages ?? [];
 }
 
+export interface CanvasResponse {
+  ok: boolean;
+  canvas_id?: string;
+  error?: string;
+}
+
+export async function createCanvas(
+  token: string,
+  title: string,
+  markdown: string,
+): Promise<CanvasResponse> {
+  const res = await fetch('https://slack.com/api/canvases.create', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      title,
+      document_content: { type: 'markdown', markdown },
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Slack Canvas API HTTP error ${res.status}: ${await res.text()}`);
+  }
+
+  return await res.json() as CanvasResponse;
+}
+
+export async function editCanvas(
+  token: string,
+  canvasId: string,
+  markdown: string,
+): Promise<CanvasResponse> {
+  const res = await fetch('https://slack.com/api/canvases.edit', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      canvas_id: canvasId,
+      changes: [{
+        operation: 'replace',
+        document_content: { type: 'markdown', markdown },
+      }],
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Slack Canvas API HTTP error ${res.status}: ${await res.text()}`);
+  }
+
+  return await res.json() as CanvasResponse;
+}
+
 export function verifySignature(
   signingSecret: string,
   headers: { 'x-slack-signature'?: string; 'x-slack-request-timestamp'?: string },

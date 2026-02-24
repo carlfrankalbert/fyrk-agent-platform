@@ -3,16 +3,13 @@ import { callClaude, extractText } from '../lib/claude.js';
 import { replyInThread, updateMessage, getThreadHistory } from '../lib/slack.js';
 import type { ClaudeMessage } from '../lib/claude.js';
 import { getSupabase } from '../lib/supabase.js';
-const HUSMOR_MODEL = 'claude-sonnet-4-5-20250929';
-
-// Re-export split modules for backwards-compatible imports
-export { loadDbContext, executeActions, getOrCreateCurrentWeekPlan } from './husmor-db.js';
-export type { WeekPlanContext, DbContext } from './husmor-db.js';
-export { buildSystemPrompt, parseClaudeResponse, cleanMessageOrder } from './husmor-prompt.js';
-
-// Import for local use
-import { loadDbContext, executeActions } from './husmor-db.js';
+import { loadDbContext } from './husmor-db.js';
+import { executeActions } from './husmor-actions.js';
 import { buildSystemPrompt, parseClaudeResponse, cleanMessageOrder } from './husmor-prompt.js';
+
+export const HUSMOR_MODEL = 'claude-sonnet-4-5-20250929';
+export const THINKING_MSG = 'Husmor tenker...';
+export const ERROR_MSG = 'Beklager, noe gikk galt. Prov igjen om litt!';
 
 export interface HusmorMessageParams {
   text: string;
@@ -21,6 +18,25 @@ export interface HusmorMessageParams {
   userId: string;
   isThreadReply: boolean;
   logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
+}
+
+/** Update the thinking placeholder with a reply, or post a new message if update fails. */
+async function sendReply(
+  botToken: string,
+  channel: string,
+  threadTs: string,
+  thinkingTs: string | undefined,
+  text: string,
+): Promise<void> {
+  if (thinkingTs) {
+    try {
+      await updateMessage(botToken, channel, thinkingTs, text);
+      return;
+    } catch {
+      // Fall through to replyInThread
+    }
+  }
+  await replyInThread(botToken, channel, threadTs, text);
 }
 
 export async function handleHusmorMessage(params: HusmorMessageParams): Promise<void> {
@@ -40,7 +56,7 @@ export async function handleHusmorMessage(params: HusmorMessageParams): Promise<
   // Post a "thinking" indicator immediately
   let thinkingTs: string | undefined;
   try {
-    const thinking = await replyInThread(botToken, channel, threadTs, 'Husmor tenker...');
+    const thinking = await replyInThread(botToken, channel, threadTs, THINKING_MSG);
     thinkingTs = thinking.ts;
   } catch (err) {
     logger.warn({ err }, 'Failed to post thinking indicator');
@@ -55,86 +71,68 @@ export async function handleHusmorMessage(params: HusmorMessageParams): Promise<
         : Promise.resolve([]),
     ]);
 
-    // 2. Build prompt
+    // 2. Build system prompt
     const systemPrompt = buildSystemPrompt(dbContext);
 
     // 3. Build conversation messages from thread history
-    const messages: ClaudeMessage[] = [];
-    if (threadMessages.length > 0) {
-      // Skip the thinking message (last bot message) and the current user message (last)
-      for (const msg of threadMessages) {
-        if (!msg.text) continue;
-        // Skip "Husmor tenker..." placeholders
-        if (msg.text === 'Husmor tenker...') continue;
-        // Skip error messages
-        if (msg.text === 'Beklager, noe gikk galt. Prov igjen om litt!') continue;
-        if (msg.bot_id) {
-          // Bot message → wrap in JSON format so Claude sees the pattern it should follow
-          const wrapped = JSON.stringify({ reply: msg.text, actions: [] });
-          messages.push({ role: 'assistant', content: wrapped });
-        } else if (msg.user) {
-          messages.push({ role: 'user', content: msg.text });
-        }
-      }
-    }
-
-    // If no history or last message isn't the current one, add it
-    const lastUserMsg = messages.filter((m) => m.role === 'user').pop();
-    if (!lastUserMsg || lastUserMsg.content !== text) {
-      messages.push({ role: 'user', content: text });
-    }
-
-    // Limit to last 20 messages to avoid token overflow
-    const recentMessages = messages.length > 20 ? messages.slice(-20) : messages;
-
-    // Ensure messages alternate and start with user
-    const cleanedMessages = cleanMessageOrder(recentMessages);
+    const messages = buildMessages(threadMessages, text);
 
     // 4. Call Claude
     const response = await callClaude(apiKey, {
       model: HUSMOR_MODEL,
       max_tokens: 2048,
       system: systemPrompt,
-      messages: cleanedMessages,
+      messages,
     });
 
-    const rawText = extractText(response);
+    const parsed = parseClaudeResponse(extractText(response));
 
-    // 4. Parse response
-    const parsed = parseClaudeResponse(rawText);
-
-    // 5. Update thinking message with real reply, or post new if update fails
-    if (thinkingTs) {
-      try {
-        await updateMessage(botToken, channel, thinkingTs, parsed.reply);
-      } catch {
-        await replyInThread(botToken, channel, threadTs, parsed.reply);
-      }
-    } else {
-      await replyInThread(botToken, channel, threadTs, parsed.reply);
-    }
+    // 5. Send reply
+    await sendReply(botToken, channel, threadTs, thinkingTs, parsed.reply);
 
     // 6. Execute actions
     if (parsed.actions && parsed.actions.length > 0) {
-      await executeActions(supabase, parsed.actions, logger);
+      await executeActions(supabase, parsed.actions, logger, botToken);
     }
 
     logger.info({ userId, actionsCount: parsed.actions?.length ?? 0 }, 'Husmor message handled');
   } catch (err) {
     logger.error({ err, userId }, 'Failed to handle Husmor message');
     try {
-      const errorMsg = 'Beklager, noe gikk galt. Prov igjen om litt!';
-      if (thinkingTs) {
-        try {
-          await updateMessage(botToken, channel, thinkingTs, errorMsg);
-        } catch {
-          await replyInThread(botToken, channel, threadTs, errorMsg);
-        }
-      } else {
-        await replyInThread(botToken, channel, threadTs, errorMsg);
-      }
+      await sendReply(botToken, channel, threadTs, thinkingTs, ERROR_MSG);
     } catch (replyErr) {
       logger.error({ replyErr }, 'Failed to send error reply');
     }
   }
+}
+
+/** Build Claude messages from Slack thread history + current user text. */
+function buildMessages(
+  threadMessages: Array<{ user?: string; bot_id?: string; text?: string; ts: string }>,
+  currentText: string,
+): ClaudeMessage[] {
+  const messages: ClaudeMessage[] = [];
+
+  for (const msg of threadMessages) {
+    if (!msg.text) continue;
+    if (msg.text === THINKING_MSG) continue;
+    if (msg.text === ERROR_MSG) continue;
+
+    if (msg.bot_id) {
+      const wrapped = JSON.stringify({ reply: msg.text, actions: [] });
+      messages.push({ role: 'assistant', content: wrapped });
+    } else if (msg.user) {
+      messages.push({ role: 'user', content: msg.text });
+    }
+  }
+
+  // Ensure the current message is included
+  const lastUserMsg = messages.filter((m) => m.role === 'user').pop();
+  if (!lastUserMsg || lastUserMsg.content !== currentText) {
+    messages.push({ role: 'user', content: currentText });
+  }
+
+  // Limit to last 20 messages
+  const recent = messages.length > 20 ? messages.slice(-20) : messages;
+  return cleanMessageOrder(recent);
 }

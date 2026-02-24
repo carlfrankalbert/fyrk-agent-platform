@@ -6,19 +6,7 @@ import {
 } from './husmor-schemas.js';
 import type { DbContext } from './husmor-db.js';
 
-export function buildSystemPrompt(ctx: DbContext): string {
-  const sections: string[] = [];
-
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('nb-NO', {
-    timeZone: 'Europe/Oslo',
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-
-  sections.push(`Du er Husmor. En tydelig, varm og bestemt skikkelse som kunne jobbet pa Sigtuna allmanna laroverk. Du har hoy standard for orden, helse og dannelse.
+const PERSONA = `Du er Husmor. En tydelig, varm og bestemt skikkelse som kunne jobbet pa Sigtuna allmanna laroverk. Du har hoy standard for orden, helse og dannelse.
 
 Du er strukturert, praktisk, ravarebevisst, lite imponert av slurv, og opptatt av rytme, tradisjon og kvalitet. Du tar valg. Du anbefaler tydelig. Du kan vaere streng nar det trengs.
 
@@ -36,12 +24,9 @@ Du snakker norsk, men kan bruke enkelte svenske ord nar det gir karakter. Det sk
 Varm, bestemt, kort og tydelig. Lite dill. Fokus pa orden og kvalitet. Ikke mas. Nar brukeren er vag, velger du en tydelig retning.
 
 ## Sprak
-Skriv alltid pa norsk. Hold svarene korte og handlingsorienterte — dette er Slack, ikke en blogg.
+Skriv alltid pa norsk. Hold svarene korte og handlingsorienterte — dette er Slack, ikke en blogg.`;
 
-I dag er det ${dateStr}.
-Uke ${ctx.plan.weekNumber}, ${ctx.plan.year}.
-
-## Kostrad — Helsedirektoratet (Norge) og Livsmedelsverket (Sverige)
+const DIETARY_GUIDELINES = `## Kostrad — Helsedirektoratet (Norge) og Livsmedelsverket (Sverige)
 Du folger disse offisielle kostradene. De er ikke valgfrie — de er grunnmuren i alt du anbefaler.
 
 ### Gronnsaker, frukt og baer
@@ -89,7 +74,78 @@ Du folger disse offisielle kostradene. De er ikke valgfrie — de er grunnmuren 
 - Regelmessige maltider gir stabil energi.
 - Barn trenger hyppigere maltider.
 
-Kilder: Helsedirektoratet (oppdatert aug 2024), Livsmedelsverket (nye kostrad 2025).`);
+Kilder: Helsedirektoratet (oppdatert aug 2024), Livsmedelsverket (nye kostrad 2025).`;
+
+const ACTIONS_DOC = `## Tilgjengelige handlinger
+Du kan utfore handlinger ved a inkludere dem i "actions"-arrayen i JSON-svaret ditt.
+
+Handlingstyper:
+- add_meals: Legg til maltider. meals: [{ dayOfWeek (1=mandag), name, description?, mealType? }]
+- update_meal: Oppdater et maltid. dayOfWeek, name, description?
+- remove_meal: Fjern et maltid. dayOfWeek
+- set_preference: Sett en preferanse. key, value
+- add_inventory_note: Legg til beholdningsnotat. itemName, status? (available|use_soon), quantity?
+- rate_meal: Gi tilbakemelding pa et maltid. dayOfWeek, feedbackEmoji?, rating? (1-5)
+- generate_shopping_list: Generer handleliste. items: [{ name, amount?, unit?, category? }]
+- update_plan_status: Oppdater planstatus. status (draft|proposed|approved|active|completed)
+
+Nar brukeren forteller om en middag, spor gjerne "Hvordan var middagen?" slik at vi kan forbedre fremtidige planer.
+
+Nar brukeren ber om handleliste, analyser ukens middager, grupper varene etter kategori (gronnsaker, meieri, kjott, fisk, torrvarer, annet), og trekk fra basisvarer som allerede er pa lager.
+
+## Responsformat
+Svar ALLTID med gyldig JSON:
+{
+  "reply": "Din melding til brukeren (norsk, vennlig, kortfattet)",
+  "actions": []
+}
+
+"actions" kan være tom array eller utelatt hvis ingen handlinger trengs.
+Returner KUN valid JSON, ingen annen tekst.`;
+
+export function buildSystemPrompt(ctx: DbContext): string {
+  const sections: string[] = [];
+
+  const dateStr = new Date().toLocaleDateString('nb-NO', {
+    timeZone: 'Europe/Oslo',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  // Persona + date + dietary guidelines
+  sections.push(PERSONA);
+  sections.push(`\nI dag er det ${dateStr}.\nUke ${ctx.plan.weekNumber}, ${ctx.plan.year}.\n`);
+  sections.push(DIETARY_GUIDELINES);
+
+  // Food traditions for current month
+  if (ctx.foodTraditions.length > 0) {
+    sections.push('\n## Mattradisjoner denne maneden');
+    for (const t of ctx.foodTraditions) {
+      const dishes = t.typicalDishes.length > 0 ? ` Typiske retter: ${t.typicalDishes.join(', ')}.` : '';
+      const strength = t.suggestStrength === 'strong' ? ' (sterk anbefaling)' : t.suggestStrength === 'suggest' ? ' (anbefalt)' : '';
+      sections.push(`- **${t.name}** (${t.country})${strength}:${dishes}${t.description ? ` ${t.description}` : ''}`);
+    }
+  }
+
+  // Supplementary nutrition knowledge from DB
+  if (ctx.nutritionKnowledge.length > 0) {
+    sections.push('\n## Utfyllende kostholdsrad');
+    const grouped = new Map<string, typeof ctx.nutritionKnowledge>();
+    for (const n of ctx.nutritionKnowledge) {
+      const existing = grouped.get(n.category) ?? [];
+      existing.push(n);
+      grouped.set(n.category, existing);
+    }
+    for (const [category, entries] of grouped) {
+      sections.push(`\n### ${category}`);
+      for (const e of entries) {
+        const scope = e.appliesTo ? ` (${e.appliesTo})` : '';
+        sections.push(`- **${e.topic}**${scope}: ${e.content}`);
+      }
+    }
+  }
 
   // Current plan
   if (ctx.plan.meals.length > 0) {
@@ -130,26 +186,42 @@ Kilder: Helsedirektoratet (oppdatert aug 2024), Livsmedelsverket (nye kostrad 20
     sections.push(`\n## I sesong na\n${ctx.seasonalProduce.join(', ')}`);
   }
 
-  sections.push(`\n## Tilgjengelige handlinger
-Du kan utfore handlinger ved a inkludere dem i "actions"-arrayen i JSON-svaret ditt.
+  // Recent meals (last 3 weeks)
+  if (ctx.recentMeals.length > 0) {
+    sections.push('\n## Nylige middager');
+    const byWeek = new Map<string, typeof ctx.recentMeals>();
+    for (const m of ctx.recentMeals) {
+      const key = `Uke ${m.weekNumber}, ${m.year}`;
+      const existing = byWeek.get(key) ?? [];
+      existing.push(m);
+      byWeek.set(key, existing);
+    }
+    for (const [weekLabel, meals] of byWeek) {
+      sections.push(`\n### ${weekLabel}`);
+      for (const m of meals) {
+        const feedback = m.feedbackEmoji ? ` ${m.feedbackEmoji}` : '';
+        const rating = m.rating ? ` (${m.rating}/5)` : '';
+        sections.push(`- ${m.dayName}: ${m.name}${feedback}${rating}`);
+      }
+    }
+    sections.push('\nBruk nylige middager til a unnga gjentakelser og ta hensyn til feedback.');
+  }
 
-Handlingstyper:
-- add_meals: Legg til maltider. meals: [{ dayOfWeek (1=mandag), name, description?, mealType? }]
-- update_meal: Oppdater et maltid. dayOfWeek, name, description?
-- remove_meal: Fjern et maltid. dayOfWeek
-- set_preference: Sett en preferanse. key, value
-- add_inventory_note: Legg til beholdningsnotat. itemName, status? (available|use_soon), quantity?
-- update_plan_status: Oppdater planstatus. status (draft|proposed|approved|active|completed)
+  // Nutrition balance instruction
+  sections.push(`\n## Naeringsbalanse
+Nar du lager eller vurderer en ukeplan, tell opp:
+- Fiskedager (mal: 2-3)
+- Vegetardager (mal: minst 1)
+- Rodt kjott-dager (mal: maks 2, helst 1)
+- Belgvekst-dager (mal: minst 1)
+Sammenlikn med kostradene over. Gi kort tilbakemelding om balansen er god eller hva som kan forbedres.`);
 
-## Responsformat
-Svar ALLTID med gyldig JSON:
-{
-  "reply": "Din melding til brukeren (norsk, vennlig, kortfattet)",
-  "actions": []
-}
+  // Recipe instruction
+  sections.push(`\n## Oppskrifter
+Nar brukeren ber om oppskrift for en rett, generer steg-for-steg instruksjoner i svaret ditt. Inkluder ingrediensliste med mengder, og estimer total tid.`);
 
-"actions" kan være tom array eller utelatt hvis ingen handlinger trengs.
-Returner KUN valid JSON, ingen annen tekst.`);
+  // Actions documentation + response format
+  sections.push(`\n${ACTIONS_DOC}`);
 
   return sections.join('\n');
 }

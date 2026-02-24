@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DAY_NAMES } from '../lib/constants.js';
-import type { HusmorAction } from './husmor-schemas.js';
+
+// --- Types ---
 
 export interface WeekPlanContext {
   planId: string | null;
@@ -10,13 +11,43 @@ export interface WeekPlanContext {
   meals: Array<{ dayOfWeek: number; dayName: string; name: string; description: string | null; mealType: string }>;
 }
 
+export interface FoodTradition {
+  name: string;
+  country: string;
+  typicalDishes: string[];
+  suggestStrength: string;
+  description: string | null;
+}
+
+export interface NutritionEntry {
+  category: string;
+  topic: string;
+  content: string;
+  appliesTo: string | null;
+}
+
+export interface RecentMeal {
+  weekNumber: number;
+  year: number;
+  dayOfWeek: number;
+  dayName: string;
+  name: string;
+  feedbackEmoji: string | null;
+  rating: number | null;
+}
+
 export interface DbContext {
   plan: WeekPlanContext;
   preferences: Array<{ key: string; value: unknown }>;
   pantryStaples: string[];
   inventoryNotes: Array<{ itemName: string; status: string; quantity: string | null }>;
   seasonalProduce: string[];
+  foodTraditions: FoodTradition[];
+  nutritionKnowledge: NutritionEntry[];
+  recentMeals: RecentMeal[];
 }
+
+// --- Week calculation ---
 
 export function getCurrentWeekNumber(): { week: number; year: number } {
   const now = new Date();
@@ -26,11 +57,13 @@ export function getCurrentWeekNumber(): { week: number; year: number } {
   return { week, year: now.getFullYear() };
 }
 
+// --- Context loading ---
+
 export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext> {
   const { week, year } = getCurrentWeekNumber();
   const currentMonth = new Date().getMonth() + 1;
 
-  const [planResult, prefsResult, pantryResult, inventoryResult, seasonalResult] = await Promise.all([
+  const [planResult, prefsResult, pantryResult, inventoryResult, seasonalResult, traditionsResult, nutritionResult] = await Promise.all([
     supabase
       .from('weekly_plans')
       .select('id, status, week_number, year')
@@ -55,6 +88,13 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
       .from('seasonal_produce')
       .select('name')
       .contains('months_available', [currentMonth]),
+    supabase
+      .from('food_traditions')
+      .select('name, country, typical_dishes, suggest_strength, description')
+      .contains('months', [currentMonth]),
+    supabase
+      .from('nutrition_knowledge')
+      .select('category, topic, content, applies_to'),
   ]);
 
   let meals: WeekPlanContext['meals'] = [];
@@ -74,6 +114,8 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
     }));
   }
 
+  const recentMeals = await loadRecentMeals(supabase, week, year);
+
   return {
     plan: {
       planId: planResult.data?.id ?? null,
@@ -90,13 +132,66 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
       quantity: n.quantity,
     })),
     seasonalProduce: (seasonalResult.data ?? []).map((s) => s.name),
+    foodTraditions: (traditionsResult.data ?? []).map((t) => ({
+      name: t.name,
+      country: t.country,
+      typicalDishes: t.typical_dishes ?? [],
+      suggestStrength: t.suggest_strength,
+      description: t.description,
+    })),
+    nutritionKnowledge: (nutritionResult.data ?? []).map((n) => ({
+      category: n.category,
+      topic: n.topic,
+      content: n.content,
+      appliesTo: n.applies_to,
+    })),
+    recentMeals,
   };
 }
+
+async function loadRecentMeals(supabase: SupabaseClient, currentWeek: number, currentYear: number): Promise<RecentMeal[]> {
+  const { data: recentPlans } = await supabase
+    .from('weekly_plans')
+    .select('id, week_number, year')
+    .eq('household_id', 'default')
+    .gte('year', currentYear - 1)
+    .order('year', { ascending: false })
+    .order('week_number', { ascending: false })
+    .limit(4);
+
+  const pastPlans = (recentPlans ?? []).filter(
+    (p) => !(p.week_number === currentWeek && p.year === currentYear),
+  ).slice(0, 3);
+
+  if (pastPlans.length === 0) return [];
+
+  const pastPlanIds = pastPlans.map((p) => p.id);
+  const { data: recentMealRows } = await supabase
+    .from('planned_meals')
+    .select('plan_id, day_of_week, name, feedback_emoji, rating')
+    .in('plan_id', pastPlanIds)
+    .order('day_of_week', { ascending: true });
+
+  const planLookup = new Map(pastPlans.map((p) => [p.id, p]));
+  return (recentMealRows ?? []).map((m) => {
+    const plan = planLookup.get(m.plan_id);
+    return {
+      weekNumber: plan?.week_number ?? 0,
+      year: plan?.year ?? 0,
+      dayOfWeek: m.day_of_week,
+      dayName: DAY_NAMES[m.day_of_week] ?? `Dag ${m.day_of_week}`,
+      name: m.name,
+      feedbackEmoji: m.feedback_emoji,
+      rating: m.rating,
+    };
+  });
+}
+
+// --- Plan upsert ---
 
 export async function getOrCreateCurrentWeekPlan(supabase: SupabaseClient): Promise<string> {
   const { week, year } = getCurrentWeekNumber();
 
-  // Upsert: insert if not exists, return existing if it does
   const { data, error } = await supabase
     .from('weekly_plans')
     .upsert(
@@ -107,7 +202,6 @@ export async function getOrCreateCurrentWeekPlan(supabase: SupabaseClient): Prom
     .single();
 
   if (error || !data) {
-    // Fallback: query existing
     const { data: existing } = await supabase
       .from('weekly_plans')
       .select('id')
@@ -120,95 +214,4 @@ export async function getOrCreateCurrentWeekPlan(supabase: SupabaseClient): Prom
   }
 
   return data.id;
-}
-
-type Logger = { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
-
-export async function executeActions(
-  supabase: SupabaseClient,
-  actions: HusmorAction[],
-  logger: Logger,
-): Promise<void> {
-  for (const action of actions) {
-    try {
-      switch (action.type) {
-        case 'add_meals': {
-          const planId = await getOrCreateCurrentWeekPlan(supabase);
-          const rows = action.meals.map((m) => ({
-            plan_id: planId,
-            day_of_week: m.dayOfWeek,
-            name: m.name,
-            description: m.description ?? null,
-            meal_type: m.mealType ?? 'dinner',
-          }));
-          await supabase.from('planned_meals').insert(rows);
-          logger.info({ planId, count: rows.length }, 'Added meals to plan');
-          break;
-        }
-        case 'update_meal': {
-          const planId = await getOrCreateCurrentWeekPlan(supabase);
-          const updateData: Record<string, unknown> = {
-            name: action.name,
-            updated_at: new Date().toISOString(),
-          };
-          if (action.description !== undefined) updateData.description = action.description;
-          await supabase
-            .from('planned_meals')
-            .update(updateData)
-            .eq('plan_id', planId)
-            .eq('day_of_week', action.dayOfWeek);
-          logger.info({ planId, day: action.dayOfWeek }, 'Updated meal');
-          break;
-        }
-        case 'remove_meal': {
-          const planId = await getOrCreateCurrentWeekPlan(supabase);
-          await supabase
-            .from('planned_meals')
-            .delete()
-            .eq('plan_id', planId)
-            .eq('day_of_week', action.dayOfWeek);
-          logger.info({ planId, day: action.dayOfWeek }, 'Removed meal');
-          break;
-        }
-        case 'set_preference': {
-          await supabase
-            .from('family_preferences')
-            .upsert(
-              {
-                household_id: 'default',
-                key: action.key,
-                value: action.value,
-                updated_at: new Date().toISOString(),
-              },
-              { onConflict: 'household_id,key' },
-            );
-          logger.info({ key: action.key }, 'Set preference');
-          break;
-        }
-        case 'add_inventory_note': {
-          await supabase
-            .from('inventory_notes')
-            .insert({
-              household_id: 'default',
-              item_name: action.itemName,
-              status: action.status ?? 'available',
-              quantity: action.quantity ?? null,
-            });
-          logger.info({ item: action.itemName }, 'Added inventory note');
-          break;
-        }
-        case 'update_plan_status': {
-          const planId = await getOrCreateCurrentWeekPlan(supabase);
-          await supabase
-            .from('weekly_plans')
-            .update({ status: action.status, updated_at: new Date().toISOString() })
-            .eq('id', planId);
-          logger.info({ planId, status: action.status }, 'Updated plan status');
-          break;
-        }
-      }
-    } catch (err) {
-      logger.error({ action: action.type, err }, 'Failed to execute action');
-    }
-  }
 }

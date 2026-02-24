@@ -83,6 +83,23 @@ const AddInventoryNoteAction = z.object({
   quantity: z.string().optional(),
 });
 
+const RateMealAction = z.object({
+  type: z.literal('rate_meal'),
+  dayOfWeek: z.number().int().min(1).max(7),
+  feedbackEmoji: z.string().optional(),
+  rating: z.number().int().min(1).max(5).optional(),
+});
+
+const GenerateShoppingListAction = z.object({
+  type: z.literal('generate_shopping_list'),
+  items: z.array(z.object({
+    name: z.string(),
+    amount: z.string().optional(),
+    unit: z.string().optional(),
+    category: z.string().optional(),
+  })).min(1),
+});
+
 const UpdatePlanStatusAction = z.object({
   type: z.literal('update_plan_status'),
   status: z.enum(['draft', 'proposed', 'approved', 'active', 'completed']),
@@ -94,6 +111,8 @@ export const HusmorActionSchema = z.discriminatedUnion('type', [
   RemoveMealAction,
   SetPreferenceAction,
   AddInventoryNoteAction,
+  RateMealAction,
+  GenerateShoppingListAction,
   UpdatePlanStatusAction,
 ]);
 
