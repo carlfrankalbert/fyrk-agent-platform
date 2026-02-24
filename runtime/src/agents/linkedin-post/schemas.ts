@@ -29,7 +29,7 @@ export const SourceArticleSchema = z.object({
 export const DraftPostSchema = z.object({
   title: z.string(),
   postText: z.string(),
-  sourceArticle: SourceArticleSchema,
+  sourceArticles: z.array(SourceArticleSchema),
   hashtags: z.array(z.string()),
   topic: z.string(),
   characterCount: z.number(),

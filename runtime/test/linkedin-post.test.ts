@@ -32,28 +32,28 @@ import {
 const sampleDrafts: LinkedInPostOutput = {
   drafts: [
     {
-      title: 'AI-agenter og automatisering',
-      postText: 'Visste du at AI-agenter kan redusere manuelle arbeidsoppgaver med 60%?\n\nNy forskning viser at...\n\nhttps://example.com/ai-agents-automation',
-      sourceArticle: {
-        title: 'How AI Agents Are Transforming Business Automation',
-        url: 'https://example.com/ai-agents-automation',
-        source: 'MIT Technology Review',
-      },
-      hashtags: ['#AI', '#automatisering', '#FYRK', '#agenter'],
-      topic: 'AI',
+      title: 'AI-beslutningskvalitet vs AI-effektivitet',
+      postText: 'De fleste selskaper investerer i AI for å gjøre ting raskere.\n\nMen spørsmålet er ikke om du gjør ting raskere — det er om du gjør bedre beslutninger.\n\nTre artikler denne uken peker mot samme mønster: AI-verktøy adopteres bredt, men beslutningskvaliteten forbedres ikke.\n\nHer er en enkel test:\n> Hvis AI-investeringen din primært reduserer tid, automatiserer du arbeid.\n> Hvis den endrer hvilke beslutninger som tas, automatiserer du dømmekraft.\n\nDe fleste er i kategori 1. Og det er ikke nok.\n\n—\nKilder:\nhttps://example.com/ai-agents-automation\nhttps://example.com/norske-bedrifter-ki\nhttps://example.com/okr-european-startups\n\n#AI #Beslutningskvalitet #OKR #Automatisering #Strategi',
+      sourceArticles: [
+        {
+          title: 'How AI Agents Are Transforming Business Automation',
+          url: 'https://example.com/ai-agents-automation',
+          source: 'MIT Technology Review',
+        },
+        {
+          title: 'Norske bedrifter satser stort på KI-verktøy',
+          url: 'https://example.com/norske-bedrifter-ki',
+          source: 'Digi.no',
+        },
+        {
+          title: 'The Rise of OKR Software in European Startups',
+          url: 'https://example.com/okr-european-startups',
+          source: 'TechCrunch',
+        },
+      ],
+      hashtags: ['#AI', '#Beslutningskvalitet', '#OKR', '#Automatisering', '#Strategi'],
+      topic: 'Beslutningskvalitet',
       characterCount: 950,
-    },
-    {
-      title: 'Norske bedrifter og KI',
-      postText: '45% av norske mellomstore bedrifter planlegger KI-verktøy innen 2027.\n\nDette er en trend vi følger tett i FYRK...\n\nhttps://example.com/norske-bedrifter-ki',
-      sourceArticle: {
-        title: 'Norske bedrifter satser stort på KI-verktøy',
-        url: 'https://example.com/norske-bedrifter-ki',
-        source: 'Digi.no',
-      },
-      hashtags: ['#KI', '#Norge', '#beslutningsverktøy', '#FYRK'],
-      topic: 'beslutningsverktøy',
-      characterCount: 1100,
     },
   ],
   totalArticlesAnalyzed: 3,
@@ -75,18 +75,11 @@ describe('linkedin-post agent', () => {
       await expect(linkedInPostAgent.execute(input, ctx)).rejects.toThrow();
     });
 
-    it('should accept input with default topics', async () => {
+    it('should accept input with only articles', async () => {
       makeMockClaudeResponse(sampleDrafts);
       const input = { articles: linkedInPostBasic.articles };
       const result = await linkedInPostAgent.execute(input, ctx);
       expect(result.output.hasDrafts).toBe(true);
-    });
-
-    it('should accept input with default maxPosts', async () => {
-      makeMockClaudeResponse(sampleDrafts);
-      const { maxPosts, ...input } = linkedInPostBasic;
-      const result = await linkedInPostAgent.execute(input, ctx);
-      expect(result.output).toBeDefined();
     });
   });
 
@@ -100,32 +93,30 @@ describe('linkedin-post agent', () => {
       expect(result.output.hasDrafts).toBe(true);
     });
 
-    it('should return the correct number of drafts', async () => {
+    it('should return one synthesized draft', async () => {
       const result = await linkedInPostAgent.execute(linkedInPostBasic, ctx);
-      expect(result.output.drafts).toHaveLength(2);
+      expect(result.output.drafts).toHaveLength(1);
     });
 
-    it('should include source article in each draft', async () => {
+    it('should include source articles in draft', async () => {
       const result = await linkedInPostAgent.execute(linkedInPostBasic, ctx);
-      for (const draft of result.output.drafts) {
-        expect(draft.sourceArticle.title).toBeTruthy();
-        expect(draft.sourceArticle.url).toBeTruthy();
-        expect(draft.sourceArticle.source).toBeTruthy();
+      const draft = result.output.drafts[0];
+      expect(draft.sourceArticles.length).toBeGreaterThan(0);
+      for (const source of draft.sourceArticles) {
+        expect(source.title).toBeTruthy();
+        expect(source.url).toBeTruthy();
+        expect(source.source).toBeTruthy();
       }
     });
 
-    it('should include hashtags in each draft', async () => {
+    it('should include hashtags in draft', async () => {
       const result = await linkedInPostAgent.execute(linkedInPostBasic, ctx);
-      for (const draft of result.output.drafts) {
-        expect(draft.hashtags.length).toBeGreaterThan(0);
-      }
+      expect(result.output.drafts[0].hashtags.length).toBeGreaterThan(0);
     });
 
-    it('should include character count in each draft', async () => {
+    it('should include character count in draft', async () => {
       const result = await linkedInPostAgent.execute(linkedInPostBasic, ctx);
-      for (const draft of result.output.drafts) {
-        expect(draft.characterCount).toBeGreaterThan(0);
-      }
+      expect(result.output.drafts[0].characterCount).toBeGreaterThan(0);
     });
 
     it('should return totalArticlesAnalyzed', async () => {
@@ -148,9 +139,7 @@ describe('linkedin-post agent', () => {
       const result = await linkedInPostAgent.execute(linkedInPostBasic, ctx);
       expect(result.artifacts[0].meta).toEqual({
         totalArticles: 3,
-        draftsGenerated: 2,
-        language: 'no',
-        tone: 'thought-leader',
+        draftsGenerated: 1,
         generatedAt: '2026-02-23T10:00:00Z',
       });
     });
@@ -158,8 +147,7 @@ describe('linkedin-post agent', () => {
     it('should include draft text in artifact content', async () => {
       const result = await linkedInPostAgent.execute(linkedInPostBasic, ctx);
       const content = result.artifacts[0].content;
-      expect(content).toContain('AI-agenter og automatisering');
-      expect(content).toContain('Norske bedrifter og KI');
+      expect(content).toContain('AI-beslutningskvalitet vs AI-effektivitet');
     });
   });
 
@@ -168,26 +156,19 @@ describe('linkedin-post agent', () => {
       makeMockClaudeResponse(sampleDrafts);
     });
 
-    it('should call Claude with correct model', async () => {
+    it('should call Claude with opus model', async () => {
       await linkedInPostAgent.execute(linkedInPostBasic, ctx);
       expect(mockCallClaude).toHaveBeenCalledTimes(1);
       const call = mockCallClaude.mock.calls[0];
       expect(call[0]).toBe('test-api-key');
-      expect(call[1].model).toBe('claude-haiku-4-5-20251001');
+      expect(call[1].model).toBe('claude-opus-4-6');
     });
 
-    it('should include topics in system prompt', async () => {
+    it('should include decision frame instructions in system prompt', async () => {
       await linkedInPostAgent.execute(linkedInPostBasic, ctx);
       const call = mockCallClaude.mock.calls[0];
-      expect(call[1].system).toContain('AI');
-      expect(call[1].system).toContain('automatisering');
-      expect(call[1].system).toContain('beslutningsverktøy');
-    });
-
-    it('should include tone instruction in system prompt', async () => {
-      await linkedInPostAgent.execute(linkedInPostBasic, ctx);
-      const call = mockCallClaude.mock.calls[0];
-      expect(call[1].system).toContain('tankeleder');
+      expect(call[1].system).toContain('Beslutningsramme');
+      expect(call[1].system).toContain('DECISION FRAME MODE');
     });
 
     it('should include articles in user prompt', async () => {
@@ -234,7 +215,7 @@ describe('linkedin-post agent', () => {
 
       const result = await linkedInPostAgent.execute(linkedInPostBasic, ctx);
       expect(result.output.hasDrafts).toBe(true);
-      expect(result.output.drafts).toHaveLength(2);
+      expect(result.output.drafts).toHaveLength(1);
     });
   });
 

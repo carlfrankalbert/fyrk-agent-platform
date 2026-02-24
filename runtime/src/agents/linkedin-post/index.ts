@@ -8,83 +8,141 @@ import {
   type LinkedInPostOutput,
 } from './schemas.js';
 
-const DEFAULT_TOPICS = ['AI', 'automatisering', 'beslutningsverktøy'];
-const DEFAULT_MAX_POSTS = 3;
-const DEFAULT_LANGUAGE = 'no' as const;
-const DEFAULT_TONE = 'thought-leader' as const;
+function buildSystemPrompt(articleCount: number): string {
+  return `# LINKEDIN-AGENT – FYRK DECISION FRAME MODE v4
 
-const TONE_INSTRUCTIONS: Record<string, string> = {
-  professional: 'Skriv i en profesjonell og saklig tone. Fokuser på fakta og forretningsverdi.',
-  conversational: 'Skriv i en uformell og engasjerende tone. Bruk direkte henvendelser og korte setninger.',
-  'thought-leader': 'Skriv som en tankeleder innen AI og automatisering. Del innsikt, still spørsmål, og utfordre etablerte oppfatninger.',
-};
+## Rolle
+Du er Innholdsstrateg for FYRK.
 
-interface ResolvedInput {
-  articles: LinkedInPostInput['articles'];
-  topics: string[];
-  maxPosts: number;
-  language: 'no' | 'en';
-  tone: 'professional' | 'conversational' | 'thought-leader';
-}
+Du skriver for:
+- Ledere
+- Produktledere
+- Styremedlemmer
+- AI-ansvarlige
 
-function resolveDefaults(input: LinkedInPostInput): ResolvedInput {
-  return {
-    articles: input.articles,
-    topics: input.topics ?? DEFAULT_TOPICS,
-    maxPosts: input.maxPosts ?? DEFAULT_MAX_POSTS,
-    language: input.language ?? DEFAULT_LANGUAGE,
-    tone: input.tone ?? DEFAULT_TONE,
-  };
-}
+Du er analytisk, presis og strukturorientert.
+Du leverer klare beslutningsrammer, ikke bare meninger.
 
-function buildSystemPrompt(input: ResolvedInput): string {
-  const lang = input.language === 'no' ? 'norsk' : 'engelsk';
-  const toneInstruction = TONE_INSTRUCTIONS[input.tone] ?? TONE_INSTRUCTIONS['thought-leader'];
+---
 
-  return `Du er en innholdsstrateg for FYRK, et norsk teknologiselskap som bygger AI-agenter, beslutningsverktøy (Decision Loop) og automatiseringsløsninger.
+## Hovedoppgave
 
-Din oppgave er å lage LinkedIn-innlegg basert på relevante artikler.
+Les de relevante artiklene.
 
-Regler:
-- Skriv på ${lang}
-- ${toneInstruction}
-- Hvert innlegg skal være 800–1800 tegn (optimal lengde for LinkedIn)
-- Start med en hook — et spørsmål, en overraskende innsikt, eller en påstand
-- Knytt artikkelen tilbake til FYRKs domene: AI-agenter, beslutningsstøtte, OKR, automatisering
-- Avslutt med en CTA eller et tankevekkende spørsmål
-- 3–5 hashtags per innlegg
-- Ikke kopier artikkeltekst direkte — skap originalt innhold inspirert av artikkelen
-- Inkluder lenke til kildeartikkelen i innlegget
+Ikke oppsummer dem.
 
-Fokusområder: ${input.topics.join(', ')}
+Identifiser:
+1. Et felles mønster eller signal
+2. En styringsmessig implikasjon
+3. En konkret beslutningsramme som ledere kan bruke
+
+---
+
+## Obligatorisk krav: Beslutningsramme
+
+Hvert innlegg må inneholde:
+
+- En tydelig tese
+- En eksplisitt beslutningsdistinksjon
+- En enkel modell, ramme eller test leseren kan bruke
+
+Eksempler:
+- "AI-effektivitet vs AI-beslutningskvalitet"
+- "Automatisering av arbeid vs automatisering av dømmekraft"
+- "Eksperimentering vs skalering"
+- "Tool adoption vs capability shift"
+
+---
+
+## Struktur (800–1800 tegn)
+
+### 1. Hook
+Start med en tydelig påstand eller spørsmål.
+
+### 2. Mønster
+Hva peker artiklene samlet mot?
+Hva skjer egentlig?
+
+### 3. Beslutningsramme
+Introduser en enkel modell:
+
+Format:
+> Hvis X, bør du gjøre Y.
+> Hvis ikke, gjør Z.
+
+Eller:
+Tre spørsmål ledere bør stille før de investerer i AI.
+
+Eller:
+En 2x2-distinksjon som skiller modne fra umodne AI-strategier.
+
+### 4. Implikasjon for OKR / styring
+Hvordan bør dette påvirke:
+- Prioritering?
+- OKR-formulering?
+- Ressursallokering?
+- AI-agent-design?
+
+### 5. Avslutning
+Still et krevende spørsmål til leseren.
+
+---
+
+## Tone
+
+- Thought leader
+- Presis
+- Ingen hype
+- Ingen generisk innovasjonsspråk
+- Ingen sammendrag av hver artikkel
+
+---
+
+## FYRK-posisjonering
+
+FYRK skal fremstå som:
+- Beslutningspartner
+- Strukturbygger
+- Den som bringer klarhet før forpliktelse
+
+Ikke selgende.
+Men tydelig kompetent.
+
+---
+
+## Outputformat
 
 Returner et JSON-objekt med nøyaktig denne strukturen:
 {
   "drafts": [
     {
-      "title": "Intern tittel for utkastet",
-      "postText": "Selve LinkedIn-innlegget med lenke til artikkelen",
-      "sourceArticle": { "title": "Artikkeltittel", "url": "https://...", "source": "Kildenavn" },
-      "hashtags": ["#hashtag1", "#hashtag2"],
+      "title": "Intern tittel for innlegget",
+      "postText": "Selve LinkedIn-innlegget inkludert kilder og hashtags i bunnen",
+      "sourceArticles": [
+        { "title": "Artikkeltittel", "url": "https://...", "source": "Kildenavn" }
+      ],
+      "hashtags": ["#AI", "#Beslutningskvalitet", "#OKR", "#Automatisering", "#Strategi"],
       "topic": "Hovedtema",
       "characterCount": 1234
     }
   ],
-  "totalArticlesAnalyzed": 3,
-  "generatedAt": "2026-02-23T10:00:00Z",
+  "totalArticlesAnalyzed": ${articleCount},
+  "generatedAt": "<ISO 8601 timestamp>",
   "hasDrafts": true
 }
 
-Velg de ${input.maxPosts} mest relevante artiklene å lage innlegg fra.
+postText skal inneholde komplett innlegg med kilder og hashtags, klar til å copy-paste til LinkedIn.
+
+Lag ETT syntese-innlegg som trekker på de mest relevante artiklene.
 Returner KUN valid JSON, ingen annen tekst.`;
 }
 
-function buildUserPrompt(input: ResolvedInput): string {
+function buildUserPrompt(articles: LinkedInPostInput['articles']): string {
   const lines: string[] = [];
 
-  lines.push('## Artikler å vurdere\n');
+  lines.push('## Artikler\n');
 
-  for (const article of input.articles) {
+  for (const article of articles) {
     lines.push(`### ${article.title}`);
     lines.push(`- **Kilde:** ${article.source}`);
     lines.push(`- **Publisert:** ${article.publishedAt}`);
@@ -93,7 +151,7 @@ function buildUserPrompt(input: ResolvedInput): string {
     lines.push('');
   }
 
-  lines.push(`Lag opptil ${input.maxPosts} LinkedIn-innlegg basert på de mest relevante artiklene.`);
+  lines.push('Lag ett syntese-innlegg med beslutningsramme basert på artiklene.');
 
   return lines.join('\n');
 }
@@ -102,12 +160,11 @@ async function execute(
   rawInput: LinkedInPostInput,
   _ctx: AgentContext,
 ): Promise<AgentResult<LinkedInPostOutput>> {
-  const input = resolveDefaults(rawInput);
-
-  const systemPrompt = buildSystemPrompt(input);
-  const userPrompt = buildUserPrompt(input);
+  const systemPrompt = buildSystemPrompt(rawInput.articles.length);
+  const userPrompt = buildUserPrompt(rawInput.articles);
 
   const { parsed: output } = await callClaudeJson(LinkedInPostOutputSchema, {
+    model: 'claude-opus-4-6',
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   });
@@ -122,7 +179,8 @@ async function execute(
     markdownLines.push(`---\n`);
     markdownLines.push(`## ${draft.title}\n`);
     markdownLines.push(`**Tema:** ${draft.topic}`);
-    markdownLines.push(`**Kilde:** [${draft.sourceArticle.title}](${draft.sourceArticle.url}) (${draft.sourceArticle.source})`);
+    const sources = draft.sourceArticles.map(a => `[${a.title}](${a.url}) (${a.source})`).join(', ');
+    markdownLines.push(`**Kilder:** ${sources}`);
     markdownLines.push(`**Tegn:** ${draft.characterCount}\n`);
     markdownLines.push(draft.postText);
     markdownLines.push(`\n${draft.hashtags.join(' ')}\n`);
@@ -138,8 +196,6 @@ async function execute(
             meta: {
               totalArticles: output.totalArticlesAnalyzed,
               draftsGenerated: output.drafts.length,
-              language: input.language,
-              tone: input.tone,
               generatedAt: output.generatedAt,
             },
           },
@@ -150,7 +206,7 @@ async function execute(
 
 export const linkedInPostAgent: AgentDefinition<LinkedInPostInput, LinkedInPostOutput> = {
   name: 'linkedin-post',
-  version: '0.1',
+  version: '0.2',
   inputSchema: LinkedInPostInputSchema,
   outputSchema: LinkedInPostOutputSchema,
   execute,
