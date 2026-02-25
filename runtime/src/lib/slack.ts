@@ -181,6 +181,56 @@ export async function editCanvas(
   return await res.json() as CanvasResponse;
 }
 
+export async function addReaction(
+  token: string,
+  channel: string,
+  timestamp: string,
+  name: string,
+): Promise<void> {
+  const res = await fetch('https://slack.com/api/reactions.add', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ channel, timestamp, name }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Slack API HTTP error ${res.status}: ${await res.text()}`);
+  }
+
+  const data = await res.json() as { ok: boolean; error?: string };
+  if (!data.ok && data.error !== 'already_reacted') {
+    throw new Error(`Slack API error: ${data.error}`);
+  }
+}
+
+export async function removeReaction(
+  token: string,
+  channel: string,
+  timestamp: string,
+  name: string,
+): Promise<void> {
+  const res = await fetch('https://slack.com/api/reactions.remove', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ channel, timestamp, name }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Slack API HTTP error ${res.status}: ${await res.text()}`);
+  }
+
+  const data = await res.json() as { ok: boolean; error?: string };
+  if (!data.ok && data.error !== 'no_reaction') {
+    throw new Error(`Slack API error: ${data.error}`);
+  }
+}
+
 export function verifySignature(
   signingSecret: string,
   headers: { 'x-slack-signature'?: string; 'x-slack-request-timestamp'?: string },

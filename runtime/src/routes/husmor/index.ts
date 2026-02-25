@@ -265,6 +265,7 @@ export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
             text: msg.text!,
             channel: msg.channel,
             threadTs,
+            messageTs: msg.ts,
             userId: msg.user!,
             isThreadReply,
             logger,

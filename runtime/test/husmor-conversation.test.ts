@@ -26,6 +26,8 @@ vi.mock('../src/lib/slack.js', () => ({
   replyInThread: vi.fn().mockResolvedValue({ ok: true, ts: '1234.5678' }),
   updateMessage: vi.fn().mockResolvedValue({ ok: true, ts: '1234.5678' }),
   getThreadHistory: vi.fn().mockResolvedValue([]),
+  addReaction: vi.fn().mockResolvedValue(undefined),
+  removeReaction: vi.fn().mockResolvedValue(undefined),
   verifySignature: vi.fn().mockReturnValue(true),
   createCanvas: vi.fn().mockResolvedValue({ ok: true, canvas_id: 'canvas-1' }),
   editCanvas: vi.fn().mockResolvedValue({ ok: true }),
@@ -51,8 +53,8 @@ vi.mock('@supabase/supabase-js', () => ({
 }));
 
 import { callClaude, extractText } from '../src/lib/claude.js';
-import { replyInThread, updateMessage, getThreadHistory } from '../src/lib/slack.js';
-import { handleHusmorMessage, THINKING_MSG, ERROR_MSG, type HusmorMessageParams } from '../src/routes/husmor/conversation.js';
+import { replyInThread, updateMessage, getThreadHistory, addReaction, removeReaction } from '../src/lib/slack.js';
+import { handleHusmorMessage, THINKING_MSG, THINKING_EMOJI, ERROR_MSG, type HusmorMessageParams } from '../src/routes/husmor/conversation.js';
 import { buildSystemPrompt, parseClaudeResponse, cleanMessageOrder } from '../src/routes/husmor/prompt.js';
 import { executeActions, } from '../src/routes/husmor/actions.js';
 import { buildCanvasMarkdown } from '../src/routes/husmor/canvas.js';
@@ -86,6 +88,8 @@ const mockExtractText = vi.mocked(extractText);
 const mockReplyInThread = vi.mocked(replyInThread);
 const mockUpdateMessage = vi.mocked(updateMessage);
 const mockGetThreadHistory = vi.mocked(getThreadHistory);
+const mockAddReaction = vi.mocked(addReaction);
+const mockRemoveReaction = vi.mocked(removeReaction);
 
 const mockLogger = {
   info: vi.fn(),
@@ -123,6 +127,7 @@ function makeParams(overrides?: Partial<HusmorMessageParams>): HusmorMessagePara
     text: 'Hei, hva er planen denne uken?',
     channel: 'C-husmor',
     threadTs: '1700000000.000001',
+    messageTs: '1700000000.000001',
     userId: 'U12345',
     isThreadReply: false,
     logger: mockLogger,
@@ -498,7 +503,7 @@ describe('husmor-conversation', () => {
   });
 
   describe('handleHusmorMessage', () => {
-    it('should call Claude and update thinking message with reply', async () => {
+    it('should call Claude and reply with thinking reaction', async () => {
       mockFrom.mockImplementation(() => {
         return chainMock({ data: null, error: null });
       });
@@ -510,16 +515,22 @@ describe('husmor-conversation', () => {
       expect(mockCallClaude).toHaveBeenCalledTimes(1);
       expect(mockCallClaude.mock.calls[0][0]).toBe('test-api-key');
       expect(mockCallClaude.mock.calls[0][1].model).toBe('claude-opus-4-6');
+      expect(mockAddReaction).toHaveBeenCalledWith(
+        'xoxb-test-token',
+        'C-husmor',
+        '1700000000.000001',
+        THINKING_EMOJI,
+      );
+      expect(mockRemoveReaction).toHaveBeenCalledWith(
+        'xoxb-test-token',
+        'C-husmor',
+        '1700000000.000001',
+        THINKING_EMOJI,
+      );
       expect(mockReplyInThread).toHaveBeenCalledWith(
         'xoxb-test-token',
         'C-husmor',
         '1700000000.000001',
-        THINKING_MSG,
-      );
-      expect(mockUpdateMessage).toHaveBeenCalledWith(
-        'xoxb-test-token',
-        'C-husmor',
-        '1234.5678',
         'Hei! Ingen plan for denne uken enna.',
       );
     });
@@ -557,7 +568,7 @@ describe('husmor-conversation', () => {
       expect(insertFn).toHaveBeenCalled();
     });
 
-    it('should update thinking message with error when Claude call fails', async () => {
+    it('should reply with error and remove reaction when Claude call fails', async () => {
       mockFrom.mockImplementation(() => {
         return chainMock({ data: null, error: null });
       });
@@ -566,10 +577,16 @@ describe('husmor-conversation', () => {
 
       await handleHusmorMessage(makeParams());
 
-      expect(mockUpdateMessage).toHaveBeenCalledWith(
+      expect(mockRemoveReaction).toHaveBeenCalledWith(
         'xoxb-test-token',
         'C-husmor',
-        '1234.5678',
+        '1700000000.000001',
+        THINKING_EMOJI,
+      );
+      expect(mockReplyInThread).toHaveBeenCalledWith(
+        'xoxb-test-token',
+        'C-husmor',
+        '1700000000.000001',
         ERROR_MSG,
       );
     });
@@ -580,8 +597,6 @@ describe('husmor-conversation', () => {
       });
 
       mockCallClaude.mockRejectedValue(new Error('Claude down'));
-      mockReplyInThread.mockResolvedValueOnce({ ok: true, ts: '1234.5678' });
-      mockUpdateMessage.mockRejectedValue(new Error('Slack update down'));
       mockReplyInThread.mockRejectedValue(new Error('Slack down'));
 
       await handleHusmorMessage(makeParams());

@@ -1,6 +1,6 @@
 import { getEnv } from '../../lib/env.js';
 import { callClaude, extractText } from '../../lib/claude.js';
-import { replyInThread, updateMessage, getThreadHistory } from '../../lib/slack.js';
+import { replyInThread, getThreadHistory, addReaction, removeReaction } from '../../lib/slack.js';
 import type { ClaudeMessage } from '../../lib/claude.js';
 import { getSupabase } from '../../lib/supabase.js';
 import { loadDbContext } from './db.js';
@@ -11,34 +11,17 @@ import type { Logger } from '../../lib/types.js';
 
 export const HUSMOR_MODEL = 'claude-opus-4-6';
 export const THINKING_MSG = 'Husmor tenker...';
+export const THINKING_EMOJI = 'thought_balloon';
 export const ERROR_MSG = 'Beklager, noe gikk galt. Prov igjen om litt!';
 
 export interface HusmorMessageParams {
   text: string;
   channel: string;
   threadTs: string;
+  messageTs: string;
   userId: string;
   isThreadReply: boolean;
   logger: Logger;
-}
-
-/** Update the thinking placeholder with a reply, or post a new message if update fails. */
-async function sendReply(
-  botToken: string,
-  channel: string,
-  threadTs: string,
-  thinkingTs: string | undefined,
-  text: string,
-): Promise<void> {
-  if (thinkingTs) {
-    try {
-      await updateMessage(botToken, channel, thinkingTs, text);
-      return;
-    } catch {
-      // Fall through to replyInThread
-    }
-  }
-  await replyInThread(botToken, channel, threadTs, text);
 }
 
 // Per-thread concurrency guard: queue messages for the same thread
@@ -54,7 +37,7 @@ export async function handleHusmorMessage(params: HusmorMessageParams): Promise<
 }
 
 async function handleHusmorMessageInner(params: HusmorMessageParams): Promise<void> {
-  const { text, channel, threadTs, userId, isThreadReply, logger } = params;
+  const { text, channel, threadTs, messageTs, userId, isThreadReply, logger } = params;
   logger.info({ userId, channel, threadTs, textLen: text.length }, 'handleHusmorMessage started');
   const env = getEnv();
 
@@ -68,13 +51,11 @@ async function handleHusmorMessageInner(params: HusmorMessageParams): Promise<vo
 
   const supabase = getSupabase();
 
-  // Post a "thinking" indicator immediately
-  let thinkingTs: string | undefined;
+  // Add thinking reaction to the user's message
   try {
-    const thinking = await replyInThread(botToken, channel, threadTs, THINKING_MSG);
-    thinkingTs = thinking.ts;
+    await addReaction(botToken, channel, messageTs, THINKING_EMOJI);
   } catch (err) {
-    logger.warn({ err }, 'Failed to post thinking indicator');
+    logger.warn({ err }, 'Failed to add thinking reaction');
   }
 
   try {
@@ -110,8 +91,10 @@ async function handleHusmorMessageInner(params: HusmorMessageParams): Promise<vo
 
     const parsed = parseClaudeResponse(extractText(response));
 
-    // 5. Send reply
-    await sendReply(botToken, channel, threadTs, thinkingTs, parsed.reply);
+    // 5. Remove thinking reaction and send reply
+    removeReaction(botToken, channel, messageTs, THINKING_EMOJI)
+      .catch(err => logger.warn({ err }, 'Failed to remove thinking reaction'));
+    await replyInThread(botToken, channel, threadTs, parsed.reply);
 
     // 6. Execute actions
     if (parsed.actions && parsed.actions.length > 0) {
@@ -125,8 +108,10 @@ async function handleHusmorMessageInner(params: HusmorMessageParams): Promise<vo
     logger.info({ userId, actionsCount: parsed.actions?.length ?? 0 }, 'Husmor message handled');
   } catch (err) {
     logger.error({ err, userId }, 'Failed to handle Husmor message');
+    removeReaction(botToken, channel, messageTs, THINKING_EMOJI)
+      .catch(reactErr => logger.warn({ reactErr }, 'Failed to remove thinking reaction on error'));
     try {
-      await sendReply(botToken, channel, threadTs, thinkingTs, ERROR_MSG);
+      await replyInThread(botToken, channel, threadTs, ERROR_MSG);
     } catch (replyErr) {
       logger.error({ replyErr }, 'Failed to send error reply');
     }
