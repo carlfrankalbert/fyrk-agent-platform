@@ -10,27 +10,53 @@ runtime/
     agents/
       base.ts              — AgentDefinition, AgentContext, runAgent
       registry.ts          — agent registration
-      release-notes/
-        index.ts            — release-notes agent logic
-        schemas.ts          — Zod schemas (input, output, commits)
+      release-notes/       — release-notes agent
+      docs-sync/           — docs-sync agent
+      linkedin-post/       — linkedin-post agent
     db/
-      client.ts             — SupabaseDbClient + NullDbClient
+      client.ts            — SupabaseDbClient + NullDbClient
     lib/
-      env.ts                — Zod-validated env vars, validateEnv() + getEnv()
-      schemas.ts            — RunRequestSchema, RunResponseSchema
+      env.ts               — Zod-validated env vars, validateEnv() + getEnv()
+      schemas.ts           — RunRequestSchema, RunResponseSchema
+      types.ts             — shared types (Logger)
     routes/
-      health.ts             — GET /health, GET /health/failures
-      run.ts                — POST /run/:agentName
+      health.ts            — GET /health, GET /health/failures
+      run.ts               — POST /run/:agentName
+      leads/
+        index.ts           — POST /leads, /leads/:id/notify, /slack/events
+        blocks.ts          — Slack Block Kit formatting
+        schemas.ts         — CreateLeadSchema, SlackEventSchema
+      husmor/
+        index.ts           — Slack event handler, route registration
+        conversation.ts    — message handling, Claude orchestration
+        proactive.ts       — proactive messages (reminders, check-ins)
+        actions.ts         — action execution (meals, shopping, canvas)
+        prompt.ts          — system prompt builder, response parser
+        db.ts              — DB context loader, weekly plans, preferences
+        schemas.ts         — Zod schemas for Slack events + Claude response
+        canvas.ts          — Slack canvas sync
+        cache.ts           — TTL cache for DB aggregations
+        learnings/
+          index.ts         — barrel re-export
+          extraction.ts    — learning extraction via Claude
+          patterns.ts      — meal patterns + contradictions
+          metrics.ts       — suggestion + rejection metrics
+          signals.ts       — reaction mining + knowledge gaps
   test/
-    release-notes.test.ts   — 29 vitest tests
-    fixtures/               — test fixtures
+    release-notes.test.ts  — release-notes agent tests
+    docs-sync.test.ts      — docs-sync agent tests
+    linkedin-post.test.ts  — linkedin-post agent tests
+    husmor-conversation.test.ts — husmor tests
+    fixtures/              — test fixtures
 n8n/
   workflows/
     release-notes-github-push.json  — internal release notes pipeline
     fyrk-releaselog.json            — fyrk.no releaselog pipeline
+    docs-sync-github-push.json     — docs-sync pipeline
+    linkedin-post-cron.json        — linkedin post pipeline
 docs/
   agents/
-    release-notes.md        — agent documentation
+    release-notes.md       — agent documentation
 ```
 
 ## Infrastructure
