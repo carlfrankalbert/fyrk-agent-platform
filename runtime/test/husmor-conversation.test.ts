@@ -200,6 +200,13 @@ describe('husmor-conversation', () => {
       expect(result.reply).toBe('Hei!');
     });
 
+    it('should extract JSON from fenced block with preamble text', () => {
+      const text = 'Jeg ser at dagens middag er kylling.\n\n```json\n{"reply":"Her er oppskriften!","actions":[]}\n```';
+      const result = parseClaudeResponse(text);
+      expect(result.reply).toBe('Her er oppskriften!');
+      expect(result.actions).toEqual([]);
+    });
+
     it('should salvage plain text as reply when not valid JSON', () => {
       const result = parseClaudeResponse('For mye sukker er skadelig.');
       expect(result.reply).toBe('For mye sukker er skadelig.');
