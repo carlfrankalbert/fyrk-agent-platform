@@ -3,7 +3,7 @@ import { DAY_NAMES } from '../../lib/constants.js';
 import { loadLearnings, computeMealPatterns, computeSuggestionMetrics, computeRejectionPatterns, loadReactionSummary, detectKnowledgeGaps } from './learnings/index.js';
 import type { Learning, MealPattern, SuggestionMetrics, RejectionPattern, ReactionSummary, KnowledgeGap } from './learnings/index.js';
 import { getCached, setCached } from './cache.js';
-import { lookupFood } from '../../lib/food-lookup.js';
+import { lookupFoodsBatch } from '../../lib/food-lookup.js';
 import type { NutritionPerServing } from '../../lib/nutrition-enrichment.js';
 
 // --- Types ---
@@ -236,52 +236,64 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
       }
     }
 
-    meals = await Promise.all(
-      (mealRows ?? []).map(async (m) => {
-        let nutrition: MealNutrition | undefined;
+    // Collect meals needing fuzzy lookup (no recipe-based nutrition)
+    const rows = mealRows ?? [];
+    const needsLookup: { index: number; name: string }[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const m = rows[i];
+      if (!m.recipe_id || !recipeLookup.has(m.recipe_id)) {
+        needsLookup.push({ index: i, name: m.name });
+      }
+    }
 
-        // Try recipe-based nutrition first
-        if (m.recipe_id && recipeLookup.has(m.recipe_id)) {
-          const n = recipeLookup.get(m.recipe_id)!;
-          nutrition = {
-            caloriesKcal: n.caloriesKcal,
-            proteinG: n.proteinG,
-            fatG: n.fatG,
-            carbsG: n.carbsG,
-            fiberG: n.fiberG,
-            source: 'recipe',
-          };
-        } else {
-          // Fuzzy estimate from meal name
-          try {
-            const matches = await lookupFood(supabase, m.name, 1);
-            if (matches.length > 0 && matches[0].similarity >= 0.3) {
-              const f = matches[0];
-              nutrition = {
-                caloriesKcal: f.caloriesKcal ?? 0,
-                proteinG: f.proteinG ?? 0,
-                fatG: f.fatG ?? 0,
-                carbsG: f.carbsG ?? 0,
-                fiberG: f.fiberG ?? 0,
-                source: 'estimate',
-              };
-            }
-          } catch {
-            // Non-fatal: skip nutrition for this meal
-          }
+    // Single batch RPC call instead of N+1 individual calls
+    let batchResults = new Map<number, { caloriesKcal: number; proteinG: number; fatG: number; carbsG: number; fiberG: number }>();
+    if (needsLookup.length > 0) {
+      try {
+        const lookupMap = await lookupFoodsBatch(supabase, needsLookup.map(n => n.name), 1);
+        for (const [queryIdx, match] of lookupMap) {
+          const mealIdx = needsLookup[queryIdx].index;
+          batchResults.set(mealIdx, {
+            caloriesKcal: match.caloriesKcal ?? 0,
+            proteinG: match.proteinG ?? 0,
+            fatG: match.fatG ?? 0,
+            carbsG: match.carbsG ?? 0,
+            fiberG: match.fiberG ?? 0,
+          });
         }
+      } catch {
+        // Non-fatal: skip batch nutrition estimates
+      }
+    }
 
-        return {
-          dayOfWeek: m.day_of_week,
-          dayName: DAY_NAMES[m.day_of_week] ?? `Dag ${m.day_of_week}`,
-          name: m.name,
-          description: m.description,
-          mealType: m.meal_type,
-          yieldsLeftovers: m.yields_leftovers ?? false,
-          nutrition,
+    meals = rows.map((m, i) => {
+      let nutrition: MealNutrition | undefined;
+
+      if (m.recipe_id && recipeLookup.has(m.recipe_id)) {
+        const n = recipeLookup.get(m.recipe_id)!;
+        nutrition = {
+          caloriesKcal: n.caloriesKcal,
+          proteinG: n.proteinG,
+          fatG: n.fatG,
+          carbsG: n.carbsG,
+          fiberG: n.fiberG,
+          source: 'recipe',
         };
-      }),
-    );
+      } else if (batchResults.has(i)) {
+        const f = batchResults.get(i)!;
+        nutrition = { ...f, source: 'estimate' };
+      }
+
+      return {
+        dayOfWeek: m.day_of_week,
+        dayName: DAY_NAMES[m.day_of_week] ?? `Dag ${m.day_of_week}`,
+        name: m.name,
+        description: m.description,
+        mealType: m.meal_type,
+        yieldsLeftovers: m.yields_leftovers ?? false,
+        nutrition,
+      };
+    });
   }
 
   const recentMeals = await loadRecentMeals(supabase, week, year);
