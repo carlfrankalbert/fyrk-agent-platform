@@ -7,6 +7,7 @@ import { loadDbContext } from './husmor-db.js';
 import { executeActions } from './husmor-actions.js';
 import { buildSystemPrompt, parseClaudeResponse, cleanMessageOrder } from './husmor-prompt.js';
 import { extractLearnings } from './husmor-learnings.js';
+import type { Logger } from '../lib/types.js';
 
 export const HUSMOR_MODEL = 'claude-opus-4-6';
 export const THINKING_MSG = 'Husmor tenker...';
@@ -18,7 +19,7 @@ export interface HusmorMessageParams {
   threadTs: string;
   userId: string;
   isThreadReply: boolean;
-  logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
+  logger: Logger;
 }
 
 /** Update the thinking placeholder with a reply, or post a new message if update fails. */
@@ -85,7 +86,15 @@ export async function handleHusmorMessage(params: HusmorMessageParams): Promise<
       max_tokens: 4096,
       system: systemPrompt,
       messages,
+      cache_control: { type: 'ephemeral' },
     });
+
+    logger.info({
+      input_tokens: response.usage.input_tokens,
+      cache_read: response.usage.cache_read_input_tokens ?? 0,
+      cache_write: response.usage.cache_creation_input_tokens ?? 0,
+      output_tokens: response.usage.output_tokens,
+    }, 'Claude API usage');
 
     const parsed = parseClaudeResponse(extractText(response));
 

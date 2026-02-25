@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DAY_NAMES } from '../lib/constants.js';
 import { createCanvas, editCanvas } from '../lib/slack.js';
+import type { Logger } from '../lib/types.js';
 
 interface CanvasMeal {
   dayOfWeek: number;
@@ -54,8 +55,6 @@ export function buildCanvasMarkdown(
 
   return lines.join('\n');
 }
-
-type Logger = { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void };
 
 export async function syncCanvas(
   supabase: SupabaseClient,

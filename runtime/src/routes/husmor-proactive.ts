@@ -1,10 +1,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { callClaude, extractText } from '../lib/claude.js';
+import type { ClaudeResponse } from '../lib/claude.js';
 import { postMessage } from '../lib/slack.js';
 import { loadDbContext } from './husmor-db.js';
 import { buildProactiveSystemPrompt } from './husmor-prompt.js';
+import type { Logger } from '../lib/types.js';
 
-type Logger = { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
+function logUsage(logger: Logger, response: ClaudeResponse, label: string): void {
+  logger.info({
+    input_tokens: response.usage.input_tokens,
+    cache_read: response.usage.cache_read_input_tokens ?? 0,
+    cache_write: response.usage.cache_creation_input_tokens ?? 0,
+    output_tokens: response.usage.output_tokens,
+  }, `Claude API usage (${label})`);
+}
 
 const PROACTIVE_MODEL = 'claude-sonnet-4-5-20250929';
 const MAX_TOKENS = 1024;
@@ -56,8 +65,10 @@ async function handleInventoryReminder(
     max_tokens: MAX_TOKENS,
     system: systemPrompt + '\n\nSkriv en kort, vennlig paaminnelse om varer som ma brukes opp snart. Foresla 1-2 middager som bruker opp varene og passer familiens preferanser. Hold det kort — maks 3-4 setninger.',
     messages: [{ role: 'user', content: `Disse varene ma brukes opp snart:\n${itemList}` }],
+    cache_control: { type: 'ephemeral' },
   });
 
+  logUsage(logger, response, 'inventory_reminder');
   const text = extractText(response);
   await postMessage(botToken, channel, [], text);
   logger.info({ itemCount: dbContext.inventoryNotes.length }, 'Sent inventory reminder');
@@ -89,8 +100,10 @@ async function handleMidweekCheckin(
     max_tokens: MAX_TOKENS,
     system: systemPrompt + '\n\nDet er midt i uken. Skriv en kort, vennlig sjekk — spor om middagene hittil har fungert, og tilby a justere resten av uken. Bruk det du vet om familien. Hold det kort og uformelt.',
     messages: [{ role: 'user', content: `Ukens middagsplan:\n${mealSummary}` }],
+    cache_control: { type: 'ephemeral' },
   });
 
+  logUsage(logger, response, 'midweek_checkin');
   const text = extractText(response);
   await postMessage(botToken, channel, [], text);
   logger.info({ planId: dbContext.plan.planId }, 'Sent midweek checkin');
@@ -151,8 +164,10 @@ async function handleWeekendPrep(
     max_tokens: MAX_TOKENS,
     system: systemPrompt + '\n\nDet er fredag. Skriv en kort, motiverende paaminnelse om helgens middager og hva som trengs. Bruk det du vet om familien. Hold det kort og hyggelig.',
     messages: [{ role: 'user', content: `Helgens middager:\n${mealSummary}${shoppingInfo}` }],
+    cache_control: { type: 'ephemeral' },
   });
 
+  logUsage(logger, response, 'weekend_prep');
   const text = extractText(response);
   await postMessage(botToken, channel, [], text);
   logger.info({ planId: dbContext.plan.planId, mealCount: weekendMeals.length }, 'Sent weekend prep');
@@ -194,8 +209,10 @@ async function handleWeeklyLearningSummary(
     max_tokens: MAX_TOKENS,
     system: systemPrompt + `\n\nDet er sondag kveld. Skriv en varm, kort ukentlig oppsummering av hva du har laert om familien denne uken. Start med "Denne uken laerte jeg..." og oppsummer de viktigste lerdommene. Avslutt med en kort tanke om hvordan du vil bruke dette neste uke. Hold det personlig og varmt — maks 5-6 setninger.`,
     messages: [{ role: 'user', content: `Nye lerdommer denne uken:\n${learningsList}` }],
+    cache_control: { type: 'ephemeral' },
   });
 
+  logUsage(logger, response, 'weekly_learning_summary');
   const text = extractText(response);
   await postMessage(botToken, channel, [], text);
   logger.info({ learningCount: recentLearnings.length }, 'Sent weekly learning summary');

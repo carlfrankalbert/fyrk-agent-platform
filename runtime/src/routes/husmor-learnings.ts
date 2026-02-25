@@ -4,6 +4,7 @@ import { callClaude, extractText } from '../lib/claude.js';
 import type { ClaudeMessage } from '../lib/claude.js';
 import { stripJsonFences } from '../lib/json.js';
 import { DAY_NAMES } from '../lib/constants.js';
+import type { Logger } from '../lib/types.js';
 
 // --- Types ---
 
@@ -20,8 +21,6 @@ export interface MealPattern {
   type: 'favorite' | 'avoid' | 'weekday' | 'balance';
   description: string;
 }
-
-type Logger = { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
 
 // --- Extraction schema ---
 
@@ -93,11 +92,19 @@ export async function extractLearnings(
     .join('\n');
 
   const response = await callClaude(apiKey, {
-    model: 'claude-sonnet-4-5-20250929',
+    model: 'claude-haiku-4-5-20251001',
     max_tokens: 2048,
     system: systemPrompt,
     messages: [{ role: 'user', content: conversationText }],
+    cache_control: { type: 'ephemeral' },
   });
+
+  logger.info({
+    input_tokens: response.usage.input_tokens,
+    cache_read: response.usage.cache_read_input_tokens ?? 0,
+    cache_write: response.usage.cache_creation_input_tokens ?? 0,
+    output_tokens: response.usage.output_tokens,
+  }, 'Claude API usage (learning_extraction)');
 
   const text = extractText(response);
   const jsonStr = stripJsonFences(text);

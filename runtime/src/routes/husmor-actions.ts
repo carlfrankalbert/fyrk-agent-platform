@@ -5,8 +5,7 @@ import { replyInThread } from '../lib/slack.js';
 import type { HusmorAction } from './husmor-schemas.js';
 import { invalidateCache } from './husmor-cache.js';
 import { enrichRecipeNutrition } from '../lib/nutrition-enrichment.js';
-
-type Logger = { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
+import type { Logger } from '../lib/types.js';
 
 export async function executeActions(
   supabase: SupabaseClient,
