@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import { validateEnv } from './lib/env.js';
 import { healthRoutes } from './routes/health.js';
 import { runRoutes } from './routes/run.js';
-import { leadRoutes } from './routes/leads.js';
+import { leadRoutes } from './routes/leads/index.js';
 import { husmorRoutes } from './routes/husmor.js';
 
 async function main(): Promise<void> {

@@ -1,10 +1,10 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { getEnv } from '../lib/env.js';
-import { postMessage, verifySignature } from '../lib/slack.js';
-import { getSupabase } from '../lib/supabase.js';
-import { registerRawBodyParser } from '../lib/slack-events.js';
-import { CreateLeadSchema, SlackEventSchema } from './leads-schemas.js';
-import { formatLeadBlocks, REACTION_MAP } from './leads-blocks.js';
+import { getEnv } from '../../lib/env.js';
+import { postMessage, verifySignature } from '../../lib/slack.js';
+import { getSupabase } from '../../lib/supabase.js';
+import { registerRawBodyParser } from '../../lib/slack-events.js';
+import { CreateLeadSchema, SlackEventSchema } from './schemas.js';
+import { formatLeadBlocks, REACTION_MAP } from './blocks.js';
 
 export async function leadRoutes(fastify: FastifyInstance): Promise<void> {
   // POST /leads — create a new lead

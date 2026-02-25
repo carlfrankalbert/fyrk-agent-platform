@@ -1,4 +1,4 @@
-import type { SlackBlock } from '../lib/slack.js';
+import type { SlackBlock } from '../../lib/slack.js';
 
 export function formatLeadBlocks(lead: Record<string, unknown>, account: Record<string, unknown> | null): SlackBlock[] {
   const total = lead.score_total ?? 0;
