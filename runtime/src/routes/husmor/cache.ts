@@ -39,3 +39,38 @@ export function pruneExpired(): void {
     if (now > entry.expiresAt) store.delete(key);
   }
 }
+
+// Periodic prune: clean expired entries every 60 seconds
+const pruneTimer = setInterval(pruneExpired, 60_000);
+pruneTimer.unref(); // Don't keep the process alive
+
+// Stampede protection: track in-flight computations
+const pending = new Map<string, Promise<unknown>>();
+
+/**
+ * Get cached value or compute it, with stampede protection.
+ * If the same key is requested concurrently, only one computation runs.
+ */
+export async function getOrCompute<T>(
+  key: string,
+  compute: () => Promise<T>,
+  ttlMs = DEFAULT_TTL_MS,
+): Promise<T> {
+  const cached = getCached<T>(key);
+  if (cached !== undefined) return cached;
+
+  const inflight = pending.get(key);
+  if (inflight) return inflight as Promise<T>;
+
+  const promise = compute()
+    .then((value) => {
+      setCached(key, value, ttlMs);
+      return value;
+    })
+    .finally(() => {
+      pending.delete(key);
+    });
+
+  pending.set(key, promise);
+  return promise;
+}
