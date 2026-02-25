@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { getEnv } from '../../lib/env.js';
 import { verifySignature } from '../../lib/slack.js';
@@ -26,33 +27,27 @@ const REACTION_MAP: Record<string, string> = {
   'repeat': 'regenerate',
 };
 
-// Dedup: in-memory Map on event_ts with 60s TTL
-const recentEvents = new Map<string, number>();
-const DEDUP_TTL_MS = 60_000;
-const DEDUP_CLEANUP_THRESHOLD = 500;
-const MAX_DEDUP_ENTRIES = 1000;
+// DB-based event dedup: atomic INSERT ... ON CONFLICT DO NOTHING
+async function claimEvent(supabase: SupabaseClient, eventTs: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('husmor_event_dedup')
+    .insert({ event_ts: eventTs })
+    .select('event_ts')
+    .maybeSingle();
+  return data !== null; // null = conflict = already claimed
+}
 
-function isDuplicate(eventTs: string): boolean {
+// Throttled cleanup: delete rows older than 5 minutes (at most once per minute)
+let lastCleanup = 0;
+async function cleanupDedupRows(supabase: SupabaseClient): Promise<void> {
   const now = Date.now();
-  // Only run TTL cleanup when map exceeds threshold
-  if (recentEvents.size > DEDUP_CLEANUP_THRESHOLD) {
-    for (const [ts, expires] of recentEvents) {
-      if (now > expires) recentEvents.delete(ts);
-    }
-    // Hard cap: evict oldest entries (Map iterates in insertion order)
-    if (recentEvents.size > MAX_DEDUP_ENTRIES) {
-      const excess = recentEvents.size - MAX_DEDUP_ENTRIES;
-      let removed = 0;
-      for (const key of recentEvents.keys()) {
-        if (removed >= excess) break;
-        recentEvents.delete(key);
-        removed++;
-      }
-    }
-  }
-  if (recentEvents.has(eventTs)) return true;
-  recentEvents.set(eventTs, now + DEDUP_TTL_MS);
-  return false;
+  if (now - lastCleanup < 60_000) return;
+  lastCleanup = now;
+  const cutoff = new Date(now - 5 * 60_000).toISOString();
+  await supabase
+    .from('husmor_event_dedup')
+    .delete()
+    .lt('claimed_at', cutoff);
 }
 
 export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
@@ -245,12 +240,19 @@ export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
           return { ok: true, ignored: true, reason: 'retry' };
         }
 
-        // Dedup on event_ts
+        // Dedup on event_ts via DB (shared across Fly.io machines)
         const eventTs = msg.event_ts ?? msg.ts;
-        if (isDuplicate(eventTs)) {
+        const supabase = getSupabase();
+        const claimed = await claimEvent(supabase, eventTs);
+        if (!claimed) {
           scope.log.info({ eventTs }, 'Ignoring duplicate event');
           return { ok: true, ignored: true, reason: 'duplicate' };
         }
+
+        // Throttled cleanup of old dedup rows
+        cleanupDedupRows(supabase).catch((err) => {
+          scope.log.warn({ err }, 'Dedup cleanup failed (non-fatal)');
+        });
 
         // Async dispatch — return immediately for Slack's 3-second timeout
         // Use thread_ts if replying in a thread, otherwise use ts to start a new thread
