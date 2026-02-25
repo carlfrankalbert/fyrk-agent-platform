@@ -113,18 +113,44 @@ export async function extractLearnings(
 
   if (learnings.length === 0) return;
 
-  // Handle supersession
-  for (const learning of learnings) {
-    if (learning.supersedes) {
+  // Split into superseding (need sequential insert+update) and normal (can batch)
+  const superseding = learnings.filter(l => l.supersedes);
+  const normal = learnings.filter(l => !l.supersedes);
+
+  let insertedCount = 0;
+
+  // Batch-insert normal learnings in a single call
+  if (normal.length > 0) {
+    const rows = normal.map(l => ({
+      household_id: 'default',
+      thread_ts: threadTs,
+      category: l.category,
+      insight: l.insight,
+      confidence: l.confidence,
+      source: 'extraction',
+      expires_at: l.expires_in_days
+        ? new Date(Date.now() + l.expires_in_days * 86400000).toISOString()
+        : null,
+    }));
+    const { error } = await supabase.from('household_learnings').insert(rows);
+    if (error) {
+      logger.warn({ error, count: rows.length }, 'Batch learning insert failed');
+    } else {
+      insertedCount += normal.length;
+    }
+  }
+
+  // Handle superseding learnings sequentially (must be ordered: insert new, update old)
+  for (const learning of superseding) {
+    try {
       const { data: old } = await supabase
         .from('household_learnings')
         .select('id')
-        .eq('insight', learning.supersedes)
+        .eq('insight', learning.supersedes!)
         .is('superseded_by', null)
         .limit(1);
 
       if (old && old.length > 0) {
-        // Insert new learning first, then update old
         const { data: newRow } = await supabase
           .from('household_learnings')
           .insert({
@@ -147,27 +173,28 @@ export async function extractLearnings(
             .update({ superseded_by: newRow.id })
             .eq('id', old[0].id);
         }
-        continue;
+        insertedCount++;
+      } else {
+        // No old learning to supersede — insert as normal
+        const { error } = await supabase.from('household_learnings').insert({
+          household_id: 'default',
+          thread_ts: threadTs,
+          category: learning.category,
+          insight: learning.insight,
+          confidence: learning.confidence,
+          source: 'extraction',
+          expires_at: learning.expires_in_days
+            ? new Date(Date.now() + learning.expires_in_days * 86400000).toISOString()
+            : null,
+        });
+        if (!error) insertedCount++;
       }
+    } catch (err) {
+      logger.warn({ err, insight: learning.insight }, 'Superseding learning insert failed (partial)');
     }
-
-    // Normal insert
-    await supabase
-      .from('household_learnings')
-      .insert({
-        household_id: 'default',
-        thread_ts: threadTs,
-        category: learning.category,
-        insight: learning.insight,
-        confidence: learning.confidence,
-        source: 'extraction',
-        expires_at: learning.expires_in_days
-          ? new Date(Date.now() + learning.expires_in_days * 86400000).toISOString()
-          : null,
-      });
   }
 
-  logger.info({ threadTs, count: learnings.length }, 'Extracted learnings from conversation');
+  logger.info({ threadTs, count: insertedCount, total: learnings.length }, 'Extracted learnings from conversation');
 }
 
 // --- Load active learnings ---
