@@ -20,6 +20,27 @@ const MAX_TOKENS = 1024;
 
 export type ProactiveType = 'inventory_reminder' | 'midweek_checkin' | 'weekend_prep' | 'weekly_learning_summary';
 
+const RATE_LIMIT_HOURS = 4;
+
+async function isRateLimited(supabase: SupabaseClient, type: ProactiveType, logger: Logger): Promise<boolean> {
+  const cutoff = new Date(Date.now() - RATE_LIMIT_HOURS * 3600_000).toISOString();
+  const { data: recent } = await supabase
+    .from('husmor_proactive_log')
+    .select('id')
+    .eq('type', type)
+    .gte('sent_at', cutoff)
+    .limit(1);
+  if (recent && recent.length > 0) {
+    logger.info({ type }, 'Proactive message already sent recently, skipping');
+    return true;
+  }
+  return false;
+}
+
+async function logProactiveSend(supabase: SupabaseClient, type: ProactiveType): Promise<void> {
+  await supabase.from('husmor_proactive_log').insert({ type });
+}
+
 export async function handleProactiveMessage(
   type: ProactiveType,
   supabase: SupabaseClient,
@@ -28,6 +49,11 @@ export async function handleProactiveMessage(
   apiKey: string,
   logger: Logger,
 ): Promise<{ sent: boolean; type: ProactiveType }> {
+  // Rate-limit: skip if same type was sent within the last 4 hours
+  if (await isRateLimited(supabase, type, logger)) {
+    return { sent: false, type };
+  }
+
   switch (type) {
     case 'inventory_reminder':
       return handleInventoryReminder(supabase, botToken, channel, apiKey, logger);
@@ -71,6 +97,7 @@ async function handleInventoryReminder(
   logUsage(logger, response, 'inventory_reminder');
   const text = extractText(response);
   await postMessage(botToken, channel, [], text);
+  await logProactiveSend(supabase, 'inventory_reminder');
   logger.info({ itemCount: dbContext.inventoryNotes.length }, 'Sent inventory reminder');
   return { sent: true, type: 'inventory_reminder' };
 }
@@ -106,6 +133,7 @@ async function handleMidweekCheckin(
   logUsage(logger, response, 'midweek_checkin');
   const text = extractText(response);
   await postMessage(botToken, channel, [], text);
+  await logProactiveSend(supabase, 'midweek_checkin');
   logger.info({ planId: dbContext.plan.planId }, 'Sent midweek checkin');
   return { sent: true, type: 'midweek_checkin' };
 }
@@ -170,6 +198,7 @@ async function handleWeekendPrep(
   logUsage(logger, response, 'weekend_prep');
   const text = extractText(response);
   await postMessage(botToken, channel, [], text);
+  await logProactiveSend(supabase, 'weekend_prep');
   logger.info({ planId: dbContext.plan.planId, mealCount: weekendMeals.length }, 'Sent weekend prep');
   return { sent: true, type: 'weekend_prep' };
 }
@@ -215,6 +244,7 @@ async function handleWeeklyLearningSummary(
   logUsage(logger, response, 'weekly_learning_summary');
   const text = extractText(response);
   await postMessage(botToken, channel, [], text);
+  await logProactiveSend(supabase, 'weekly_learning_summary');
   logger.info({ learningCount: recentLearnings.length }, 'Sent weekly learning summary');
   return { sent: true, type: 'weekly_learning_summary' };
 }
