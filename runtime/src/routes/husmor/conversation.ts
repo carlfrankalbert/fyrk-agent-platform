@@ -6,7 +6,7 @@ import { getSupabase } from '../../lib/supabase.js';
 import { loadDbContext } from './db.js';
 import { executeActions } from './actions.js';
 import { buildSystemPrompt, parseClaudeResponse, cleanMessageOrder } from './prompt.js';
-import { extractLearnings } from './learnings.js';
+import { extractLearnings } from './learnings/index.js';
 import type { Logger } from '../../lib/types.js';
 
 export const HUSMOR_MODEL = 'claude-opus-4-6';

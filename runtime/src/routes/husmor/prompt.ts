@@ -14,7 +14,7 @@ import {
   buildRejectionPatternsSection,
   buildReactionSummarySection,
   buildKnowledgeGapsSection,
-} from './learnings.js';
+} from './learnings/index.js';
 
 const PERSONA = `Du er Husmor. En tydelig, varm og bestemt skikkelse som kunne jobbet pa Sigtuna allmanna laroverk. Du har hoy standard for orden, helse og dannelse.
 

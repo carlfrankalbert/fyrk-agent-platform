@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DAY_NAMES } from '../../lib/constants.js';
-import { loadLearnings, computeMealPatterns, computeSuggestionMetrics, computeRejectionPatterns, loadReactionSummary, detectKnowledgeGaps } from './learnings.js';
-import type { Learning, MealPattern, SuggestionMetrics, RejectionPattern, ReactionSummary, KnowledgeGap } from './learnings.js';
+import { loadLearnings, computeMealPatterns, computeSuggestionMetrics, computeRejectionPatterns, loadReactionSummary, detectKnowledgeGaps } from './learnings/index.js';
+import type { Learning, MealPattern, SuggestionMetrics, RejectionPattern, ReactionSummary, KnowledgeGap } from './learnings/index.js';
 import { getCached, setCached } from './cache.js';
 import { lookupFood } from '../../lib/food-lookup.js';
 import type { NutritionPerServing } from '../../lib/nutrition-enrichment.js';

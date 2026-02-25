@@ -32,7 +32,7 @@ vi.mock('../src/lib/slack.js', () => ({
 }));
 
 // Mock husmor-learnings (loadLearnings and computeMealPatterns are tested separately)
-vi.mock('../src/routes/husmor/learnings.js', async (importOriginal) => {
+vi.mock('../src/routes/husmor/learnings/index.js', async (importOriginal) => {
   const actual = await importOriginal() as Record<string, unknown>;
   return {
     ...actual,
@@ -73,7 +73,7 @@ import {
   type RejectionPattern,
   type ReactionSummary,
   type KnowledgeGap,
-} from '../src/routes/husmor/learnings.js';
+} from '../src/routes/husmor/learnings/index.js';
 import {
   HusmorSlackMessageEvent,
   HusmorSlackEventEnvelope,
