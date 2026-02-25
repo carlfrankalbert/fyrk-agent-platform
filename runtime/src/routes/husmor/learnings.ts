@@ -1,10 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { callClaude, extractText } from '../lib/claude.js';
-import type { ClaudeMessage } from '../lib/claude.js';
-import { stripJsonFences } from '../lib/json.js';
-import { DAY_NAMES } from '../lib/constants.js';
-import type { Logger } from '../lib/types.js';
+import { callClaude, extractText } from '../../lib/claude.js';
+import type { ClaudeMessage } from '../../lib/claude.js';
+import { stripJsonFences } from '../../lib/json.js';
+import { DAY_NAMES } from '../../lib/constants.js';
+import type { Logger } from '../../lib/types.js';
 
 // --- Types ---
 

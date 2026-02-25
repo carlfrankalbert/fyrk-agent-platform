@@ -32,7 +32,7 @@ vi.mock('../src/lib/slack.js', () => ({
 }));
 
 // Mock husmor-learnings (loadLearnings and computeMealPatterns are tested separately)
-vi.mock('../src/routes/husmor-learnings.js', async (importOriginal) => {
+vi.mock('../src/routes/husmor/learnings.js', async (importOriginal) => {
   const actual = await importOriginal() as Record<string, unknown>;
   return {
     ...actual,
@@ -52,11 +52,11 @@ vi.mock('@supabase/supabase-js', () => ({
 
 import { callClaude, extractText } from '../src/lib/claude.js';
 import { replyInThread, updateMessage, getThreadHistory } from '../src/lib/slack.js';
-import { handleHusmorMessage, THINKING_MSG, ERROR_MSG, type HusmorMessageParams } from '../src/routes/husmor-conversation.js';
-import { buildSystemPrompt, parseClaudeResponse, cleanMessageOrder } from '../src/routes/husmor-prompt.js';
-import { executeActions, } from '../src/routes/husmor-actions.js';
-import { buildCanvasMarkdown } from '../src/routes/husmor-canvas.js';
-import type { DbContext } from '../src/routes/husmor-db.js';
+import { handleHusmorMessage, THINKING_MSG, ERROR_MSG, type HusmorMessageParams } from '../src/routes/husmor/conversation.js';
+import { buildSystemPrompt, parseClaudeResponse, cleanMessageOrder } from '../src/routes/husmor/prompt.js';
+import { executeActions, } from '../src/routes/husmor/actions.js';
+import { buildCanvasMarkdown } from '../src/routes/husmor/canvas.js';
+import type { DbContext } from '../src/routes/husmor/db.js';
 import {
   buildLearningsSection,
   buildPatternsSection,
@@ -73,13 +73,13 @@ import {
   type RejectionPattern,
   type ReactionSummary,
   type KnowledgeGap,
-} from '../src/routes/husmor-learnings.js';
+} from '../src/routes/husmor/learnings.js';
 import {
   HusmorSlackMessageEvent,
   HusmorSlackEventEnvelope,
   HusmorActionSchema,
   type HusmorAction,
-} from '../src/routes/husmor-schemas.js';
+} from '../src/routes/husmor/schemas.js';
 
 const mockCallClaude = vi.mocked(callClaude);
 const mockExtractText = vi.mocked(extractText);

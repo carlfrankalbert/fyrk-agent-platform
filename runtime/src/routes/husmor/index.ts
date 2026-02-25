@@ -1,17 +1,17 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
-import { getEnv } from '../lib/env.js';
-import { verifySignature } from '../lib/slack.js';
-import { getSupabase } from '../lib/supabase.js';
-import { registerRawBodyParser } from '../lib/slack-events.js';
+import { getEnv } from '../../lib/env.js';
+import { verifySignature } from '../../lib/slack.js';
+import { getSupabase } from '../../lib/supabase.js';
+import { registerRawBodyParser } from '../../lib/slack-events.js';
 import {
   HusmorSlackChallengeSchema,
   HusmorSlackEventEnvelope,
   HusmorSlackReactionEvent,
   HusmorSlackMessageEvent,
-} from './husmor-schemas.js';
-import { handleHusmorMessage } from './husmor-conversation.js';
-import { handleProactiveMessage, type ProactiveType } from './husmor-proactive.js';
+} from './schemas.js';
+import { handleHusmorMessage } from './conversation.js';
+import { handleProactiveMessage, type ProactiveType } from './proactive.js';
 
 const ProactiveRequestSchema = z.object({
   type: z.enum(['inventory_reminder', 'midweek_checkin', 'weekend_prep', 'weekly_learning_summary']),

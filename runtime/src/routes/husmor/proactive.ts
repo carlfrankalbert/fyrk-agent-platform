@@ -1,10 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { callClaude, extractText } from '../lib/claude.js';
-import type { ClaudeResponse } from '../lib/claude.js';
-import { postMessage } from '../lib/slack.js';
-import { loadDbContext } from './husmor-db.js';
-import { buildProactiveSystemPrompt } from './husmor-prompt.js';
-import type { Logger } from '../lib/types.js';
+import { callClaude, extractText } from '../../lib/claude.js';
+import type { ClaudeResponse } from '../../lib/claude.js';
+import { postMessage } from '../../lib/slack.js';
+import { loadDbContext } from './db.js';
+import { buildProactiveSystemPrompt } from './prompt.js';
+import type { Logger } from '../../lib/types.js';
 
 function logUsage(logger: Logger, response: ClaudeResponse, label: string): void {
   logger.info({

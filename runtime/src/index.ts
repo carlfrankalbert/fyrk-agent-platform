@@ -3,7 +3,7 @@ import { validateEnv } from './lib/env.js';
 import { healthRoutes } from './routes/health.js';
 import { runRoutes } from './routes/run.js';
 import { leadRoutes } from './routes/leads/index.js';
-import { husmorRoutes } from './routes/husmor.js';
+import { husmorRoutes } from './routes/husmor/index.js';
 
 async function main(): Promise<void> {
   const env = validateEnv();

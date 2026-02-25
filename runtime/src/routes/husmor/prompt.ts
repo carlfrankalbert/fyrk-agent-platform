@@ -1,10 +1,10 @@
-import { stripJsonFences } from '../lib/json.js';
-import type { ClaudeMessage } from '../lib/claude.js';
+import { stripJsonFences } from '../../lib/json.js';
+import type { ClaudeMessage } from '../../lib/claude.js';
 import {
   HusmorClaudeResponseSchema,
   type HusmorClaudeResponse,
-} from './husmor-schemas.js';
-import type { DbContext } from './husmor-db.js';
+} from './schemas.js';
+import type { DbContext } from './db.js';
 import {
   buildLearningsSection,
   buildPatternsSection,
@@ -14,7 +14,7 @@ import {
   buildRejectionPatternsSection,
   buildReactionSummarySection,
   buildKnowledgeGapsSection,
-} from './husmor-learnings.js';
+} from './learnings.js';
 
 const PERSONA = `Du er Husmor. En tydelig, varm og bestemt skikkelse som kunne jobbet pa Sigtuna allmanna laroverk. Du har hoy standard for orden, helse og dannelse.
 

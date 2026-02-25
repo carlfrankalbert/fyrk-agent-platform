@@ -1,13 +1,13 @@
-import { getEnv } from '../lib/env.js';
-import { callClaude, extractText } from '../lib/claude.js';
-import { replyInThread, updateMessage, getThreadHistory } from '../lib/slack.js';
-import type { ClaudeMessage } from '../lib/claude.js';
-import { getSupabase } from '../lib/supabase.js';
-import { loadDbContext } from './husmor-db.js';
-import { executeActions } from './husmor-actions.js';
-import { buildSystemPrompt, parseClaudeResponse, cleanMessageOrder } from './husmor-prompt.js';
-import { extractLearnings } from './husmor-learnings.js';
-import type { Logger } from '../lib/types.js';
+import { getEnv } from '../../lib/env.js';
+import { callClaude, extractText } from '../../lib/claude.js';
+import { replyInThread, updateMessage, getThreadHistory } from '../../lib/slack.js';
+import type { ClaudeMessage } from '../../lib/claude.js';
+import { getSupabase } from '../../lib/supabase.js';
+import { loadDbContext } from './db.js';
+import { executeActions } from './actions.js';
+import { buildSystemPrompt, parseClaudeResponse, cleanMessageOrder } from './prompt.js';
+import { extractLearnings } from './learnings.js';
+import type { Logger } from '../../lib/types.js';
 
 export const HUSMOR_MODEL = 'claude-opus-4-6';
 export const THINKING_MSG = 'Husmor tenker...';

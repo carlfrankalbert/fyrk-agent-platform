@@ -1,11 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getOrCreateCurrentWeekPlan } from './husmor-db.js';
-import { syncCanvas } from './husmor-canvas.js';
-import { replyInThread } from '../lib/slack.js';
-import type { HusmorAction } from './husmor-schemas.js';
-import { invalidateCache } from './husmor-cache.js';
-import { enrichRecipeNutrition } from '../lib/nutrition-enrichment.js';
-import type { Logger } from '../lib/types.js';
+import { getOrCreateCurrentWeekPlan } from './db.js';
+import { syncCanvas } from './canvas.js';
+import { replyInThread } from '../../lib/slack.js';
+import type { HusmorAction } from './schemas.js';
+import { invalidateCache } from './cache.js';
+import { enrichRecipeNutrition } from '../../lib/nutrition-enrichment.js';
+import type { Logger } from '../../lib/types.js';
 
 export async function executeActions(
   supabase: SupabaseClient,

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { DAY_NAMES } from '../lib/constants.js';
-import { createCanvas, editCanvas } from '../lib/slack.js';
-import type { Logger } from '../lib/types.js';
+import { DAY_NAMES } from '../../lib/constants.js';
+import { createCanvas, editCanvas } from '../../lib/slack.js';
+import type { Logger } from '../../lib/types.js';
 
 interface CanvasMeal {
   dayOfWeek: number;
