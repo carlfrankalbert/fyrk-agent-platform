@@ -76,8 +76,24 @@ Atferd:
 - set_week_context ved reise/gjester/hoytid — tilpass kompleksitet
 - log_child_reaction ved barns feedback — bruk til a tilpasse retter`;
 
-export function buildSystemPrompt(ctx: DbContext): string {
+// Default char budget ~80k chars ≈ ~20k tokens, well within 200k context window
+const DEFAULT_CHAR_BUDGET = 80_000;
+
+export function buildSystemPrompt(ctx: DbContext, charBudget = DEFAULT_CHAR_BUDGET): string {
   const sections: string[] = [];
+  let charCount = 0;
+  let budgetExceeded = false;
+
+  function addSection(text: string): boolean {
+    if (budgetExceeded) return false;
+    if (charCount + text.length > charBudget) {
+      budgetExceeded = true;
+      return false;
+    }
+    sections.push(text);
+    charCount += text.length;
+    return true;
+  }
 
   const dateStr = new Date().toLocaleDateString('nb-NO', {
     timeZone: 'Europe/Oslo',
@@ -87,9 +103,9 @@ export function buildSystemPrompt(ctx: DbContext): string {
     day: 'numeric',
   });
 
-  // Persona + date + dietary guidelines
-  sections.push(PERSONA);
-  sections.push(`\nI dag er det ${dateStr}.\nUke ${ctx.plan.weekNumber}, ${ctx.plan.year}.\n`);
+  // Priority 1: Always included — persona, date, dietary guidelines, actions doc
+  addSection(PERSONA);
+  addSection(`\nI dag er det ${dateStr}.\nUke ${ctx.plan.weekNumber}, ${ctx.plan.year}.\n`);
 
   // Week context (Feature 5)
   if (ctx.plan.context) {
@@ -99,46 +115,15 @@ export function buildSystemPrompt(ctx: DbContext): string {
     if (ctx.plan.context.holiday) ctxParts.push(`Hoytid: ${ctx.plan.context.holiday} — vurder tradisjonelle retter`);
     if (ctx.plan.context.notes) ctxParts.push(ctx.plan.context.notes);
     if (ctxParts.length > 0) {
-      sections.push('## Ukekontekst');
-      for (const part of ctxParts) sections.push(`- ${part}`);
-      sections.push('');
+      addSection('## Ukekontekst\n' + ctxParts.map(p => `- ${p}`).join('\n') + '\n');
     }
   }
 
-  sections.push(DIETARY_GUIDELINES);
+  addSection(DIETARY_GUIDELINES);
 
-  // Food traditions for current month
-  if (ctx.foodTraditions.length > 0) {
-    sections.push('\n## Mattradisjoner denne maneden');
-    for (const t of ctx.foodTraditions) {
-      const dishes = t.typicalDishes.length > 0 ? ` Typiske retter: ${t.typicalDishes.join(', ')}.` : '';
-      const strength = t.suggestStrength === 'strong' ? ' (sterk anbefaling)' : t.suggestStrength === 'suggest' ? ' (anbefalt)' : '';
-      sections.push(`- **${t.name}** (${t.country})${strength}:${dishes}${t.description ? ` ${t.description}` : ''}`);
-    }
-  }
-
-  // Supplementary nutrition knowledge from DB
-  if (ctx.nutritionKnowledge.length > 0) {
-    sections.push('\n## Utfyllende kostholdsrad');
-    const grouped = new Map<string, typeof ctx.nutritionKnowledge>();
-    for (const n of ctx.nutritionKnowledge) {
-      const existing = grouped.get(n.category) ?? [];
-      existing.push(n);
-      grouped.set(n.category, existing);
-    }
-    for (const [category, entries] of grouped) {
-      sections.push(`\n### ${category}`);
-      for (const e of entries) {
-        const scope = e.appliesTo ? ` (${e.appliesTo})` : '';
-        sections.push(`- **${e.topic}**${scope}: ${e.content}`);
-      }
-    }
-  }
-
-  // Current plan
+  // Priority 2: Current plan + preferences (core context for any response)
   if (ctx.plan.meals.length > 0) {
-    sections.push('\n## Gjeldende ukeplan');
-    for (const m of ctx.plan.meals) {
+    const mealLines = ctx.plan.meals.map(m => {
       const desc = m.description ? ` — ${m.description}` : '';
       const leftovers = m.yieldsLeftovers ? ' (gir rester)' : '';
       let nutritionStr = '';
@@ -146,26 +131,22 @@ export function buildSystemPrompt(ctx: DbContext): string {
         const src = m.nutrition.source === 'recipe' ? 'oppskrift' : 'estimat';
         nutritionStr = ` — ${Math.round(m.nutrition.caloriesKcal)} kcal, ${Math.round(m.nutrition.proteinG)}g protein, ${Math.round(m.nutrition.fatG)}g fett (${src})`;
       }
-      sections.push(`- ${m.dayName}: ${m.name}${desc}${leftovers}${nutritionStr}`);
-    }
-    sections.push(`Status: ${ctx.plan.status}`);
+      return `- ${m.dayName}: ${m.name}${desc}${leftovers}${nutritionStr}`;
+    });
+    addSection('\n## Gjeldende ukeplan\n' + mealLines.join('\n') + `\nStatus: ${ctx.plan.status}`);
   } else {
-    sections.push('\n## Gjeldende ukeplan\nIngen plan enna for denne uken.');
+    addSection('\n## Gjeldende ukeplan\nIngen plan enna for denne uken.');
   }
 
-  // Preferences
   if (ctx.preferences.length > 0) {
-    sections.push('\n## Familiepreferanser');
-    for (const p of ctx.preferences) {
-      sections.push(`- ${p.key}: ${JSON.stringify(p.value)}`);
-    }
+    addSection('\n## Familiepreferanser\n' + ctx.preferences.map(p => `- ${p.key}: ${JSON.stringify(p.value)}`).join('\n'));
   }
 
-  // Learnings from previous conversations
+  // Priority 3: Learnings + patterns (personalization)
   const learningsSection = buildLearningsSection(ctx.learnings);
   if (learningsSection) {
-    sections.push(`\n${learningsSection}`);
-    sections.push(`\n## Bruk det du har laert
+    addSection(`\n${learningsSection}`);
+    addSection(`\n## Bruk det du har laert
 Vis aktivt at du husker og bruker lerdommene over. Eksempler:
 - "Jeg vet dere liker laks, sa hva med laks i dag?"
 - "Siden barna elsket kyllinggryte sist, foreslar jeg det igjen"
@@ -173,84 +154,104 @@ Vis aktivt at du husker og bruker lerdommene over. Eksempler:
 Ikke bare list opp lerdommer — flett dem naturlig inn i svarene dine. Det viser at du kjenner familien.`);
   }
 
-  // Meal patterns
   const patternsSection = buildPatternsSection(ctx.mealPatterns);
   if (patternsSection) {
-    sections.push(`\n${patternsSection}`);
+    addSection(`\n${patternsSection}`);
   }
 
-  // Contradictions (Feature 4)
   const contradictions = detectContradictions(ctx.learnings, ctx.mealPatterns);
   const contradictionsSection = buildContradictionsSection(contradictions);
   if (contradictionsSection) {
-    sections.push(`\n${contradictionsSection}`);
+    addSection(`\n${contradictionsSection}`);
   }
 
-  // Suggestion feedback (Feature #1)
+  // Priority 4: Feedback signals
   const suggestionSection = buildSuggestionMetricsSection(ctx.suggestionMetrics);
   if (suggestionSection) {
-    sections.push(`\n${suggestionSection}`);
+    addSection(`\n${suggestionSection}`);
   }
 
-  // Rejection patterns (Feature #6)
   const rejectionSection = buildRejectionPatternsSection(ctx.rejectionPatterns);
   if (rejectionSection) {
-    sections.push(`\n${rejectionSection}`);
+    addSection(`\n${rejectionSection}`);
   }
 
-  // Reaction signals (Feature #8)
   const reactionSection = buildReactionSummarySection(ctx.reactionSummary);
   if (reactionSection) {
-    sections.push(`\n${reactionSection}`);
+    addSection(`\n${reactionSection}`);
   }
 
-  // Knowledge gaps (Feature #3)
   const knowledgeSection = buildKnowledgeGapsSection(ctx.knowledgeGaps);
   if (knowledgeSection) {
-    sections.push(`\n${knowledgeSection}`);
+    addSection(`\n${knowledgeSection}`);
   }
 
-  // Pantry staples
+  // Priority 5: Inventory + seasonal
   if (ctx.pantryStaples.length > 0) {
-    sections.push(`\n## Alltid pa lager\n${ctx.pantryStaples.join(', ')}`);
+    addSection(`\n## Alltid pa lager\n${ctx.pantryStaples.join(', ')}`);
   }
 
-  // Inventory notes
   if (ctx.inventoryNotes.length > 0) {
-    sections.push('\n## Ma brukes opp');
-    for (const n of ctx.inventoryNotes) {
+    const noteLines = ctx.inventoryNotes.map(n => {
       const qty = n.quantity ? ` (${n.quantity})` : '';
-      sections.push(`- ${n.itemName}${qty} — ${n.status}`);
-    }
+      return `- ${n.itemName}${qty} — ${n.status}`;
+    });
+    addSection('\n## Ma brukes opp\n' + noteLines.join('\n'));
   }
 
-  // Seasonal
   if (ctx.seasonalProduce.length > 0) {
-    sections.push(`\n## I sesong na\n${ctx.seasonalProduce.join(', ')}`);
+    addSection(`\n## I sesong na\n${ctx.seasonalProduce.join(', ')}`);
   }
 
-  // Child taste profiles (Feature 6)
+  // Priority 6: Food traditions + nutrition knowledge
+  if (ctx.foodTraditions.length > 0) {
+    const tradLines = ctx.foodTraditions.map(t => {
+      const dishes = t.typicalDishes.length > 0 ? ` Typiske retter: ${t.typicalDishes.join(', ')}.` : '';
+      const strength = t.suggestStrength === 'strong' ? ' (sterk anbefaling)' : t.suggestStrength === 'suggest' ? ' (anbefalt)' : '';
+      return `- **${t.name}** (${t.country})${strength}:${dishes}${t.description ? ` ${t.description}` : ''}`;
+    });
+    addSection('\n## Mattradisjoner denne maneden\n' + tradLines.join('\n'));
+  }
+
+  if (ctx.nutritionKnowledge.length > 0) {
+    const grouped = new Map<string, typeof ctx.nutritionKnowledge>();
+    for (const n of ctx.nutritionKnowledge) {
+      const existing = grouped.get(n.category) ?? [];
+      existing.push(n);
+      grouped.set(n.category, existing);
+    }
+    const nutLines: string[] = ['\n## Utfyllende kostholdsrad'];
+    for (const [category, entries] of grouped) {
+      nutLines.push(`\n### ${category}`);
+      for (const e of entries) {
+        const scope = e.appliesTo ? ` (${e.appliesTo})` : '';
+        nutLines.push(`- **${e.topic}**${scope}: ${e.content}`);
+      }
+    }
+    addSection(nutLines.join('\n'));
+  }
+
+  // Priority 7: Child reactions + recent meals
   if (ctx.childReactions.length > 0) {
-    sections.push('\n## Barnas smaksprofiler');
     const byChild = new Map<string, typeof ctx.childReactions>();
     for (const r of ctx.childReactions) {
       const existing = byChild.get(r.childName) ?? [];
       existing.push(r);
       byChild.set(r.childName, existing);
     }
+    const childLines: string[] = ['\n## Barnas smaksprofiler'];
     for (const [child, reactions] of byChild) {
-      sections.push(`\n### ${child}`);
+      childLines.push(`\n### ${child}`);
       const loved = reactions.filter(r => r.reaction === 'loved' || r.reaction === 'liked');
       const disliked = reactions.filter(r => r.reaction === 'disliked' || r.reaction === 'refused');
-      if (loved.length > 0) sections.push(`Liker: ${loved.map(r => r.mealName).join(', ')}`);
-      if (disliked.length > 0) sections.push(`Liker ikke: ${disliked.map(r => r.mealName).join(', ')}`);
+      if (loved.length > 0) childLines.push(`Liker: ${loved.map(r => r.mealName).join(', ')}`);
+      if (disliked.length > 0) childLines.push(`Liker ikke: ${disliked.map(r => r.mealName).join(', ')}`);
     }
-    sections.push('\nBruk barnas smaksprofiler til a gradvis utvide paletten. Introduser nye smaker i kjente kombinasjoner.');
+    childLines.push('\nBruk barnas smaksprofiler til a gradvis utvide paletten. Introduser nye smaker i kjente kombinasjoner.');
+    addSection(childLines.join('\n'));
   }
 
-  // Recent meals (last 3 weeks)
   if (ctx.recentMeals.length > 0) {
-    sections.push('\n## Nylige middager');
     const byWeek = new Map<string, typeof ctx.recentMeals>();
     for (const m of ctx.recentMeals) {
       const key = `Uke ${m.weekNumber}, ${m.year}`;
@@ -258,20 +259,22 @@ Ikke bare list opp lerdommer — flett dem naturlig inn i svarene dine. Det vise
       existing.push(m);
       byWeek.set(key, existing);
     }
+    const mealLines: string[] = ['\n## Nylige middager'];
     for (const [weekLabel, meals] of byWeek) {
-      sections.push(`\n### ${weekLabel}`);
+      mealLines.push(`\n### ${weekLabel}`);
       for (const m of meals) {
         const feedback = m.feedbackEmoji ? ` ${m.feedbackEmoji}` : '';
         const rating = m.rating ? ` (${m.rating}/5)` : '';
         const text = m.feedbackText ? ` — "${m.feedbackText}"` : '';
-        sections.push(`- ${m.dayName}: ${m.name}${feedback}${rating}${text}`);
+        mealLines.push(`- ${m.dayName}: ${m.name}${feedback}${rating}${text}`);
       }
     }
-    sections.push('\nBruk nylige middager til a unnga gjentakelser og ta hensyn til feedback.');
+    mealLines.push('\nBruk nylige middager til a unnga gjentakelser og ta hensyn til feedback.');
+    addSection(mealLines.join('\n'));
   }
 
-  // Nutrition balance from Matvaretabellen
-  sections.push(`\n## Naeringsbalanse og ernaeringssporing
+  // Priority 8: Nutrition data + recipes + recipe instructions
+  addSection(`\n## Naeringsbalanse og ernaeringssporing
 Nar du lager eller vurderer en ukeplan, tell opp:
 - Fiskedager (mal: 2-3)
 - Vegetardager (mal: minst 1)
@@ -282,7 +285,7 @@ Sammenlikn med kostradene over. Gi kort tilbakemelding om balansen er god eller 
   if (ctx.weeklyNutrition) {
     const wn = ctx.weeklyNutrition;
     const t = wn.totals;
-    sections.push(`\n## Naeringsdata fra Matvaretabellen
+    addSection(`\n## Naeringsdata fra Matvaretabellen
 Du har tilgang til faktiske naeringsverdier fra den norske matvaretabellen (2121 matvarer).
 Oppskrifter med ingredienser berikes automatisk med naeringsdata per porsjon.
 
@@ -296,32 +299,34 @@ Bruk disse tallene aktivt:
 - Nar brukeren ber om naeringsoversikt, referer til de faktiske tallene
 - For maltider uten data, oppfordre til a lagre oppskriften (save_recipe) for a fa naeringsberegning`);
   } else {
-    sections.push(`\n## Naeringsdata fra Matvaretabellen
+    addSection(`\n## Naeringsdata fra Matvaretabellen
 Du har tilgang til faktiske naeringsverdier fra den norske matvaretabellen (2121 matvarer).
 Oppskrifter med ingredienser berikes automatisk med naeringsdata per porsjon.
 Ingen av ukens maltider har naeringsdata enna. Oppfordre brukeren til a lagre oppskrifter (save_recipe) for a fa beregning.`);
   }
 
-  // Saved recipes
   if (ctx.savedRecipes.length > 0) {
-    sections.push('\n## Lagrede oppskrifter');
-    for (const r of ctx.savedRecipes) {
+    const recipeLines = ctx.savedRecipes.map(r => {
       const time = [r.prepTimeMin && `prep ${r.prepTimeMin}min`, r.cookTimeMin && `tilb ${r.cookTimeMin}min`].filter(Boolean).join(', ');
       const rating = r.avgRating ? ` (${r.avgRating.toFixed(1)}/5)` : '';
       const lastUsed = r.lastUsedWeek ? ` — sist uke ${r.lastUsedWeek}/${r.lastUsedYear}` : '';
-      sections.push(`- ${r.name}${time ? ` [${time}]` : ''}${rating}${lastUsed}`);
-    }
+      return `- ${r.name}${time ? ` [${time}]` : ''}${rating}${lastUsed}`;
+    });
+    addSection('\n## Lagrede oppskrifter\n' + recipeLines.join('\n'));
   }
 
-  // Recipe instruction (Feature 3: aktiv gjenbruk)
-  sections.push(`\n## Oppskrifter
+  addSection(`\n## Oppskrifter
 Nar du planlegger middager, foresla lagrede oppskrifter med hoy rating for du genererer nye.
 Nar brukeren ber om oppskrift, sjekk forst om det finnes en lagret oppskrift.
 Nar brukeren er fornoyd med en generert oppskrift, bruk save_recipe for a lagre den.
 Generer steg-for-steg instruksjoner i svaret ditt. Inkluder ingrediensliste med mengder, og estimer total tid.`);
 
-  // Actions documentation + response format
-  sections.push(`\n${ACTIONS_DOC}`);
+  // Actions doc is always included (critical for correct behavior)
+  addSection(`\n${ACTIONS_DOC}`);
+
+  if (budgetExceeded) {
+    sections.push('\n(Noen seksjoner utelatt pga. kontekstbegrensning)');
+  }
 
   return sections.join('\n');
 }

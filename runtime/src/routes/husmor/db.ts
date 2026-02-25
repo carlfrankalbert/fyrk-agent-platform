@@ -175,27 +175,33 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
     supabase
       .from('family_preferences')
       .select('key, value')
-      .eq('household_id', 'default'),
+      .eq('household_id', 'default')
+      .limit(50),
     supabase
       .from('pantry_staples')
       .select('name')
-      .eq('household_id', 'default'),
+      .eq('household_id', 'default')
+      .limit(50),
     supabase
       .from('inventory_notes')
       .select('item_name, status, quantity')
       .eq('household_id', 'default')
-      .in('status', ['available', 'use_soon']),
+      .in('status', ['available', 'use_soon'])
+      .limit(30),
     supabase
       .from('seasonal_produce')
       .select('name')
-      .contains('months_available', [currentMonth]),
+      .contains('months_available', [currentMonth])
+      .limit(30),
     supabase
       .from('food_traditions')
       .select('name, country, typical_dishes, suggest_strength, description')
-      .contains('months', [currentMonth]),
+      .contains('months', [currentMonth])
+      .limit(20),
     supabase
       .from('nutrition_knowledge')
-      .select('category, topic, content, applies_to'),
+      .select('category, topic, content, applies_to')
+      .limit(50),
     loadLearnings(supabase),
     cachedMealPatterns(),
     loadSavedRecipes(supabase),
