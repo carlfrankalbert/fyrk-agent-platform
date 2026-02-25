@@ -41,7 +41,19 @@ async function sendReply(
   await replyInThread(botToken, channel, threadTs, text);
 }
 
+// Per-thread concurrency guard: queue messages for the same thread
+const threadLocks = new Map<string, Promise<void>>();
+
 export async function handleHusmorMessage(params: HusmorMessageParams): Promise<void> {
+  const lock = threadLocks.get(params.threadTs) ?? Promise.resolve();
+  const next = lock.then(() => handleHusmorMessageInner(params)).finally(() => {
+    if (threadLocks.get(params.threadTs) === next) threadLocks.delete(params.threadTs);
+  });
+  threadLocks.set(params.threadTs, next);
+  return next;
+}
+
+async function handleHusmorMessageInner(params: HusmorMessageParams): Promise<void> {
   const { text, channel, threadTs, userId, isThreadReply, logger } = params;
   logger.info({ userId, channel, threadTs, textLen: text.length }, 'handleHusmorMessage started');
   const env = getEnv();
