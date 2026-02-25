@@ -47,18 +47,34 @@ export async function callClaude(
     }
   }
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const RETRYABLE = new Set([429, 500, 529]);
+  const MAX_RETRIES = 3;
+  const jsonBody = JSON.stringify(body);
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Claude API error ${res.status}: ${body}`);
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers,
+      body: jsonBody,
+    });
+
+    if (res.ok) {
+      return res.json() as Promise<ClaudeResponse>;
+    }
+
+    const resBody = await res.text();
+
+    if (attempt < MAX_RETRIES && RETRYABLE.has(res.status)) {
+      const retryAfter = res.headers.get('retry-after');
+      const delayMs = retryAfter ? Math.min(parseInt(retryAfter, 10) * 1000, 30_000) : 1000 * 2 ** attempt;
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+      continue;
+    }
+
+    throw new Error(`Claude API error ${res.status}: ${resBody}`);
   }
 
-  return res.json() as Promise<ClaudeResponse>;
+  throw new Error('Claude API: max retries exceeded');
 }
 
 export function extractText(response: ClaudeResponse): string {
