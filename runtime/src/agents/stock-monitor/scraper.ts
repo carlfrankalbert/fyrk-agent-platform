@@ -10,6 +10,38 @@ export interface PowerStockResult {
   stockDeliveryDate: string | null;
 }
 
+export interface StoreStockResult {
+  storeId: number;
+  name: string;
+  storeStockCount: number;
+  clickNCollect: boolean;
+}
+
+export async function fetchStoreStock(productId: number, postalCode: string): Promise<StoreStockResult[]> {
+  const url = `https://www.power.no/api/v2/products/${productId}/stores?postalCode=${postalCode}`;
+
+  const res = await fetch(url, {
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Power.no store API returned HTTP ${res.status}`);
+  }
+
+  const data = await res.json() as Record<string, unknown>[];
+
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  return data.map((store) => ({
+    storeId: store.storeId as number,
+    name: store.name as string,
+    storeStockCount: store.storeStockCount as number,
+    clickNCollect: store.clickNCollect as boolean,
+  }));
+}
+
 export async function fetchStockStatus(productId: number): Promise<PowerStockResult> {
   const url = `https://www.power.no/api/v2/products?ids=${productId}`;
 

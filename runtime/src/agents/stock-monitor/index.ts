@@ -4,8 +4,9 @@ import {
   StockMonitorOutputSchema,
   type StockMonitorInput,
   type StockMonitorOutput,
+  type StoreWithStock,
 } from './schemas.js';
-import { fetchStockStatus } from './scraper.js';
+import { fetchStockStatus, fetchStoreStock } from './scraper.js';
 import { postMessage, type SlackBlock } from '../../lib/slack.js';
 import { getEnv } from '../../lib/env.js';
 
@@ -62,13 +63,55 @@ function buildSlackBlocks(
   return blocks;
 }
 
+function buildStoreStockBlocks(
+  title: string,
+  newStores: StoreWithStock[],
+  productUrl?: string,
+): SlackBlock[] {
+  const storeLines = newStores
+    .map((s) => `• *${s.name}*: ${s.stockCount} stk`)
+    .join('\n');
+
+  const blocks: SlackBlock[] = [
+    {
+      type: 'header',
+      text: { type: 'plain_text', text: `🏬 ${title} på lager i butikk!` },
+    },
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: `Nye butikker med lager:\n${storeLines}` },
+    },
+  ];
+
+  if (productUrl) {
+    blocks.push({
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Se på Power.no' },
+          url: productUrl,
+          action_id: 'open_product_store',
+        },
+      ],
+    });
+  }
+
+  return blocks;
+}
+
+interface StoreStockState {
+  storeIds: number[];
+  updatedAt: string;
+}
+
 async function execute(
   input: StockMonitorInput,
   ctx: AgentContext,
 ): Promise<AgentResult<StockMonitorOutput>> {
   const result = await fetchStockStatus(input.productId);
 
-  // Read previous state
+  // --- Web stock monitoring (existing) ---
   const prev = await ctx.db.getAgentState<{ webStockStatus: number }>(
     'stock-monitor',
     `stock_status_${input.productId}`,
@@ -76,7 +119,6 @@ async function execute(
   const previousStatus = prev?.webStockStatus ?? null;
   const statusChanged = previousStatus !== null && previousStatus !== result.webStockStatus;
 
-  // Upsert state on any change (or first run)
   if (statusChanged || previousStatus === null) {
     await ctx.db.setAgentState('stock-monitor', `stock_status_${input.productId}`, {
       webStockStatus: result.webStockStatus,
@@ -86,21 +128,64 @@ async function execute(
     });
   }
 
-  // Send Slack notification only when status changes to InStock (1)
-  let notificationSent = false;
-  if (statusChanged && result.webStockStatus === 1) {
-    const env = getEnv();
-    const token = env.SLACK_STOCK_BOT_TOKEN;
-    const channel = env.SLACK_CHANNEL_STOCK;
+  let webNotificationSent = false;
+  const env = getEnv();
+  const token = env.SLACK_STOCK_BOT_TOKEN;
+  const channel = env.SLACK_CHANNEL_STOCK;
 
+  if (statusChanged && result.webStockStatus === 1) {
     if (token && channel) {
       const blocks = buildSlackBlocks(result, previousStatus, input.productUrl);
       await postMessage(token, channel, blocks, `${result.title} er nå tilgjengelig på Power.no!`);
-      notificationSent = true;
+      webNotificationSent = true;
     } else {
       console.warn('stock-monitor: SLACK_STOCK_BOT_TOKEN or SLACK_CHANNEL_STOCK not set, skipping notification');
     }
   }
+
+  // --- Store stock monitoring (new) ---
+  let storesWithStock: StoreWithStock[] = [];
+  let storeStockChanged = false;
+  let storeNotificationSent = false;
+
+  if (input.watchedStoreIds && input.watchedStoreIds.length > 0 && input.postalCode) {
+    const allStores = await fetchStoreStock(input.productId, input.postalCode);
+
+    const watchedSet = new Set(input.watchedStoreIds);
+    storesWithStock = allStores
+      .filter((s) => watchedSet.has(s.storeId) && s.storeStockCount > 0)
+      .map((s) => ({ storeId: s.storeId, name: s.name, stockCount: s.storeStockCount }));
+
+    // Read previous store state
+    const prevStoreState = await ctx.db.getAgentState<StoreStockState>(
+      'stock-monitor',
+      `store_stock_${input.productId}`,
+    );
+    const prevStoreIds = new Set(prevStoreState?.storeIds ?? []);
+    const currentStoreIds = storesWithStock.map((s) => s.storeId);
+
+    // Detect newly available stores
+    const newStores = storesWithStock.filter((s) => !prevStoreIds.has(s.storeId));
+    storeStockChanged = newStores.length > 0;
+
+    // Upsert store state (always, to track current stock)
+    await ctx.db.setAgentState('stock-monitor', `store_stock_${input.productId}`, {
+      storeIds: currentStoreIds,
+      updatedAt: new Date().toISOString(),
+    } satisfies StoreStockState);
+
+    // Send store notification only for newly available stores (not on first run)
+    if (storeStockChanged && prevStoreState !== null) {
+      if (token && channel) {
+        const blocks = buildStoreStockBlocks(result.title, newStores, input.productUrl);
+        const storeNames = newStores.map((s) => s.name).join(', ');
+        await postMessage(token, channel, blocks, `${result.title} på lager i: ${storeNames}`);
+        storeNotificationSent = true;
+      }
+    }
+  }
+
+  const notificationSent = webNotificationSent || storeNotificationSent;
 
   const output: StockMonitorOutput = {
     productId: result.productId,
@@ -112,6 +197,8 @@ async function execute(
     previousStatus,
     statusChanged,
     notificationSent,
+    storesWithStock,
+    storeStockChanged,
   };
 
   // Build markdown artifact
@@ -130,6 +217,13 @@ async function execute(
     `Varsling sendt: ${notificationSent ? 'Ja' : 'Nei'}`,
   ];
 
+  if (storesWithStock.length > 0) {
+    lines.push('', '## Butikker med lager');
+    for (const store of storesWithStock) {
+      lines.push(`- ${store.name}: ${store.stockCount} stk`);
+    }
+  }
+
   return {
     output,
     artifacts: [
@@ -139,6 +233,7 @@ async function execute(
         meta: {
           productId: result.productId,
           statusChanged,
+          storeStockChanged,
           notificationSent,
         },
       },
