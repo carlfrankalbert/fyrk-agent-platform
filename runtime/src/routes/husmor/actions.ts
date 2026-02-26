@@ -5,8 +5,33 @@ import { replyInThread } from '../../lib/slack.js';
 import type { HusmorAction } from './schemas.js';
 import { invalidateCache } from './cache.js';
 import { enrichRecipeNutrition } from '../../lib/nutrition-enrichment.js';
-import { getSession, searchProducts, addToCart } from '../../lib/oda.js';
+import { getSession, searchProducts, addToCart, type OdaProduct } from '../../lib/oda.js';
 import type { Logger } from '../../lib/types.js';
+
+/** Pick the product whose name best matches the query terms. Falls back to first item. */
+function bestMatch(products: OdaProduct[], query: string): OdaProduct | undefined {
+  if (products.length === 0) return undefined;
+  if (products.length === 1) return products[0];
+
+  const terms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 1);
+
+  let best = products[0];
+  let bestScore = 0;
+
+  for (const p of products) {
+    const name = p.name.toLowerCase();
+    let score = 0;
+    for (const term of terms) {
+      if (name.includes(term)) score++;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = p;
+    }
+  }
+
+  return best;
+}
 
 export async function executeActions(
   supabase: SupabaseClient,
@@ -463,7 +488,7 @@ async function handleSyncOdaCart(
     try {
       const results = await searchProducts(session, item.name);
       logger.info({ query: item.name, resultCount: results.length, firstResult: results[0]?.name }, 'Oda search results');
-      const available = results.find((p) => p.available);
+      const available = bestMatch(results.filter((p) => p.available), item.name);
       if (available) {
         logger.info({ query: item.name, productId: available.id, productName: available.name, quantity: item.quantity ?? 1 }, 'Oda: adding to cart');
         const cartRes = await addToCart(session, available.id, item.quantity ?? 1);
