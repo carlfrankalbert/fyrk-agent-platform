@@ -1,5 +1,5 @@
 {
-  "name": "Stock Monitor — 15min Cron",
+  "name": "Stock Monitor — 5min Cron",
   "nodes": [
     {
       "parameters": {
@@ -7,13 +7,13 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "*/15 * * * *"
+              "expression": "*/5 * * * *"
             }
           ]
         }
       },
       "id": "schedule-trigger",
-      "name": "Every 15 Minutes",
+      "name": "Every 5 Minutes",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [250, 300]
@@ -21,7 +21,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const products = [\n  {\n    productId: 3743800,\n    productUrl: 'https://www.power.no/data-og-tilbehoer/stasjonaer-pc/apple-mac-mini-m4-16-gb-256-gb/p-3743800/',\n    label: 'Mac Mini M4 16/256'\n  },\n  {\n    productId: 3743802,\n    productUrl: 'https://www.power.no/data-og-tilbehoer/stasjonaer-pc/apple-mac-mini-m4-24-gb-512-gb/p-3743802/',\n    label: 'Mac Mini M4 24/512'\n  }\n];\n\nconst watchedStoreIds = [1123, 1186, 1134, 1121, 1115, 1130, 1120, 1116, 1118, 1122, 1119];\nconst postalCode = '0369';\n\nconst results = [];\n\nfor (const product of products) {\n  try {\n    const response = await this.helpers.httpRequest({\n      method: 'POST',\n      url: 'https://fyrk-agent-runtime.fly.dev/run/stock-monitor',\n      headers: { 'Content-Type': 'application/json' },\n      body: {\n        version: '0.1',\n        input: {\n          productId: product.productId,\n          productUrl: product.productUrl,\n          postalCode: postalCode,\n          watchedStoreIds: watchedStoreIds\n        },\n        dryRun: false,\n        publish: true\n      },\n      json: true,\n      timeout: 30000\n    });\n\n    results.push({\n      product: product.label,\n      status: response.status,\n      webStock: response.output?.webStockStatus,\n      storesWithStock: response.output?.storesWithStock?.length ?? 0,\n      notificationSent: response.output?.notificationSent ?? false\n    });\n  } catch (err) {\n    results.push({\n      product: product.label,\n      status: 'error',\n      error: err.message\n    });\n  }\n}\n\nreturn [{ json: { results } }];"
+        "jsCode": "const watchedStoreIds = [1123, 1186, 1134, 1121, 1115, 1130, 1120, 1116, 1118, 1122, 1119];\nconst postalCode = '0369';\n\ntry {\n  const response = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://fyrk-agent-runtime.fly.dev/run/stock-monitor',\n    headers: { 'Content-Type': 'application/json' },\n    body: {\n      version: '0.1',\n      input: {\n        productId: 3743800,\n        productUrl: 'https://www.power.no/data-og-tilbehoer/stasjonaer-pc/apple-mac-mini-m4-16-gb-256-gb/p-3743800/',\n        postalCode: postalCode,\n        watchedStoreIds: watchedStoreIds\n      },\n      dryRun: false,\n      publish: true\n    },\n    json: true,\n    timeout: 30000\n  });\n\n  return [{ json: {\n    product: 'Mac Mini M4 16/256',\n    status: response.status,\n    webStock: response.output?.webStockStatus,\n    storesWithStock: response.output?.storesWithStock?.length ?? 0,\n    notificationSent: response.output?.notificationSent ?? false\n  } }];\n} catch (err) {\n  return [{ json: {\n    product: 'Mac Mini M4 16/256',\n    status: 'error',\n    error: err.message\n  } }];\n}"
       },
       "id": "run-agents",
       "name": "Run Stock Monitor",
@@ -31,7 +31,7 @@
     }
   ],
   "connections": {
-    "Every 15 Minutes": {
+    "Every 5 Minutes": {
       "main": [
         [
           {
