@@ -7,6 +7,7 @@ const EnvSchema = z.object({
   SLACK_BOT_TOKEN: z.string().min(1).optional(),
   SLACK_SIGNING_SECRET: z.string().min(1).optional(),
   SLACK_CHANNEL_LEADS: z.string().optional(),
+  SLACK_STOCK_BOT_TOKEN: z.string().min(1).optional(),
   SLACK_CHANNEL_STOCK: z.string().optional(),
   SLACK_HUSMOR_BOT_TOKEN: z.string().min(1).optional(),
   SLACK_HUSMOR_SIGNING_SECRET: z.string().min(1).optional(),

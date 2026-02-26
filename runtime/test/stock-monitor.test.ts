@@ -7,7 +7,7 @@ vi.mock('../src/lib/env.js', () => ({
   getEnv: vi.fn(() => ({
     SUPABASE_URL: 'https://fake.supabase.co',
     SUPABASE_SERVICE_KEY: 'fake-key',
-    SLACK_BOT_TOKEN: 'xoxb-test-token',
+    SLACK_STOCK_BOT_TOKEN: 'xoxb-test-token',
     SLACK_CHANNEL_STOCK: '#stock-alerts',
     PORT: 8787,
     HOST: '0.0.0.0',
@@ -268,7 +268,7 @@ describe('stock-monitor agent', () => {
       mockGetEnv.mockReturnValue({
         SUPABASE_URL: 'https://fake.supabase.co',
         SUPABASE_SERVICE_KEY: 'fake-key',
-        SLACK_BOT_TOKEN: undefined,
+        SLACK_STOCK_BOT_TOKEN: undefined,
         SLACK_CHANNEL_STOCK: '#stock-alerts',
         PORT: 8787,
         HOST: '0.0.0.0',

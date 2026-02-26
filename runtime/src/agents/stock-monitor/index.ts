@@ -90,7 +90,7 @@ async function execute(
   let notificationSent = false;
   if (statusChanged && result.webStockStatus === 1) {
     const env = getEnv();
-    const token = env.SLACK_BOT_TOKEN;
+    const token = env.SLACK_STOCK_BOT_TOKEN;
     const channel = env.SLACK_CHANNEL_STOCK;
 
     if (token && channel) {
@@ -98,7 +98,7 @@ async function execute(
       await postMessage(token, channel, blocks, `${result.title} er nå tilgjengelig på Power.no!`);
       notificationSent = true;
     } else {
-      console.warn('stock-monitor: SLACK_BOT_TOKEN or SLACK_CHANNEL_STOCK not set, skipping notification');
+      console.warn('stock-monitor: SLACK_STOCK_BOT_TOKEN or SLACK_CHANNEL_STOCK not set, skipping notification');
     }
   }
 
