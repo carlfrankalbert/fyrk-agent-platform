@@ -6,6 +6,8 @@ export interface DbClient {
   updateRun(id: string, updates: Partial<AgentRun>): Promise<AgentRun>;
   createArtifact(artifact: Omit<Artifact, 'id' | 'created_at'>): Promise<Artifact>;
   getArtifactsByRunId(runId: string): Promise<Artifact[]>;
+  getAgentState<T = unknown>(agentId: string, key: string): Promise<T | null>;
+  setAgentState(agentId: string, key: string, value: unknown): Promise<void>;
 }
 
 export class SupabaseDbClient implements DbClient {
@@ -58,12 +60,36 @@ export class SupabaseDbClient implements DbClient {
     if (result.error) throw new Error(`Failed to get artifacts: ${result.error.message}`);
     return result.data as Artifact[];
   }
+
+  async getAgentState<T = unknown>(agentId: string, key: string): Promise<T | null> {
+    const result = await this.client
+      .from('agent_state')
+      .select('value')
+      .eq('agent_id', agentId)
+      .eq('key', key)
+      .maybeSingle();
+
+    if (result.error) throw new Error(`Failed to get agent state: ${result.error.message}`);
+    return result.data ? (result.data.value as T) : null;
+  }
+
+  async setAgentState(agentId: string, key: string, value: unknown): Promise<void> {
+    const result = await this.client
+      .from('agent_state')
+      .upsert(
+        { agent_id: agentId, key, value, updated_at: new Date().toISOString() },
+        { onConflict: 'agent_id,key' },
+      );
+
+    if (result.error) throw new Error(`Failed to set agent state: ${result.error.message}`);
+  }
 }
 
 // Null client for dry runs
 export class NullDbClient implements DbClient {
   private runCounter = 0;
   private artifactCounter = 0;
+  private stateStore = new Map<string, unknown>();
 
   createRun(run: Omit<AgentRun, 'id' | 'created_at' | 'finished_at'>): Promise<AgentRun> {
     return Promise.resolve({
@@ -99,5 +125,16 @@ export class NullDbClient implements DbClient {
 
   getArtifactsByRunId(_runId: string): Promise<Artifact[]> {
     return Promise.resolve([]);
+  }
+
+  async getAgentState<T = unknown>(agentId: string, key: string): Promise<T | null> {
+    const stateKey = `${agentId}:${key}`;
+    const value = this.stateStore.get(stateKey);
+    return value !== undefined ? (value as T) : null;
+  }
+
+  async setAgentState(agentId: string, key: string, value: unknown): Promise<void> {
+    const stateKey = `${agentId}:${key}`;
+    this.stateStore.set(stateKey, value);
   }
 }
