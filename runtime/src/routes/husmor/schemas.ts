@@ -150,6 +150,14 @@ const LogChildReactionAction = z.object({
   notes: z.string().optional(),
 });
 
+const SyncOdaCartAction = z.object({
+  type: z.literal('sync_oda_cart'),
+  items: z.array(z.object({
+    name: z.string(),
+    quantity: z.number().positive().optional(),
+  })).min(1),
+});
+
 const ProposeLearningAction = z.object({
   type: z.literal('propose_learning'),
   category: z.enum(['preference', 'household_info', 'feedback', 'constraint', 'routine']),
@@ -171,6 +179,7 @@ export const HusmorActionSchema = z.discriminatedUnion('type', [
   UpdateInventoryStatusAction,
   SetWeekContextAction,
   LogChildReactionAction,
+  SyncOdaCartAction,
 ]);
 
 export type HusmorAction = z.infer<typeof HusmorActionSchema>;

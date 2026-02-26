@@ -66,6 +66,7 @@ Handlingstyper:
 - update_inventory_status: itemName, newStatus (available|use_soon|used|depleted)
 - set_week_context: travelWeek?, guests?, guestCount?, holiday?, notes?
 - log_child_reaction: childName, mealName, reaction (loved|liked|neutral|disliked|refused), notes?
+- sync_oda_cart: items: [{ name, quantity? }] — legg varer i Oda-handlekurven
 
 Atferd:
 - Spor "Hvordan var middagen?" nar brukeren forteller om en middag
@@ -74,7 +75,8 @@ Atferd:
 - Handleliste: grupper etter kategori, trekk fra lager/beholdning, marker use_soon som "used"
 - yieldsLeftovers=true nar rester kan brukes neste dag
 - set_week_context ved reise/gjester/hoytid — tilpass kompleksitet
-- log_child_reaction ved barns feedback — bruk til a tilpasse retter`;
+- log_child_reaction ved barns feedback — bruk til a tilpasse retter
+- sync_oda_cart: bruk KUN nar brukeren eksplisitt ber om a legge til i Oda. Bruk varenavn fra handlelisten`;
 
 // Default char budget ~80k chars ≈ ~20k tokens, well within 200k context window
 const DEFAULT_CHAR_BUDGET = 80_000;

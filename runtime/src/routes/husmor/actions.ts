@@ -5,6 +5,7 @@ import { replyInThread } from '../../lib/slack.js';
 import type { HusmorAction } from './schemas.js';
 import { invalidateCache } from './cache.js';
 import { enrichRecipeNutrition } from '../../lib/nutrition-enrichment.js';
+import { getSession, searchProducts, addToCart } from '../../lib/oda.js';
 import type { Logger } from '../../lib/types.js';
 
 export async function executeActions(
@@ -55,6 +56,9 @@ export async function executeActions(
           break;
         case 'log_child_reaction':
           await handleLogChildReaction(supabase, action, logger);
+          break;
+        case 'sync_oda_cart':
+          await handleSyncOdaCart(action, logger, slackToken, actionCtx?.channel, actionCtx?.threadTs);
           break;
       }
     } catch (err) {
@@ -441,4 +445,54 @@ async function handleLogChildReaction(
       notes: action.notes ?? null,
     });
   logger.info({ child: action.childName, meal: action.mealName, reaction: action.reaction }, 'Logged child reaction');
+}
+
+async function handleSyncOdaCart(
+  action: Extract<HusmorAction, { type: 'sync_oda_cart' }>,
+  logger: Logger,
+  slackToken?: string,
+  channel?: string,
+  threadTs?: string,
+): Promise<void> {
+  const session = await getSession();
+
+  const matched: string[] = [];
+  const unmatched: string[] = [];
+
+  for (const item of action.items) {
+    try {
+      const results = await searchProducts(session, item.name);
+      const available = results.find((p) => p.available);
+      if (available) {
+        await addToCart(session, available.id, item.quantity ?? 1);
+        matched.push(available.name);
+        logger.info({ query: item.name, productId: available.id, productName: available.name }, 'Added to Oda cart');
+      } else {
+        unmatched.push(item.name);
+        logger.warn({ query: item.name }, 'No available Oda product found');
+      }
+    } catch (err) {
+      unmatched.push(item.name);
+      logger.error({ query: item.name, err }, 'Oda search/add failed');
+    }
+  }
+
+  // Post summary in Slack thread
+  if (slackToken && channel && threadTs) {
+    const parts: string[] = [];
+    if (matched.length > 0) {
+      parts.push(`Lagt til i Oda-handlekurven: ${matched.length} vare${matched.length > 1 ? 'r' : ''}`);
+    }
+    if (unmatched.length > 0) {
+      parts.push(`Fant ikke: ${unmatched.join(', ')}`);
+    }
+    const summary = parts.join('. ');
+    try {
+      await replyInThread(slackToken, channel, threadTs, summary);
+    } catch (err) {
+      logger.warn({ err }, 'Failed to post Oda summary to Slack');
+    }
+  }
+
+  logger.info({ matched: matched.length, unmatched: unmatched.length }, 'Oda cart sync complete');
 }
