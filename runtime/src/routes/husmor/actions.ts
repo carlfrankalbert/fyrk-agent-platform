@@ -462,11 +462,13 @@ async function handleSyncOdaCart(
   for (const item of action.items) {
     try {
       const results = await searchProducts(session, item.name);
+      logger.info({ query: item.name, resultCount: results.length, firstResult: results[0]?.name }, 'Oda search results');
       const available = results.find((p) => p.available);
       if (available) {
-        await addToCart(session, available.id, item.quantity ?? 1);
+        logger.info({ query: item.name, productId: available.id, productName: available.name, quantity: item.quantity ?? 1 }, 'Oda: adding to cart');
+        const cartRes = await addToCart(session, available.id, item.quantity ?? 1);
         matched.push(available.name);
-        logger.info({ query: item.name, productId: available.id, productName: available.name }, 'Added to Oda cart');
+        logger.info({ productId: available.id, httpStatus: cartRes.status, responseBody: cartRes.bodySnippet }, 'Oda: addToCart response');
       } else {
         unmatched.push(item.name);
         logger.warn({ query: item.name }, 'No available Oda product found');

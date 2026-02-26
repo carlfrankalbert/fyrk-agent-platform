@@ -60,7 +60,7 @@ describe('oda client', () => {
   });
 
   describe('login', () => {
-    it('should extract CSRF token and POST credentials', async () => {
+    it('should extract CSRF token and POST JSON credentials to API', async () => {
       // Step 1: GET login page → returns csrftoken cookie
       mockFetch.mockResolvedValueOnce(
         makeResponseWithCookies(200, 'login page html', [
@@ -68,7 +68,7 @@ describe('oda client', () => {
         ]),
       );
 
-      // Step 2: POST login → returns session cookies
+      // Step 2: POST login to JSON API → returns session cookies
       mockFetch.mockResolvedValueOnce(
         makeResponseWithCookies(200, { success: true }, [
           'sessionid=sess789; Path=/; Secure',
@@ -87,14 +87,15 @@ describe('oda client', () => {
       const [loginPageUrl] = mockFetch.mock.calls[0];
       expect(loginPageUrl).toContain('/no/user/login/');
 
-      // Verify the credentials POST
+      // Verify the credentials POST (JSON to API endpoint)
       const [loginUrl, loginOpts] = mockFetch.mock.calls[1];
       expect(loginUrl).toContain('/tienda-web-api/v1/user/login/');
       expect(loginOpts.method).toBe('POST');
-      const body = JSON.parse(loginOpts.body);
-      expect(body.email).toBe('user@test.com');
-      expect(body.password).toBe('pass123');
+      expect(loginOpts.headers['Content-Type']).toBe('application/json');
       expect(loginOpts.headers['X-CSRFToken']).toBe('tok123');
+      const body = JSON.parse(loginOpts.body);
+      expect(body.username).toBe('user@test.com');
+      expect(body.password).toBe('pass123');
     });
 
     it('should throw if CSRF token is not found', async () => {
@@ -118,28 +119,45 @@ describe('oda client', () => {
   });
 
   describe('searchProducts', () => {
-    it('should parse __NEXT_DATA__ and return products', async () => {
+    it('should parse __NEXT_DATA__ dehydrated query and return products', async () => {
       const nextData = {
         props: {
           pageProps: {
-            products: [
-              {
-                id: 101,
-                name: 'Gulrot 750g',
-                gross_price: '24.90',
-                unit_price_quantity_abbreviation: 'pk',
-                availability: { is_available: true },
-                images: [{ large: { url: 'https://img.oda.com/gulrot.jpg' } }],
-              },
-              {
-                id: 102,
-                name: 'Gulrot baby',
-                gross_price: '29.90',
-                unit_price_quantity_abbreviation: 'pk',
-                availability: { is_available: false },
-                images: [],
-              },
-            ],
+            dehydratedState: {
+              queries: [
+                {
+                  queryKey: ['searchpageresponse', 'gulrot', {}],
+                  state: {
+                    data: {
+                      items: [
+                        {
+                          type: 'product',
+                          attributes: {
+                            id: 101,
+                            fullName: 'Gulrot 750g',
+                            grossPrice: '24.90',
+                            unitPriceQuantityAbbreviation: 'pk',
+                            availability: { isAvailable: true },
+                            images: [{ large: { url: 'https://img.oda.com/gulrot.jpg' } }],
+                          },
+                        },
+                        {
+                          type: 'product',
+                          attributes: {
+                            id: 102,
+                            fullName: 'Gulrot baby',
+                            grossPrice: '29.90',
+                            unitPriceQuantityAbbreviation: 'pk',
+                            availability: { isAvailable: false },
+                            images: [],
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              ],
+            },
           },
         },
       };

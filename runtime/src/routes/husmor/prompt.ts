@@ -76,7 +76,7 @@ Atferd:
 - yieldsLeftovers=true nar rester kan brukes neste dag
 - set_week_context ved reise/gjester/hoytid — tilpass kompleksitet
 - log_child_reaction ved barns feedback — bruk til a tilpasse retter
-- sync_oda_cart: bruk KUN nar brukeren eksplisitt ber om a legge til i Oda. Bruk varenavn fra handlelisten`;
+- sync_oda_cart: nar brukeren ber om a legge til i Oda, MA du inkludere sync_oda_cart-handlingen i actions-arrayet. Uten handlingen skjer ingenting. Bruk varenavn fra handlelisten eller samtalen. ALDRI si at du har lagt til i Oda uten a faktisk sende sync_oda_cart-handlingen`;
 
 // Default char budget ~80k chars ≈ ~20k tokens, well within 200k context window
 const DEFAULT_CHAR_BUDGET = 80_000;

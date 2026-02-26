@@ -74,11 +74,14 @@ function isSessionExpired(res: Response): boolean {
 
 /** Log in to Oda.com and return a session with cookies + CSRF token */
 export async function login(email: string, password: string): Promise<OdaSession> {
-  // Step 1: GET login page to obtain CSRF cookie
+  // Step 1: GET login page to obtain CSRF cookie (follow redirects like a browser)
   const loginPageRes = await fetch(`${BASE_URL}/no/user/login/`, {
     method: 'GET',
-    headers: { 'User-Agent': USER_AGENT },
-    redirect: 'manual',
+    headers: {
+      'User-Agent': USER_AGENT,
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    },
+    redirect: 'follow',
   });
 
   let cookies = extractCookies(loginPageRes);
@@ -87,26 +90,34 @@ export async function login(email: string, password: string): Promise<OdaSession
     throw new Error('Failed to extract CSRF token from Oda login page');
   }
 
-  // Step 2: POST credentials
+  // Step 2: POST credentials to the JSON API endpoint
   const loginRes = await fetch(`${BASE_URL}/tienda-web-api/v1/user/login/`, {
     method: 'POST',
     headers: {
       'User-Agent': USER_AGENT,
       'Content-Type': 'application/json',
-      'X-CSRFToken': csrfToken,
+      'Accept': 'application/json',
       'Cookie': cookies,
+      'Origin': BASE_URL,
       'Referer': `${BASE_URL}/no/user/login/`,
+      'X-CSRFToken': csrfToken,
     },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ username: email, password }),
     redirect: 'manual',
   });
 
-  if (loginRes.status >= 400) {
-    throw new Error(`Oda login failed with status ${loginRes.status}`);
-  }
-
   cookies = extractCookies(loginRes, cookies);
   const sessionCsrf = extractCsrfToken(cookies) ?? csrfToken;
+
+  if (!loginRes.ok) {
+    const body = await loginRes.text().catch(() => '');
+    throw new Error(`Oda login failed: ${loginRes.status} ${body.slice(0, 200)}`);
+  }
+
+  // Verify we got a real session
+  if (!cookies.includes('sessionid=')) {
+    throw new Error(`Oda login did not return sessionid cookie. Got: ${cookies.slice(0, 200)}`);
+  }
 
   return { cookies, csrfToken: sessionCsrf };
 }
@@ -142,7 +153,8 @@ async function authedFetch(url: string, init: RequestInit, retry = true): Promis
   // Add CSRF token for mutating requests
   if (init.method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(init.method)) {
     headers['X-CSRFToken'] = session.csrfToken;
-    headers['Referer'] = BASE_URL;
+    headers['Referer'] = `${BASE_URL}/no/`;
+    headers['Origin'] = BASE_URL;
   }
 
   const res = await fetch(url, { ...init, headers, redirect: 'manual' });
@@ -179,35 +191,58 @@ export async function searchProducts(session: OdaSession, query: string): Promis
 
   try {
     const nextData = JSON.parse(match[1]);
-    const items = nextData?.props?.pageProps?.products
-      ?? nextData?.props?.pageProps?.initialData?.products
-      ?? [];
+
+    // Products are in dehydrated React Query state under "searchpageresponse" key
+    const queries = nextData?.props?.pageProps?.dehydratedState?.queries ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const searchQuery = queries.find((q: any) =>
+      Array.isArray(q.queryKey) && q.queryKey[0] === 'searchpageresponse',
+    );
+    const data = searchQuery?.state?.data;
+
+    // Items are in data.items, each with type "product" and attributes
+    const rawItems = (data?.items ?? data?.attributes?.items ?? []) as any[];
+    const productItems = rawItems.filter((item: any) =>
+      !item.type || item.type === 'product',
+    );
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return items.map((item: any) => ({
-      id: item.id as number,
-      name: (item.name ?? item.full_name ?? '') as string,
-      price: String(item.gross_price ?? item.price ?? ''),
-      unit: (item.unit_price_quantity_abbreviation ?? item.unit ?? '') as string,
-      available: item.availability?.is_available !== false,
-      imageUrl: (item.images?.[0]?.large?.url ?? undefined) as string | undefined,
-    }));
+    return productItems.map((item: any) => {
+      const a = item.attributes ?? item;
+      return {
+        id: (a.id ?? item.id) as number,
+        name: (a.fullName ?? a.name ?? item.name ?? '') as string,
+        price: String(a.grossPrice ?? a.price ?? ''),
+        unit: (a.unitPriceQuantityAbbreviation ?? a.unit ?? '') as string,
+        available: a.availability?.isAvailable !== false && a.isAvailable !== false,
+        imageUrl: (a.images?.[0]?.large?.url ?? undefined) as string | undefined,
+      };
+    });
   } catch {
     return [];
   }
 }
 
-/** Add a product to the Oda cart */
-export async function addToCart(_session: OdaSession, productId: number, quantity = 1): Promise<void> {
+/** Add a product to the Oda cart. Returns { status, bodySnippet } for logging. */
+export async function addToCart(_session: OdaSession, productId: number, quantity = 1): Promise<{ status: number; bodySnippet: string }> {
   const res = await authedFetch(`${BASE_URL}/tienda-web-api/v1/cart/items/`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Origin': BASE_URL,
+    },
     body: JSON.stringify({ items: [{ product_id: productId, quantity }] }),
   });
 
+  const responseBody = await res.text().catch(() => '');
+  const bodySnippet = responseBody.slice(0, 400);
+
   if (!res.ok && res.status !== 201) {
-    throw new Error(`Oda addToCart failed: ${res.status}`);
+    throw new Error(`Oda addToCart failed: ${res.status} ${bodySnippet}`);
   }
+
+  return { status: res.status, bodySnippet };
 }
 
 /** Get the current Oda cart */
