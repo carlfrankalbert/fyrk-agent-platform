@@ -515,13 +515,15 @@ async function handleRemoveShoppingItems(
     return;
   }
 
-  for (const itemName of action.items) {
-    await supabase
-      .from('shopping_items')
-      .delete()
-      .eq('list_id', listId)
-      .ilike('name', itemName);
-  }
+  await Promise.all(
+    action.items.map((itemName) =>
+      supabase
+        .from('shopping_items')
+        .delete()
+        .eq('list_id', listId)
+        .ilike('name', itemName),
+    ),
+  );
   logger.info({ planId, listId, count: action.items.length }, 'Removed items from shopping list');
 }
 
@@ -537,13 +539,15 @@ async function handleCheckOffItems(
     return;
   }
 
-  for (const itemName of action.items) {
-    await supabase
-      .from('shopping_items')
-      .update({ checked: true })
-      .eq('list_id', listId)
-      .ilike('name', itemName);
-  }
+  await Promise.all(
+    action.items.map((itemName) =>
+      supabase
+        .from('shopping_items')
+        .update({ checked: true })
+        .eq('list_id', listId)
+        .ilike('name', itemName),
+    ),
+  );
   logger.info({ planId, listId, count: action.items.length }, 'Checked off items from shopping list');
 }
 

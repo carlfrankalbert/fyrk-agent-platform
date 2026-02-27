@@ -56,31 +56,47 @@ export function buildCanvasMarkdown(
   return lines.join('\n');
 }
 
+interface PreloadedPlanMeta {
+  week_number: number;
+  year: number;
+  canvas_id: string | null;
+}
+
 export async function syncCanvas(
   supabase: SupabaseClient,
   slackToken: string,
   planId: string,
   shoppingItems: CanvasShoppingItem[],
   logger: Logger,
+  preloaded?: { planMeta?: PreloadedPlanMeta; meals?: CanvasMeal[] },
 ): Promise<void> {
-  const { data: planData } = await supabase
-    .from('weekly_plans')
-    .select('id, week_number, year, canvas_id')
-    .eq('id', planId)
-    .single();
+  let planData: PreloadedPlanMeta | null = preloaded?.planMeta ?? null;
+  if (!planData) {
+    const { data } = await supabase
+      .from('weekly_plans')
+      .select('id, week_number, year, canvas_id')
+      .eq('id', planId)
+      .single();
+    planData = data;
+  }
 
-  const { data: mealRows } = await supabase
-    .from('planned_meals')
-    .select('day_of_week, name, description')
-    .eq('plan_id', planId)
-    .order('day_of_week', { ascending: true });
+  let meals: CanvasMeal[];
+  if (preloaded?.meals) {
+    meals = preloaded.meals;
+  } else {
+    const { data: mealRows } = await supabase
+      .from('planned_meals')
+      .select('day_of_week, name, description')
+      .eq('plan_id', planId)
+      .order('day_of_week', { ascending: true });
 
-  const meals = (mealRows ?? []).map((m) => ({
-    dayOfWeek: m.day_of_week,
-    dayName: DAY_NAMES[m.day_of_week] ?? `Dag ${m.day_of_week}`,
-    name: m.name,
-    description: m.description,
-  }));
+    meals = (mealRows ?? []).map((m) => ({
+      dayOfWeek: m.day_of_week,
+      dayName: DAY_NAMES[m.day_of_week] ?? `Dag ${m.day_of_week}`,
+      name: m.name,
+      description: m.description,
+    }));
+  }
 
   const markdown = buildCanvasMarkdown(
     planData?.week_number ?? 0,

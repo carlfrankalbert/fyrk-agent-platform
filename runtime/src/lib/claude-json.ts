@@ -11,6 +11,7 @@ interface CallClaudeJsonOptions {
   messages: ClaudeMessage[];
   model?: string;
   maxTokens?: number;
+  cacheControl?: { type: 'ephemeral' };
 }
 
 /**
@@ -33,6 +34,7 @@ export async function callClaudeJson<T>(
     max_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
     system: options.system,
     messages: options.messages,
+    ...(options.cacheControl && { cache_control: options.cacheControl }),
   });
 
   const raw = extractText(response);

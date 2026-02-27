@@ -156,12 +156,12 @@ describe('linkedin-post agent', () => {
       makeMockClaudeResponse(sampleDrafts);
     });
 
-    it('should call Claude with opus model', async () => {
+    it('should call Claude with sonnet model', async () => {
       await linkedInPostAgent.execute(linkedInPostBasic, ctx);
       expect(mockCallClaude).toHaveBeenCalledTimes(1);
       const call = mockCallClaude.mock.calls[0];
       expect(call[0]).toBe('test-api-key');
-      expect(call[1].model).toBe('claude-opus-4-6');
+      expect(call[1].model).toBe('claude-sonnet-4-5-20250929');
     });
 
     it('should include decision frame instructions in system prompt', async () => {

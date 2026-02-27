@@ -191,6 +191,10 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
     cachedReactionSummary(),
   ]);
 
+  // Start loadRecentMeals early — it only needs week/year (available now)
+  // and can overlap with the plan-dependent meal/nutrition queries below
+  const recentMealsPromise = loadRecentMeals(supabase, week, year);
+
   let meals: WeekPlanContext['meals'] = [];
   const recipeLookup = new Map<string, NutritionPerServing>();
   if (planResult.data?.id) {
@@ -276,7 +280,7 @@ export async function loadDbContext(supabase: SupabaseClient): Promise<DbContext
     });
   }
 
-  const recentMeals = await loadRecentMeals(supabase, week, year);
+  const recentMeals = await recentMealsPromise;
   const prefs = (prefsResult.data ?? []).map((p) => ({ key: p.key, value: p.value }));
   const knowledgeGaps = detectKnowledgeGaps(learningsResult, prefs);
 

@@ -104,16 +104,21 @@ export async function enrichRecipeNutrition(
     folateUg: 0,
   };
 
+  // Lookup all ingredients in parallel
+  const lookupResults = await Promise.all(
+    ingredients.map(async (ing) => {
+      try {
+        const matches = await lookupFood(supabase, ing.name, 1);
+        return { ing, matches };
+      } catch {
+        return { ing, matches: [] as FoodMatch[] };
+      }
+    }),
+  );
+
   let matched = 0;
 
-  for (const ing of ingredients) {
-    let matches: FoodMatch[];
-    try {
-      matches = await lookupFood(supabase, ing.name, 1);
-    } catch {
-      continue;
-    }
-
+  for (const { ing, matches } of lookupResults) {
     if (matches.length === 0 || matches[0].similarity < MIN_SIMILARITY) {
       continue;
     }

@@ -164,9 +164,10 @@ async function execute(
   const userPrompt = buildUserPrompt(rawInput.articles);
 
   const { parsed: output } = await callClaudeJson(LinkedInPostOutputSchema, {
-    model: 'claude-opus-4-6',
+    model: 'claude-sonnet-4-5-20250929',
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
+    cacheControl: { type: 'ephemeral' },
   });
 
   // Build a human-readable markdown artifact for review
