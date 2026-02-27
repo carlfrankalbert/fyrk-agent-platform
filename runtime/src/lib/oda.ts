@@ -209,9 +209,13 @@ export async function searchProducts(session: OdaSession, query: string): Promis
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return productItems.map((item: any) => {
       const a = item.attributes ?? item;
+      const fullName = (a.fullName ?? a.name ?? item.name ?? '') as string;
+      const nameExtra = (a.nameExtra ?? '') as string;
+      // Combine fullName + nameExtra so weight/variant info is available for matching
+      const name = nameExtra ? `${fullName} ${nameExtra}` : fullName;
       return {
         id: (a.id ?? item.id) as number,
-        name: (a.fullName ?? a.name ?? item.name ?? '') as string,
+        name,
         price: String(a.grossPrice ?? a.price ?? ''),
         unit: (a.unitPriceQuantityAbbreviation ?? a.unit ?? '') as string,
         available: a.availability?.isAvailable !== false && a.isAvailable !== false,
