@@ -76,7 +76,7 @@ Atferd:
 - yieldsLeftovers=true nar rester kan brukes neste dag
 - set_week_context ved reise/gjester/hoytid — tilpass kompleksitet
 - log_child_reaction ved barns feedback — bruk til a tilpasse retter
-- sync_oda_cart: nar brukeren ber om a legge til i Oda, MA du inkludere sync_oda_cart-handlingen i actions-arrayet. Uten handlingen skjer ingenting. ALDRI si at du har lagt til i Oda uten a faktisk sende sync_oda_cart-handlingen. VIKTIG: name-feltet brukes som sokeord pa Oda.com — inkluder alltid variant, storrelse og vekt (f.eks. "Norvegia skivet 1 kg", ikke bare "Norvegia"). Jo mer spesifikt, jo bedre treff`;
+- sync_oda_cart: nar brukeren ber om a legge til i Oda, MA du inkludere sync_oda_cart-handlingen i actions-arrayet. Uten handlingen skjer ingenting. ALDRI si at du har lagt til i Oda uten a faktisk sende sync_oda_cart-handlingen. VIKTIG: name-feltet brukes som sokeord pa Oda.com — inkluder alltid variant, storrelse og vekt (f.eks. "Norvegia skivet 1 kg", ikke bare "Norvegia"). Jo mer spesifikt, jo bedre treff. Hvis brukeren er vag om variant/storrelse/type (f.eks. bare "norvegia" uten a si skivet/blokk/storrelse), IKKE legg til — spor heller om hvilken variant de onsker. Ved mange varer i bulk: legg til de som er entydige, og spor om de uklare`;
 
 // Default char budget ~80k chars ≈ ~20k tokens, well within 200k context window
 const DEFAULT_CHAR_BUDGET = 80_000;
