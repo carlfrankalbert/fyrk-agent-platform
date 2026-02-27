@@ -31,7 +31,7 @@ The system is stateless at the compute layer — all persistent state lives in S
 11. **Actions executed** against Supabase (meals, preferences, recipes, etc.)
 12. **Learnings extracted** asynchronously via Claude Haiku
 
-## 13 action types Claude can trigger
+## 18 action types Claude can trigger
 
 | Action | What it does |
 |--------|-------------|
@@ -43,11 +43,16 @@ The system is stateless at the compute layer — all persistent state lives in S
 | `update_inventory_status` | Mark items as used/depleted |
 | `rate_meal` | Rate a meal 1-5, add emoji feedback, text feedback |
 | `generate_shopping_list` | Create a categorized shopping list, syncs to a Slack Canvas |
+| `add_shopping_items` | Add items to the active shopping list (creates one if none exists) |
+| `remove_shopping_items` | Remove items from the active shopping list (case-insensitive) |
+| `check_off_items` | Mark items as bought/checked off on the shopping list |
+| `clear_shopping_list` | Mark the active shopping list as completed |
 | `update_plan_status` | Move plan through draft → proposed → approved → active → completed |
 | `set_week_context` | Flag travel week, guests, holidays — adjusts complexity |
 | `save_recipe` | Save recipe with ingredients + steps, auto-enriches nutrition from Matvaretabellen |
 | `propose_learning` | Propose an insight about the family (posted to Slack for confirmation via reactions) |
 | `log_child_reaction` | Track how kids react to specific meals (loved/liked/neutral/disliked/refused) |
+| `sync_oda_cart` | Search and add items to the Oda.com shopping cart |
 
 ## Learning system (4 mechanisms)
 
@@ -102,6 +107,10 @@ Triggered via `POST /husmor/proactive` (called by n8n on a schedule), rate-limit
 | `midweek_checkin` | Mid-week | Asks if meals are working, offers to adjust |
 | `weekend_prep` | Friday | Reminds about weekend meals + unhandled shopping items |
 | `weekly_learning_summary` | Sunday | Warm summary of what Husmor learned about the family this week |
+
+## Shopping list management
+
+Shopping lists can be created via `generate_shopping_list` or incrementally via `add_shopping_items`. Users can add, remove, check off, and clear items conversationally. The prompt distinguishes between the internal shopping list ("handlelisten") and Oda cart sync ("Oda-handlekurven") — "legg på handlelisten" triggers list management, while "legg i Oda" triggers `sync_oda_cart`.
 
 ## Slack Canvas sync
 

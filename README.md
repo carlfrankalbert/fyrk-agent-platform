@@ -120,7 +120,7 @@ fyrk-agent-platform/
 │   │           ├── canvas.ts
 │   │           ├── cache.ts
 │   │           └── learnings/     # Learning system (extraction, patterns, metrics, signals)
-│   └── test/                      # Tests (220 tests, vitest)
+│   └── test/                      # Tests (299 tests, vitest)
 ├── n8n/
 │   └── workflows/                 # n8n pipeline definitions
 ├── supabase/
@@ -213,7 +213,7 @@ Handle Slack reaction events for lead status updates.
 ```bash
 cd runtime
 
-pnpm test          # Run tests (220 tests)
+pnpm test          # Run tests (299 tests)
 pnpm lint          # Run linter
 pnpm build         # Type check + compile
 pnpm dev           # Development server with hot reload

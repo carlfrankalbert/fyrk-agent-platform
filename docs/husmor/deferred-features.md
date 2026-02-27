@@ -4,7 +4,7 @@ Features som er identifisert men utsatt til senere faser.
 
 ## Handleliste-integrasjon med beholdning
 
-I dag er handleliste og beholdning frakoblet. Husmor kunne automatisk trekke fra varer som allerede er pa lager nar den genererer handleliste — og markere inventory notes som "brukt" etter at en uke er gjennomfort.
+Handlelisten stotter na dynamisk administrering (legg til, fjern, huk av, slett). Neste steg er a automatisk trekke fra varer som allerede er pa lager nar den genereres — og markere inventory notes som "brukt" etter at en uke er gjennomfort.
 
 ## Rester-logikk
 

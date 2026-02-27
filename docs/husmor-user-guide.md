@@ -29,11 +29,19 @@ Ask her to suggest a full week of dinners, or just fill in specific days. She co
 - "Vi trenger noe raskt pa tirsdag"
 - "Bytt onsdag til noe vegetarisk"
 
-### Build shopping lists
+### Build and manage shopping lists
 
 Once you have a plan, ask her to make a shopping list. It gets organized by category (dairy, vegetables, meat, etc.) and synced to a Slack Canvas you can check off while shopping.
 
+You can also add, remove, check off, and clear items dynamically:
+
 - "Lag handleliste for denne uken"
+- "Legg til melk og egg pa handlelisten"
+- "Fjern brod fra handlelisten"
+- "Huk av laks, den har vi kjopt"
+- "Slett handlelisten"
+
+Note: "legg pa handlelisten" manages your internal list. If you want to add items to your Oda cart, say "legg i Oda" instead.
 
 ### Track what's in your fridge
 
