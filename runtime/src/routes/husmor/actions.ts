@@ -8,22 +8,51 @@ import { enrichRecipeNutrition } from '../../lib/nutrition-enrichment.js';
 import { getSession, searchProducts, addToCart, type OdaProduct } from '../../lib/oda.js';
 import type { Logger } from '../../lib/types.js';
 
-/** Pick the product whose name best matches the query terms. Falls back to first item. */
+/** Extract weight in grams from a string. Returns null if no weight found. */
+function extractWeightGrams(text: string): number | null {
+  const lower = text.toLowerCase();
+  // Match patterns like "1 kg", "1kg", "700 g", "700g", "ca. 1 kg", "ca 500 g"
+  const match = lower.match(/(?:ca\.?\s*)?(\d+(?:[.,]\d+)?)\s*(kg|g)\b/);
+  if (!match) return null;
+  const value = parseFloat(match[1].replace(',', '.'));
+  return match[2] === 'kg' ? value * 1000 : value;
+}
+
+/** Pick the product whose name best matches the query terms, with weight-aware scoring. */
 function bestMatch(products: OdaProduct[], query: string): OdaProduct | undefined {
   if (products.length === 0) return undefined;
   if (products.length === 1) return products[0];
 
-  const terms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 1);
+  const queryLower = query.toLowerCase();
+  const terms = queryLower.split(/\s+/).filter((t) => t.length > 1);
+  const queryWeight = extractWeightGrams(queryLower);
 
   let best = products[0];
-  let bestScore = 0;
+  let bestScore = -Infinity;
 
   for (const p of products) {
     const name = p.name.toLowerCase();
+    // Base score: count of matching query terms
     let score = 0;
     for (const term of terms) {
       if (name.includes(term)) score++;
     }
+
+    // Weight matching: strong bonus for close weight, penalty for wrong weight
+    if (queryWeight !== null) {
+      const productWeight = extractWeightGrams(name);
+      if (productWeight !== null) {
+        const ratio = productWeight / queryWeight;
+        if (ratio >= 0.8 && ratio <= 1.2) {
+          // Within 20% of requested weight — strong bonus
+          score += 10;
+        } else {
+          // Wrong weight — penalty proportional to distance
+          score -= Math.abs(1 - ratio) * 5;
+        }
+      }
+    }
+
     if (score > bestScore) {
       bestScore = score;
       best = p;
