@@ -60,6 +60,18 @@ export async function executeActions(
         case 'sync_oda_cart':
           await handleSyncOdaCart(action, logger, slackToken, actionCtx?.channel, actionCtx?.threadTs);
           break;
+        case 'add_shopping_items':
+          await handleAddShoppingItems(supabase, action, logger);
+          break;
+        case 'remove_shopping_items':
+          await handleRemoveShoppingItems(supabase, action, logger);
+          break;
+        case 'check_off_items':
+          await handleCheckOffItems(supabase, action, logger);
+          break;
+        case 'clear_shopping_list':
+          await handleClearShoppingList(supabase, action, logger);
+          break;
       }
     } catch (err) {
       logger.error({ action: action.type, err }, 'Failed to execute action');
@@ -67,7 +79,7 @@ export async function executeActions(
   }
 
   // Invalidate cached aggregations if any data-modifying actions were executed
-  const CACHE_INVALIDATING_ACTIONS = new Set(['add_meals', 'update_meal', 'remove_meal', 'rate_meal', 'save_recipe']);
+  const CACHE_INVALIDATING_ACTIONS = new Set(['add_meals', 'update_meal', 'remove_meal', 'rate_meal', 'save_recipe', 'clear_shopping_list']);
   if (actions.some(a => CACHE_INVALIDATING_ACTIONS.has(a.type))) {
     invalidateCache('husmor:');
   }
@@ -445,6 +457,108 @@ async function handleLogChildReaction(
       notes: action.notes ?? null,
     });
   logger.info({ child: action.childName, meal: action.mealName, reaction: action.reaction }, 'Logged child reaction');
+}
+
+async function getActiveShoppingList(
+  supabase: SupabaseClient,
+  planId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from('shopping_lists')
+    .select('id')
+    .eq('plan_id', planId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
+async function handleAddShoppingItems(
+  supabase: SupabaseClient,
+  action: Extract<HusmorAction, { type: 'add_shopping_items' }>,
+  logger: Logger,
+): Promise<void> {
+  const planId = await getOrCreateCurrentWeekPlan(supabase);
+  let listId = await getActiveShoppingList(supabase, planId);
+
+  if (!listId) {
+    const { data: listData } = await supabase
+      .from('shopping_lists')
+      .insert({ plan_id: planId, household_id: 'default', status: 'active' })
+      .select('id')
+      .single();
+    if (!listData?.id) return;
+    listId = listData.id;
+  }
+
+  const items = action.items.map((item) => ({
+    list_id: listId,
+    name: item.name,
+    amount: item.amount ? parseFloat(item.amount) : null,
+    unit: item.unit ?? null,
+    category: item.category ?? null,
+  }));
+  await supabase.from('shopping_items').insert(items);
+  logger.info({ planId, listId, count: items.length }, 'Added items to shopping list');
+}
+
+async function handleRemoveShoppingItems(
+  supabase: SupabaseClient,
+  action: Extract<HusmorAction, { type: 'remove_shopping_items' }>,
+  logger: Logger,
+): Promise<void> {
+  const planId = await getOrCreateCurrentWeekPlan(supabase);
+  const listId = await getActiveShoppingList(supabase, planId);
+  if (!listId) {
+    logger.warn('No active shopping list to remove items from');
+    return;
+  }
+
+  for (const itemName of action.items) {
+    await supabase
+      .from('shopping_items')
+      .delete()
+      .eq('list_id', listId)
+      .ilike('name', itemName);
+  }
+  logger.info({ planId, listId, count: action.items.length }, 'Removed items from shopping list');
+}
+
+async function handleCheckOffItems(
+  supabase: SupabaseClient,
+  action: Extract<HusmorAction, { type: 'check_off_items' }>,
+  logger: Logger,
+): Promise<void> {
+  const planId = await getOrCreateCurrentWeekPlan(supabase);
+  const listId = await getActiveShoppingList(supabase, planId);
+  if (!listId) {
+    logger.warn('No active shopping list to check off items from');
+    return;
+  }
+
+  for (const itemName of action.items) {
+    await supabase
+      .from('shopping_items')
+      .update({ checked: true })
+      .eq('list_id', listId)
+      .ilike('name', itemName);
+  }
+  logger.info({ planId, listId, count: action.items.length }, 'Checked off items from shopping list');
+}
+
+async function handleClearShoppingList(
+  supabase: SupabaseClient,
+  _action: Extract<HusmorAction, { type: 'clear_shopping_list' }>,
+  logger: Logger,
+): Promise<void> {
+  const planId = await getOrCreateCurrentWeekPlan(supabase);
+  await supabase
+    .from('shopping_lists')
+    .update({ status: 'completed' })
+    .eq('plan_id', planId)
+    .eq('status', 'active');
+  logger.info({ planId }, 'Cleared shopping list');
 }
 
 async function handleSyncOdaCart(

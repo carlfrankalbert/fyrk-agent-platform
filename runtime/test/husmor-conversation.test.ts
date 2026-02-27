@@ -497,6 +497,118 @@ describe('husmor-conversation', () => {
       ]);
     });
 
+    it('should execute add_shopping_items action (existing list)', async () => {
+      const insertFn = vi.fn().mockResolvedValue({ data: null, error: null });
+      const upsertChain = chainMock({ data: { id: 'plan-1' }, error: null });
+      const listSelectChain = chainMock({ data: { id: 'list-1' }, error: null });
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'weekly_plans') return upsertChain;
+        if (table === 'shopping_lists') return listSelectChain;
+        if (table === 'shopping_items') return { insert: insertFn };
+        return chainMock({ data: null, error: null });
+      });
+
+      const actions: HusmorAction[] = [
+        { type: 'add_shopping_items', items: [{ name: 'Melk', amount: '1', unit: 'l', category: 'meieri' }] },
+      ];
+      await executeActions(mockSupabaseClient as any, actions, mockLogger);
+      expect(insertFn).toHaveBeenCalledWith([
+        expect.objectContaining({ list_id: 'list-1', name: 'Melk', amount: 1, unit: 'l', category: 'meieri' }),
+      ]);
+    });
+
+    it('should execute add_shopping_items action (creates list when none exists)', async () => {
+      const insertFn = vi.fn().mockResolvedValue({ data: null, error: null });
+      const upsertChain = chainMock({ data: { id: 'plan-1' }, error: null });
+      const noListChain = chainMock({ data: null, error: null });
+      const listInsertChain = {
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { id: 'list-new' }, error: null }),
+          }),
+        }),
+      };
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'weekly_plans') return upsertChain;
+        if (table === 'shopping_lists') return { ...noListChain, ...listInsertChain };
+        if (table === 'shopping_items') return { insert: insertFn };
+        return chainMock({ data: null, error: null });
+      });
+
+      const actions: HusmorAction[] = [
+        { type: 'add_shopping_items', items: [{ name: 'Brod' }] },
+      ];
+      await executeActions(mockSupabaseClient as any, actions, mockLogger);
+      expect(listInsertChain.insert).toHaveBeenCalled();
+      expect(insertFn).toHaveBeenCalledWith([
+        expect.objectContaining({ list_id: 'list-new', name: 'Brod' }),
+      ]);
+    });
+
+    it('should execute remove_shopping_items action', async () => {
+      const deleteFn = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          ilike: vi.fn().mockResolvedValue({ data: null, error: null }),
+        }),
+      });
+      const upsertChain = chainMock({ data: { id: 'plan-1' }, error: null });
+      const listSelectChain = chainMock({ data: { id: 'list-1' }, error: null });
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'weekly_plans') return upsertChain;
+        if (table === 'shopping_lists') return listSelectChain;
+        if (table === 'shopping_items') return { delete: deleteFn };
+        return chainMock({ data: null, error: null });
+      });
+
+      const actions: HusmorAction[] = [
+        { type: 'remove_shopping_items', items: ['Melk', 'Brod'] },
+      ];
+      await executeActions(mockSupabaseClient as any, actions, mockLogger);
+      expect(deleteFn).toHaveBeenCalledTimes(2);
+    });
+
+    it('should execute check_off_items action', async () => {
+      const updateFn = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          ilike: vi.fn().mockResolvedValue({ data: null, error: null }),
+        }),
+      });
+      const upsertChain = chainMock({ data: { id: 'plan-1' }, error: null });
+      const listSelectChain = chainMock({ data: { id: 'list-1' }, error: null });
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'weekly_plans') return upsertChain;
+        if (table === 'shopping_lists') return listSelectChain;
+        if (table === 'shopping_items') return { update: updateFn };
+        return chainMock({ data: null, error: null });
+      });
+
+      const actions: HusmorAction[] = [
+        { type: 'check_off_items', items: ['Laks'] },
+      ];
+      await executeActions(mockSupabaseClient as any, actions, mockLogger);
+      expect(updateFn).toHaveBeenCalledWith({ checked: true });
+    });
+
+    it('should execute clear_shopping_list action', async () => {
+      const updateFn = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+        }),
+      });
+      const upsertChain = chainMock({ data: { id: 'plan-1' }, error: null });
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'weekly_plans') return upsertChain;
+        if (table === 'shopping_lists') return { update: updateFn };
+        return chainMock({ data: null, error: null });
+      });
+
+      const actions: HusmorAction[] = [
+        { type: 'clear_shopping_list' },
+      ];
+      await executeActions(mockSupabaseClient as any, actions, mockLogger);
+      expect(updateFn).toHaveBeenCalledWith({ status: 'completed' });
+    });
+
     it('should not throw when individual action fails', async () => {
       mockFrom.mockImplementation(() => {
         throw new Error('DB connection lost');
@@ -847,6 +959,61 @@ describe('husmor-conversation', () => {
         items: [],
       });
       expect(result.success).toBe(false);
+    });
+
+    it('should validate add_shopping_items action', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'add_shopping_items',
+        items: [{ name: 'Melk', amount: '1', unit: 'l', category: 'meieri' }],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject add_shopping_items with empty items', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'add_shopping_items',
+        items: [],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should validate remove_shopping_items action', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'remove_shopping_items',
+        items: ['Melk', 'Brod'],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject remove_shopping_items with empty items', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'remove_shopping_items',
+        items: [],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should validate check_off_items action', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'check_off_items',
+        items: ['Laks'],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject check_off_items with empty items', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'check_off_items',
+        items: [],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should validate clear_shopping_list action', () => {
+      const result = HusmorActionSchema.safeParse({
+        type: 'clear_shopping_list',
+      });
+      expect(result.success).toBe(true);
     });
 
     it('should validate propose_learning action', () => {

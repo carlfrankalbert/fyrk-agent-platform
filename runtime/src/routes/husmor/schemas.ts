@@ -158,6 +158,30 @@ const SyncOdaCartAction = z.object({
   })).min(1),
 });
 
+const AddShoppingItemsAction = z.object({
+  type: z.literal('add_shopping_items'),
+  items: z.array(z.object({
+    name: z.string(),
+    amount: z.union([z.string(), z.number().transform(String)]).optional(),
+    unit: z.string().optional(),
+    category: z.string().optional(),
+  })).min(1),
+});
+
+const RemoveShoppingItemsAction = z.object({
+  type: z.literal('remove_shopping_items'),
+  items: z.array(z.string()).min(1),
+});
+
+const CheckOffItemsAction = z.object({
+  type: z.literal('check_off_items'),
+  items: z.array(z.string()).min(1),
+});
+
+const ClearShoppingListAction = z.object({
+  type: z.literal('clear_shopping_list'),
+});
+
 const ProposeLearningAction = z.object({
   type: z.literal('propose_learning'),
   category: z.enum(['preference', 'household_info', 'feedback', 'constraint', 'routine']),
@@ -180,6 +204,10 @@ export const HusmorActionSchema = z.discriminatedUnion('type', [
   SetWeekContextAction,
   LogChildReactionAction,
   SyncOdaCartAction,
+  AddShoppingItemsAction,
+  RemoveShoppingItemsAction,
+  CheckOffItemsAction,
+  ClearShoppingListAction,
 ]);
 
 export type HusmorAction = z.infer<typeof HusmorActionSchema>;

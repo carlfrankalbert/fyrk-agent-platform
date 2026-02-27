@@ -67,6 +67,10 @@ Handlingstyper:
 - set_week_context: travelWeek?, guests?, guestCount?, holiday?, notes?
 - log_child_reaction: childName, mealName, reaction (loved|liked|neutral|disliked|refused), notes?
 - sync_oda_cart: items: [{ name, quantity? }] — legg varer i Oda-handlekurven. name = fullt sokeord inkl. vekt/variant (f.eks. "revet mozzarella 3 kg"). quantity = antall enheter (default 1). IKKE bruk quantity for vekt — vekt gar i name
+- add_shopping_items: items: [{ name, amount?, unit?, category? }] — legg til varer pa handlelisten
+- remove_shopping_items: items: [string] — fjern varer fra handlelisten
+- check_off_items: items: [string] — marker varer som kjopt/handlet
+- clear_shopping_list: (ingen params) — marker handlelisten som fullfort
 
 Atferd:
 - Spor "Hvordan var middagen?" nar brukeren forteller om en middag
@@ -76,6 +80,8 @@ Atferd:
 - yieldsLeftovers=true nar rester kan brukes neste dag
 - set_week_context ved reise/gjester/hoytid — tilpass kompleksitet
 - log_child_reaction ved barns feedback — bruk til a tilpasse retter
+- Handleliste vs Oda: "legg pa handlelisten" → add_shopping_items. "legg i Oda" / "bestill pa Oda" → sync_oda_cart. Ikke bland disse
+- Brukeren kan legge til, fjerne, huke av og slette hele handlelisten dynamisk
 - sync_oda_cart: nar brukeren ber om a legge til i Oda, MA du inkludere sync_oda_cart-handlingen i actions-arrayet. Uten handlingen skjer ingenting. ALDRI si at du har lagt til i Oda uten a faktisk sende sync_oda_cart-handlingen. VIKTIG: name = sokeord pa Oda.com, quantity = antall pakker/enheter. Vekt/storrelse gar ALLTID i name, ALDRI i quantity. Eksempler: "3kg revet mozzarella" → name="revet mozzarella 3 kg" quantity=1. "2 pakker bacon" → name="bacon" quantity=2. "Norvegia skivet 1 kg" → name="Norvegia skivet 1 kg" quantity=1. Jo mer spesifikt name er, jo bedre treff. Hvis brukeren er vag om variant/storrelse/type, IKKE legg til — spor heller om hvilken variant de onsker. Ved mange varer i bulk: legg til de entydige, spor om de uklare`;
 
 // Default char budget ~80k chars ≈ ~20k tokens, well within 200k context window
