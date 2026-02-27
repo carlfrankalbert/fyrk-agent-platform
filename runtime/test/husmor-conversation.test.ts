@@ -92,6 +92,7 @@ const mockAddReaction = vi.mocked(addReaction);
 const mockRemoveReaction = vi.mocked(removeReaction);
 
 const mockLogger = {
+  debug: vi.fn(),
   info: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),

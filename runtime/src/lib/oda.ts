@@ -227,8 +227,89 @@ export async function searchProducts(session: OdaSession, query: string): Promis
   }
 }
 
+/** Extract weight in grams from a string. Returns null if no weight found. */
+export function extractWeightGrams(text: string): number | null {
+  const lower = text.toLowerCase();
+  // Match patterns like "1 kg", "1kg", "700 g", "700g", "ca. 1 kg", "ca 500 g"
+  const match = lower.match(/(?:ca\.?\s*)?(\d+(?:[.,]\d+)?)\s*(kg|g)\b/);
+  if (!match) return null;
+  const value = parseFloat(match[1].replace(',', '.'));
+  return match[2] === 'kg' ? value * 1000 : value;
+}
+
+/** Pick the product whose name best matches the query terms, with weight-aware scoring. */
+export function bestMatch(products: OdaProduct[], query: string): OdaProduct | undefined {
+  if (products.length === 0) return undefined;
+  if (products.length === 1) return products[0];
+
+  const queryLower = query.toLowerCase();
+  const terms = queryLower.split(/\s+/).filter((t) => t.length > 1);
+  const queryWeight = extractWeightGrams(queryLower);
+
+  let best: OdaProduct | undefined;
+  let bestScore = -Infinity;
+  let bestTermHits = 0;
+
+  for (const p of products) {
+    const name = p.name.toLowerCase();
+    // Base score: count of matching query terms
+    let score = 0;
+    let termHits = 0;
+    for (const term of terms) {
+      if (name.includes(term)) {
+        score++;
+        termHits++;
+      }
+    }
+
+    // Extra-word penalty: significant words in product name not found in query
+    const nameWords = name.split(/\s+/).filter((w) => w.length > 2 && !/^\d/.test(w));
+    for (const nw of nameWords) {
+      if (!queryLower.includes(nw)) score -= 0.5;
+    }
+
+    // Weight matching: strong bonus for close weight, penalty for wrong weight
+    if (queryWeight !== null) {
+      const productWeight = extractWeightGrams(name);
+      if (productWeight !== null) {
+        const ratio = productWeight / queryWeight;
+        if (ratio >= 0.8 && ratio <= 1.2) {
+          // Within 20% of requested weight — strong bonus
+          score += 10;
+        } else {
+          // Wrong weight — penalty proportional to distance
+          score -= Math.abs(1 - ratio) * 5;
+        }
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = p;
+      bestTermHits = termHits;
+    }
+  }
+
+  // Reject if no query terms matched at all
+  if (bestTermHits === 0) return undefined;
+
+  return best;
+}
+
+/** Extract multi-pack count from a product name. Returns 1 if not a multi-pack. */
+export function extractPackCount(text: string): number {
+  const lower = text.toLowerCase();
+  // Match "3×400g", "3x400g", "3 x 400g"
+  const multiMatch = lower.match(/(\d+)\s*[×x]\s*\d/);
+  if (multiMatch) return parseInt(multiMatch[1], 10);
+  // Match "3-pak", "3-pack", "3pk"
+  const pakMatch = lower.match(/(\d+)\s*-?\s*(?:pa[ck]k?|pk)/);
+  if (pakMatch) return parseInt(pakMatch[1], 10);
+  return 1;
+}
+
 /** Add a product to the Oda cart. Returns { status, bodySnippet } for logging. */
-export async function addToCart(_session: OdaSession, productId: number, quantity = 1): Promise<{ status: number; bodySnippet: string }> {
+export async function addToCart(productId: number, quantity = 1): Promise<{ status: number; bodySnippet: string }> {
   const res = await authedFetch(`${BASE_URL}/tienda-web-api/v1/cart/items/`, {
     method: 'POST',
     headers: {
@@ -242,7 +323,7 @@ export async function addToCart(_session: OdaSession, productId: number, quantit
   const responseBody = await res.text().catch(() => '');
   const bodySnippet = responseBody.slice(0, 400);
 
-  if (!res.ok && res.status !== 201) {
+  if (!res.ok) {
     throw new Error(`Oda addToCart failed: ${res.status} ${bodySnippet}`);
   }
 
@@ -250,7 +331,7 @@ export async function addToCart(_session: OdaSession, productId: number, quantit
 }
 
 /** Get the current Oda cart */
-export async function getCart(_session: OdaSession): Promise<OdaCart> {
+export async function getCart(): Promise<OdaCart> {
   const res = await authedFetch(`${BASE_URL}/tienda-web-api/v1/cart/`, {
     method: 'GET',
   });

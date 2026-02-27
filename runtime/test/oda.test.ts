@@ -6,7 +6,11 @@ import {
   getCart,
   getSession,
   clearSession,
+  extractWeightGrams,
+  bestMatch,
+  extractPackCount,
   type OdaSession,
+  type OdaProduct,
 } from '../src/lib/oda.js';
 
 // Mock getEnv for getSession tests
@@ -196,6 +200,46 @@ describe('oda client', () => {
       const results = await searchProducts(testSession, 'test');
       expect(results).toEqual([]);
     });
+
+    it('should combine fullName + nameExtra in product name', async () => {
+      const nextData = {
+        props: {
+          pageProps: {
+            dehydratedState: {
+              queries: [
+                {
+                  queryKey: ['searchpageresponse', 'kylling', {}],
+                  state: {
+                    data: {
+                      items: [
+                        {
+                          type: 'product',
+                          attributes: {
+                            id: 201,
+                            fullName: 'Kyllingfilet',
+                            nameExtra: 'ca. 700g',
+                            grossPrice: '89.90',
+                            unitPriceQuantityAbbreviation: 'pk',
+                            availability: { isAvailable: true },
+                            images: [],
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      };
+
+      const html = `<html><script id="__NEXT_DATA__" type="application/json">${JSON.stringify(nextData)}</script></html>`;
+      mockFetch.mockResolvedValueOnce(makeResponse(200, html));
+
+      const results = await searchProducts(testSession, 'kylling');
+      expect(results[0].name).toBe('Kyllingfilet ca. 700g');
+    });
   });
 
   describe('addToCart', () => {
@@ -209,7 +253,7 @@ describe('oda client', () => {
       );
       mockFetch.mockResolvedValueOnce(makeResponse(201, { ok: true }));
 
-      await addToCart(testSession, 101, 2);
+      await addToCart(101, 2);
 
       // The addToCart call is the 3rd fetch (after login page + login post from getSession)
       const [url, opts] = mockFetch.mock.calls[2];
@@ -228,7 +272,7 @@ describe('oda client', () => {
       );
       mockFetch.mockResolvedValueOnce(makeResponse(201, { ok: true }));
 
-      await addToCart(testSession, 42);
+      await addToCart(42);
 
       const body = JSON.parse(mockFetch.mock.calls[2][1].body);
       expect(body.items[0].quantity).toBe(1);
@@ -254,7 +298,7 @@ describe('oda client', () => {
         }),
       );
 
-      const cart = await getCart(testSession);
+      const cart = await getCart();
 
       expect(cart.itemCount).toBe(2);
       expect(cart.totalPrice).toBe('149.80');
@@ -265,6 +309,157 @@ describe('oda client', () => {
         quantity: 1,
         price: '22.90',
       });
+    });
+  });
+
+  describe('extractWeightGrams', () => {
+    it('should parse kilograms to grams', () => {
+      expect(extractWeightGrams('1 kg')).toBe(1000);
+      expect(extractWeightGrams('2kg')).toBe(2000);
+    });
+
+    it('should parse grams', () => {
+      expect(extractWeightGrams('750g')).toBe(750);
+      expect(extractWeightGrams('500 g')).toBe(500);
+    });
+
+    it('should handle "ca." prefix', () => {
+      expect(extractWeightGrams('ca. 700g')).toBe(700);
+      expect(extractWeightGrams('ca 1 kg')).toBe(1000);
+    });
+
+    it('should handle comma decimals', () => {
+      expect(extractWeightGrams('1,5 kg')).toBe(1500);
+      expect(extractWeightGrams('0,5kg')).toBe(500);
+    });
+
+    it('should return null when no weight found', () => {
+      expect(extractWeightGrams('Kyllingfilet')).toBeNull();
+      expect(extractWeightGrams('3 stk')).toBeNull();
+    });
+  });
+
+  describe('bestMatch', () => {
+    const mkProduct = (id: number, name: string): OdaProduct => ({
+      id,
+      name,
+      price: '10',
+      unit: 'pk',
+      available: true,
+    });
+
+    it('should return undefined for empty list', () => {
+      expect(bestMatch([], 'melk')).toBeUndefined();
+    });
+
+    it('should return the single item for a one-element list', () => {
+      const p = mkProduct(1, 'Lettmelk 1l');
+      expect(bestMatch([p], 'melk')).toBe(p);
+    });
+
+    it('should prefer product with more matching terms', () => {
+      const p1 = mkProduct(1, 'Gulrot baby');
+      const p2 = mkProduct(2, 'Gulrot 750g');
+      expect(bestMatch([p1, p2], 'gulrot 750g')).toBe(p2);
+    });
+
+    it('should give weight bonus for matching weight', () => {
+      const p1 = mkProduct(1, 'Kyllingfilet ca. 350g');
+      const p2 = mkProduct(2, 'Kyllingfilet ca. 700g');
+      expect(bestMatch([p1, p2], 'kyllingfilet 700g')).toBe(p2);
+    });
+
+    it('should penalize wrong weight', () => {
+      const p1 = mkProduct(1, 'Ost 150g');
+      const p2 = mkProduct(2, 'Ost 1kg');
+      expect(bestMatch([p1, p2], 'ost 150g')).toBe(p1);
+    });
+
+    it('should handle query with no weight gracefully', () => {
+      const p1 = mkProduct(1, 'Melk 1l');
+      const p2 = mkProduct(2, 'Melk lett');
+      // No weight in query — pure term matching
+      const result = bestMatch([p1, p2], 'melk lett');
+      expect(result).toBe(p2);
+    });
+  });
+
+  describe('extractPackCount', () => {
+    it('should detect ×-style multi-packs', () => {
+      expect(extractPackCount('Finhakkede tomater 3×400g')).toBe(3);
+    });
+
+    it('should detect x-style multi-packs', () => {
+      expect(extractPackCount('Hermetiske tomater 3x400g')).toBe(3);
+    });
+
+    it('should detect -pak suffix', () => {
+      expect(extractPackCount('Yoghurt 6-pak')).toBe(6);
+    });
+
+    it('should detect -pack suffix', () => {
+      expect(extractPackCount('Cola 4-pack')).toBe(4);
+    });
+
+    it('should detect pk suffix', () => {
+      expect(extractPackCount('Juice 3pk')).toBe(3);
+    });
+
+    it('should return 1 for non-multipacks', () => {
+      expect(extractPackCount('Melk 1l')).toBe(1);
+      expect(extractPackCount('Kjøttdeig 400g')).toBe(1);
+    });
+  });
+
+  describe('bestMatch extra-word penalty', () => {
+    const mkProduct = (id: number, name: string): OdaProduct => ({
+      id,
+      name,
+      price: '10',
+      unit: 'pk',
+      available: true,
+    });
+
+    it('should penalize products with extra qualifying words', () => {
+      const plain = mkProduct(1, 'Kjøttdeig 400g');
+      const kylling = mkProduct(2, 'Kylling kjøttdeig 400g');
+      expect(bestMatch([plain, kylling], 'kjøttdeig 400g')).toBe(plain);
+    });
+
+    it('should reject products with zero matching query terms', () => {
+      const wrong = mkProduct(1, 'Kjøttkaker med løk 355g');
+      const also_wrong = mkProduct(2, 'Koteletter 500g');
+      expect(bestMatch([wrong, also_wrong], 'kjøttdeig 800g')).toBeUndefined();
+    });
+
+    it('should still match when query terms are present despite extras', () => {
+      const product = mkProduct(1, 'Kylling kjøttdeig 400g');
+      // Only one candidate — single item is returned directly
+      // With two candidates, verify the one with matching terms wins
+      const unrelated = mkProduct(2, 'Epler Røde');
+      expect(bestMatch([product, unrelated], 'kjøttdeig')).toBe(product);
+    });
+  });
+
+  describe('bestMatch quantity adjustment integration', () => {
+    it('should calculate adjusted quantity for multi-packs', () => {
+      // Simulating the logic from handleSyncOdaCart
+      const packCount = extractPackCount('Finhakkede tomater 3×400g');
+      const requestedQty = 2;
+      const adjusted = Math.max(1, Math.ceil(requestedQty / packCount));
+      expect(adjusted).toBe(1); // ceil(2/3) = 1
+    });
+
+    it('should not reduce below 1 for multi-packs', () => {
+      const packCount = extractPackCount('Brus 6-pack');
+      const adjusted = Math.max(1, Math.ceil(1 / packCount));
+      expect(adjusted).toBe(1);
+    });
+
+    it('should pass through quantity for non-multipacks', () => {
+      const packCount = extractPackCount('Melk 1l');
+      const adjusted = Math.max(1, Math.ceil(3 / packCount));
+      expect(adjusted).toBe(3);
     });
   });
 
