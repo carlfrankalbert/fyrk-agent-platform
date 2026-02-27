@@ -225,6 +225,20 @@ describe('husmor-conversation', () => {
       expect(result.reply).toBe('Hei!');
       expect(result.actions).toBeUndefined();
     });
+
+    it('should extract bare JSON object after preamble text (no fences)', () => {
+      const text = '**Fredag — Tacofredag**\nKjottdeig, tortilla.\n\n{"reply":"Her er ukeplanen!","actions":[]}';
+      const result = parseClaudeResponse(text);
+      expect(result.reply).toBe('Her er ukeplanen!');
+      expect(result.actions).toEqual([]);
+    });
+
+    it('should extract bare JSON with actions after preamble text', () => {
+      const text = 'La meg lage en plan.\n\n{"reply":"Lagt til!","actions":[{"type":"add_meals","meals":[{"dayOfWeek":1,"name":"Laks"}]}]}';
+      const result = parseClaudeResponse(text);
+      expect(result.reply).toBe('Lagt til!');
+      expect(result.actions).toHaveLength(1);
+    });
   });
 
   describe('buildSystemPrompt', () => {

@@ -354,7 +354,29 @@ export function parseClaudeResponse(text: string): HusmorClaudeResponse {
         return { reply: parsed.reply, actions: [] };
       }
     } catch {
-      // Not valid JSON at all
+      // Not valid JSON at all — try to extract a bare JSON object from the text.
+      // Claude sometimes outputs preamble text followed by a raw JSON object (no code fences).
+      const replyIdx = text.lastIndexOf('{"reply"');
+      if (replyIdx > 0) {
+        try {
+          const candidate = text.slice(replyIdx);
+          const parsed = JSON.parse(candidate);
+          if (typeof parsed.reply === 'string') {
+            return HusmorClaudeResponseSchema.parse(parsed);
+          }
+        } catch {
+          // Try salvaging just the reply
+          try {
+            const candidate = text.slice(replyIdx);
+            const parsed = JSON.parse(candidate);
+            if (typeof parsed.reply === 'string') {
+              return { reply: parsed.reply, actions: [] };
+            }
+          } catch {
+            // Extraction failed
+          }
+        }
+      }
     }
     // Claude sometimes responds in plain text despite JSON instructions.
     return { reply: text.trim(), actions: [] };
