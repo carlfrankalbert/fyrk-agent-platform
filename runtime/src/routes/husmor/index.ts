@@ -13,6 +13,7 @@ import {
 } from './schemas.js';
 import { handleHusmorMessage } from './conversation.js';
 import { handleProactiveMessage, type ProactiveType } from './proactive.js';
+import { husmorWebRoutes } from './web.js';
 
 const ProactiveRequestSchema = z.object({
   type: z.enum(['inventory_reminder', 'midweek_checkin', 'weekend_prep', 'weekly_learning_summary']),
@@ -280,4 +281,7 @@ export async function husmorRoutes(fastify: FastifyInstance): Promise<void> {
       return { ok: true, ignored: true, reason: 'unknown_event_type' };
     });
   });
+
+  // Web chat routes (SSE streaming)
+  await husmorWebRoutes(fastify);
 }

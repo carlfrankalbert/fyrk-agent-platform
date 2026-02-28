@@ -486,6 +486,15 @@ async function loadSavedRecipes(supabase: SupabaseClient): Promise<SavedRecipe[]
   });
 }
 
+// --- Cached full DbContext ---
+
+const CACHE_KEY_DB_CONTEXT = 'husmor:dbContext';
+const DB_CONTEXT_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
+export async function loadDbContextCached(supabase: SupabaseClient): Promise<DbContext> {
+  return getOrCompute(CACHE_KEY_DB_CONTEXT, () => loadDbContext(supabase), DB_CONTEXT_TTL_MS);
+}
+
 // --- Plan upsert ---
 
 export async function getOrCreateCurrentWeekPlan(supabase: SupabaseClient): Promise<string> {

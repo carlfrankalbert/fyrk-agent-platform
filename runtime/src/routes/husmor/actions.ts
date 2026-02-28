@@ -15,66 +15,13 @@ export async function executeActions(
   slackToken?: string,
   actionCtx?: { channel?: string; threadTs?: string },
 ): Promise<void> {
-  for (const action of actions) {
-    try {
-      switch (action.type) {
-        case 'add_meals':
-          await handleAddMeals(supabase, action, logger);
-          break;
-        case 'update_meal':
-          await handleUpdateMeal(supabase, action, logger);
-          break;
-        case 'remove_meal':
-          await handleRemoveMeal(supabase, action, logger);
-          break;
-        case 'set_preference':
-          await handleSetPreference(supabase, action, logger);
-          break;
-        case 'add_inventory_note':
-          await handleAddInventoryNote(supabase, action, logger);
-          break;
-        case 'rate_meal':
-          await handleRateMeal(supabase, action, logger);
-          break;
-        case 'generate_shopping_list':
-          await handleGenerateShoppingList(supabase, action, logger, slackToken);
-          break;
-        case 'update_plan_status':
-          await handleUpdatePlanStatus(supabase, action, logger);
-          break;
-        case 'propose_learning':
-          await handleProposeLearning(supabase, action, logger, slackToken, actionCtx?.channel, actionCtx?.threadTs);
-          break;
-        case 'save_recipe':
-          await handleSaveRecipe(supabase, action, logger);
-          break;
-        case 'update_inventory_status':
-          await handleUpdateInventoryStatus(supabase, action, logger);
-          break;
-        case 'set_week_context':
-          await handleSetWeekContext(supabase, action, logger);
-          break;
-        case 'log_child_reaction':
-          await handleLogChildReaction(supabase, action, logger);
-          break;
-        case 'sync_oda_cart':
-          await handleSyncOdaCart(action, logger, slackToken, actionCtx?.channel, actionCtx?.threadTs);
-          break;
-        case 'add_shopping_items':
-          await handleAddShoppingItems(supabase, action, logger);
-          break;
-        case 'remove_shopping_items':
-          await handleRemoveShoppingItems(supabase, action, logger);
-          break;
-        case 'check_off_items':
-          await handleCheckOffItems(supabase, action, logger);
-          break;
-        case 'clear_shopping_list':
-          await handleClearShoppingList(supabase, action, logger);
-          break;
-      }
-    } catch (err) {
-      logger.error({ action: action.type, err }, 'Failed to execute action');
+  const results = await Promise.allSettled(
+    actions.map(action => executeOneAction(supabase, action, logger, slackToken, actionCtx)),
+  );
+
+  for (let i = 0; i < results.length; i++) {
+    if (results[i].status === 'rejected') {
+      logger.error({ action: actions[i].type, err: (results[i] as PromiseRejectedResult).reason }, 'Failed to execute action');
     }
   }
 
@@ -82,6 +29,53 @@ export async function executeActions(
   const CACHE_INVALIDATING_ACTIONS = new Set(['add_meals', 'update_meal', 'remove_meal', 'rate_meal', 'save_recipe', 'clear_shopping_list']);
   if (actions.some(a => CACHE_INVALIDATING_ACTIONS.has(a.type))) {
     invalidateCache('husmor:');
+  }
+}
+
+async function executeOneAction(
+  supabase: SupabaseClient,
+  action: HusmorAction,
+  logger: Logger,
+  slackToken?: string,
+  actionCtx?: { channel?: string; threadTs?: string },
+): Promise<void> {
+  switch (action.type) {
+    case 'add_meals':
+      return handleAddMeals(supabase, action, logger);
+    case 'update_meal':
+      return handleUpdateMeal(supabase, action, logger);
+    case 'remove_meal':
+      return handleRemoveMeal(supabase, action, logger);
+    case 'set_preference':
+      return handleSetPreference(supabase, action, logger);
+    case 'add_inventory_note':
+      return handleAddInventoryNote(supabase, action, logger);
+    case 'rate_meal':
+      return handleRateMeal(supabase, action, logger);
+    case 'generate_shopping_list':
+      return handleGenerateShoppingList(supabase, action, logger, slackToken);
+    case 'update_plan_status':
+      return handleUpdatePlanStatus(supabase, action, logger);
+    case 'propose_learning':
+      return handleProposeLearning(supabase, action, logger, slackToken, actionCtx?.channel, actionCtx?.threadTs);
+    case 'save_recipe':
+      return handleSaveRecipe(supabase, action, logger);
+    case 'update_inventory_status':
+      return handleUpdateInventoryStatus(supabase, action, logger);
+    case 'set_week_context':
+      return handleSetWeekContext(supabase, action, logger);
+    case 'log_child_reaction':
+      return handleLogChildReaction(supabase, action, logger);
+    case 'sync_oda_cart':
+      return handleSyncOdaCart(action, logger, slackToken, actionCtx?.channel, actionCtx?.threadTs);
+    case 'add_shopping_items':
+      return handleAddShoppingItems(supabase, action, logger);
+    case 'remove_shopping_items':
+      return handleRemoveShoppingItems(supabase, action, logger);
+    case 'check_off_items':
+      return handleCheckOffItems(supabase, action, logger);
+    case 'clear_shopping_list':
+      return handleClearShoppingList(supabase, action, logger);
   }
 }
 

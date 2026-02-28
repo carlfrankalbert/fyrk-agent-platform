@@ -18,6 +18,7 @@ vi.mock('../src/lib/env.js', () => ({
 // Mock Claude API
 vi.mock('../src/lib/claude.js', () => ({
   callClaude: vi.fn(),
+  callClaudeStream: vi.fn(),
   extractText: vi.fn(),
 }));
 
@@ -52,9 +53,10 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => mockSupabaseClient),
 }));
 
-import { callClaude, extractText } from '../src/lib/claude.js';
+import { callClaude, callClaudeStream, extractText } from '../src/lib/claude.js';
 import { replyInThread, updateMessage, getThreadHistory, addReaction, removeReaction } from '../src/lib/slack.js';
-import { handleHusmorMessage, THINKING_MSG, THINKING_EMOJI, ERROR_MSG, type HusmorMessageParams } from '../src/routes/husmor/conversation.js';
+import { handleHusmorMessage, extractPartialReply, THINKING_MSG, THINKING_EMOJI, ERROR_MSG, type HusmorMessageParams } from '../src/routes/husmor/conversation.js';
+import { invalidateCache } from '../src/routes/husmor/cache.js';
 import { buildSystemPrompt, parseClaudeResponse, cleanMessageOrder } from '../src/routes/husmor/prompt.js';
 import { executeActions, } from '../src/routes/husmor/actions.js';
 import { buildCanvasMarkdown } from '../src/routes/husmor/canvas.js';
@@ -84,6 +86,7 @@ import {
 } from '../src/routes/husmor/schemas.js';
 
 const mockCallClaude = vi.mocked(callClaude);
+const mockCallClaudeStream = vi.mocked(callClaudeStream);
 const mockExtractText = vi.mocked(extractText);
 const mockReplyInThread = vi.mocked(replyInThread);
 const mockUpdateMessage = vi.mocked(updateMessage);
@@ -141,11 +144,14 @@ function makeClaudeResponse(reply: string, actions?: HusmorAction[]) {
   const response = {
     id: 'msg_test',
     content: [{ type: 'text', text: json }],
-    model: 'claude-opus-4-6',
+    model: 'claude-sonnet-4-5-20250929',
     stop_reason: 'end_turn',
     usage: { input_tokens: 200, output_tokens: 100 },
   };
-  mockCallClaude.mockResolvedValue(response);
+  mockCallClaudeStream.mockImplementation(async function* () {
+    yield { type: 'content_delta' as const, text: json };
+    yield { type: 'message_complete' as const, response };
+  });
   mockExtractText.mockReturnValue(json);
 }
 
@@ -175,6 +181,12 @@ function chainMock(result: { data: unknown; error: unknown }) {
 describe('husmor-conversation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    invalidateCache();
+    // Re-establish default mock implementations (clearAllMocks doesn't reset them)
+    mockReplyInThread.mockResolvedValue({ ok: true, ts: '1234.5678' });
+    mockUpdateMessage.mockResolvedValue({ ok: true, ts: '1234.5678' });
+    mockAddReaction.mockResolvedValue(undefined);
+    mockRemoveReaction.mockResolvedValue(undefined);
   });
 
   describe('parseClaudeResponse', () => {
@@ -646,9 +658,9 @@ describe('husmor-conversation', () => {
 
       await handleHusmorMessage(makeParams());
 
-      expect(mockCallClaude).toHaveBeenCalledTimes(1);
-      expect(mockCallClaude.mock.calls[0][0]).toBe('test-api-key');
-      expect(mockCallClaude.mock.calls[0][1].model).toBe('claude-opus-4-6');
+      expect(mockCallClaudeStream).toHaveBeenCalledTimes(1);
+      expect(mockCallClaudeStream.mock.calls[0][0]).toBe('test-api-key');
+      expect(mockCallClaudeStream.mock.calls[0][1].model).toBe('claude-sonnet-4-5-20250929');
       expect(mockAddReaction).toHaveBeenCalledWith(
         'xoxb-test-token',
         'C-husmor',
@@ -661,10 +673,18 @@ describe('husmor-conversation', () => {
         '1700000000.000001',
         THINKING_EMOJI,
       );
+      // Placeholder sent first
       expect(mockReplyInThread).toHaveBeenCalledWith(
         'xoxb-test-token',
         'C-husmor',
         '1700000000.000001',
+        '...',
+      );
+      // Final reply via updateMessage
+      expect(mockUpdateMessage).toHaveBeenCalledWith(
+        'xoxb-test-token',
+        'C-husmor',
+        '1234.5678',
         'Hei! Ingen plan for denne uken enna.',
       );
     });
@@ -678,7 +698,7 @@ describe('husmor-conversation', () => {
 
       await handleHusmorMessage(makeParams({ text: 'Vi har laks i kjoleskapet' }));
 
-      const userMsg = mockCallClaude.mock.calls[0][1].messages[0].content;
+      const userMsg = mockCallClaudeStream.mock.calls[0][1].messages[0].content;
       expect(userMsg).toBe('Vi har laks i kjoleskapet');
     });
 
@@ -702,12 +722,36 @@ describe('husmor-conversation', () => {
       expect(insertFn).toHaveBeenCalled();
     });
 
-    it('should reply with error and remove reaction when Claude call fails', async () => {
+    it('should update placeholder with error when Claude stream fails', async () => {
       mockFrom.mockImplementation(() => {
         return chainMock({ data: null, error: null });
       });
 
-      mockCallClaude.mockRejectedValue(new Error('Claude API error'));
+      mockCallClaudeStream.mockImplementation(async function* () {
+        yield { type: 'error' as const, error: 'Claude API error' };
+      });
+
+      await handleHusmorMessage(makeParams());
+
+      // Placeholder was sent, so error goes via updateMessage
+      expect(mockReplyInThread).toHaveBeenCalledWith(
+        'xoxb-test-token',
+        'C-husmor',
+        '1700000000.000001',
+        '...',
+      );
+      expect(mockUpdateMessage).toHaveBeenCalledWith(
+        'xoxb-test-token',
+        'C-husmor',
+        '1234.5678',
+        ERROR_MSG,
+      );
+    });
+
+    it('should reply with error when failure occurs before placeholder', async () => {
+      mockFrom.mockImplementation(() => {
+        throw new Error('DB connection lost');
+      });
 
       await handleHusmorMessage(makeParams());
 
@@ -727,10 +771,8 @@ describe('husmor-conversation', () => {
 
     it('should not throw when error reply also fails', async () => {
       mockFrom.mockImplementation(() => {
-        return chainMock({ data: null, error: null });
+        throw new Error('DB down');
       });
-
-      mockCallClaude.mockRejectedValue(new Error('Claude down'));
       mockReplyInThread.mockRejectedValue(new Error('Slack down'));
 
       await handleHusmorMessage(makeParams());
@@ -751,7 +793,7 @@ describe('husmor-conversation', () => {
       await handleHusmorMessage(makeParams({ isThreadReply: true, text: 'kan vi bytte til taco?' }));
 
       expect(mockGetThreadHistory).toHaveBeenCalledWith('xoxb-test-token', 'C-husmor', '1700000000.000001');
-      const messages = mockCallClaude.mock.calls[0][1].messages;
+      const messages = mockCallClaudeStream.mock.calls[0][1].messages;
       expect(messages.length).toBeGreaterThan(1);
     });
 
@@ -775,7 +817,7 @@ describe('husmor-conversation', () => {
 
       await handleHusmorMessage(makeParams({ isThreadReply: true, text: 'taco i dag?' }));
 
-      const messages = mockCallClaude.mock.calls[0][1].messages;
+      const messages = mockCallClaudeStream.mock.calls[0][1].messages;
       const assistantMsg = messages.find((m: { role: string }) => m.role === 'assistant');
       expect(assistantMsg).toBeDefined();
       const parsed = JSON.parse(assistantMsg!.content);
@@ -794,7 +836,7 @@ describe('husmor-conversation', () => {
 
       await handleHusmorMessage(makeParams({ isThreadReply: true, text: 'prov igjen' }));
 
-      const messages = mockCallClaude.mock.calls[0][1].messages;
+      const messages = mockCallClaudeStream.mock.calls[0][1].messages;
       const allContent = messages.map((m: { content: string }) => m.content).join(' ');
       expect(allContent).not.toContain('Beklager, noe gikk galt');
     });
@@ -811,9 +853,26 @@ describe('husmor-conversation', () => {
 
       await handleHusmorMessage(makeParams({ isThreadReply: true, text: 'taco i dag?' }));
 
-      const messages = mockCallClaude.mock.calls[0][1].messages;
+      const messages = mockCallClaudeStream.mock.calls[0][1].messages;
       const allContent = messages.map((m: { content: string }) => m.content).join(' ');
       expect(allContent).not.toContain('Husmor tenker...');
+    });
+
+    it('should skip placeholder "..." messages from history', async () => {
+      mockFrom.mockImplementation(() => chainMock({ data: null, error: null }));
+      mockGetThreadHistory.mockResolvedValue([
+        { user: 'U12345', text: 'hei', ts: '1700000000.000001' },
+        { bot_id: 'B1', text: '...', ts: '1700000000.000002' },
+        { bot_id: 'B1', text: 'Hei! Hva kan jeg hjelpe med?', ts: '1700000000.000003' },
+        { user: 'U12345', text: 'taco i dag?', ts: '1700000000.000004' },
+      ]);
+      makeClaudeResponse('Ok!');
+
+      await handleHusmorMessage(makeParams({ isThreadReply: true, text: 'taco i dag?' }));
+
+      const messages = mockCallClaudeStream.mock.calls[0][1].messages;
+      const allContent = messages.map((m: { content: string }) => m.content).join(' ');
+      expect(allContent).not.toContain('...');
     });
   });
 
@@ -844,6 +903,33 @@ describe('husmor-conversation', () => {
         { role: 'assistant', content: 'hei!' },
       ]);
       expect(result[result.length - 1].role).toBe('user');
+    });
+  });
+
+  describe('extractPartialReply', () => {
+    it('should return null before reply marker', () => {
+      expect(extractPartialReply('{"acti')).toBeNull();
+      expect(extractPartialReply('')).toBeNull();
+    });
+
+    it('should extract partial text', () => {
+      expect(extractPartialReply('{"reply":"Hei! Hvo')).toBe('Hei! Hvo');
+    });
+
+    it('should extract complete reply text', () => {
+      expect(extractPartialReply('{"reply":"Hei!","actions":[]}')).toBe('Hei!');
+    });
+
+    it('should handle escaped quotes', () => {
+      expect(extractPartialReply('{"reply":"Han sa \\"hei\\"","actions":[]}')).toBe('Han sa "hei"');
+    });
+
+    it('should handle escaped newlines', () => {
+      expect(extractPartialReply('{"reply":"Linje 1\\nLinje 2","actions":[]}')).toBe('Linje 1\nLinje 2');
+    });
+
+    it('should handle escaped backslashes', () => {
+      expect(extractPartialReply('{"reply":"a\\\\b","actions":[]}')).toBe('a\\b');
     });
   });
 
