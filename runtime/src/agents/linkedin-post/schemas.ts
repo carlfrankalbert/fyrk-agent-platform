@@ -44,7 +44,7 @@ export const DraftPostSchema = z.object({
   topic: z.string(),
   characterCount: z.number(),
   visualFormat: z.enum(['tekst', '2x2-diagram']).optional(),
-  diagramData: DiagramDataSchema.optional(),
+  diagramData: DiagramDataSchema.nullish(),
 });
 
 export type DraftPost = z.infer<typeof DraftPostSchema>;
