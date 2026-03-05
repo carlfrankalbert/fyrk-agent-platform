@@ -1,5 +1,7 @@
 import type { AgentDefinition, AgentContext, AgentResult } from '../base.js';
 import { callClaudeJson } from '../../lib/claude-json.js';
+import { getISOWeekNumber } from '../../lib/date.js';
+import { getPersonaConfig, getTopicForWeek } from './personas.js';
 
 import {
   LinkedInPostInputSchema,
@@ -8,8 +10,7 @@ import {
   type LinkedInPostOutput,
 } from './schemas.js';
 
-function buildSystemPrompt(): string {
-  return `Du er FYRK sin strategiske beslutningspartner for nordiske ledere, PMs og styremedlemmer.
+const FYRK_SYSTEM_PROMPT = `Du er FYRK sin strategiske beslutningspartner for nordiske ledere, PMs og styremedlemmer.
 
 Du skriver LinkedIn-poster på norsk som hjelper travle beslutningstakere å tenke klarere – ikke poster som oppsummerer nyheter.
 
@@ -182,10 +183,21 @@ Ikke inkluder VISUELT_FORMAT-linjer i postText – de hører hjemme i JSON-felte
 
 Lag ETT syntese-innlegg som trekker på de mest relevante artiklene.
 Returner KUN valid JSON, ingen annen tekst.`;
+
+function buildSystemPrompt(personaId?: string): string {
+  const persona = getPersonaConfig(personaId);
+  if (persona.systemPrompt) {
+    return persona.systemPrompt;
+  }
+  return FYRK_SYSTEM_PROMPT;
 }
 
-function buildUserPrompt(articles: LinkedInPostInput['articles']): string {
+function buildUserPrompt(articles: LinkedInPostInput['articles'], topic?: string | null): string {
   const lines: string[] = [];
+
+  if (topic) {
+    lines.push(`Ukens tema: ${topic}\n`);
+  }
 
   lines.push('## Artikler\n');
 
@@ -204,25 +216,78 @@ function buildUserPrompt(articles: LinkedInPostInput['articles']): string {
   return lines.join('\n');
 }
 
+function validateForbiddenPhrases(text: string, personaId: string): boolean {
+  const persona = getPersonaConfig(personaId);
+  const forbidden = persona.forbiddenPhrases;
+  if (forbidden.length === 0) return true;
+  const lowerText = text.toLowerCase();
+  return !forbidden.some((phrase) => lowerText.includes(phrase.toLowerCase()));
+}
+
 async function execute(
   rawInput: LinkedInPostInput,
   _ctx: AgentContext,
 ): Promise<AgentResult<LinkedInPostOutput>> {
-  const systemPrompt = buildSystemPrompt();
-  const userPrompt = buildUserPrompt(rawInput.articles);
+  const personaId = rawInput.persona ?? 'fyrk';
+  const { week } = getISOWeekNumber();
+  const topic = getTopicForWeek(personaId, week);
 
-  const { parsed: output } = await callClaudeJson(LinkedInPostOutputSchema, {
+  const systemPrompt = buildSystemPrompt(personaId);
+  let userPrompt = buildUserPrompt(rawInput.articles, topic);
+
+  let output: LinkedInPostOutput;
+  let warning: string | undefined;
+  let attempts = 0;
+  const MAX_RETRIES = 2;
+
+  // Initial call
+  ({ parsed: output } = await callClaudeJson(LinkedInPostOutputSchema, {
     model: 'claude-sonnet-4-5-20250929',
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
     cacheControl: { type: 'ephemeral' },
-  });
+  }));
+
+  // Forbidden phrase validation with retry
+  const persona = getPersonaConfig(personaId);
+  if (persona.forbiddenPhrases.length > 0) {
+    while (
+      attempts < MAX_RETRIES &&
+      output.drafts.some((d) => !validateForbiddenPhrases(d.postText, personaId))
+    ) {
+      attempts++;
+      const retryPrompt =
+        userPrompt +
+        `\n\nKRITISK: Unngå eksplisitt disse frasene: ${persona.forbiddenPhrases.join(', ')}`;
+
+      ({ parsed: output } = await callClaudeJson(LinkedInPostOutputSchema, {
+        model: 'claude-sonnet-4-5-20250929',
+        system: systemPrompt,
+        messages: [{ role: 'user', content: retryPrompt }],
+        cacheControl: { type: 'ephemeral' },
+      }));
+    }
+
+    // After retries, check if still failing
+    if (output.drafts.some((d) => !validateForbiddenPhrases(d.postText, personaId))) {
+      warning = '⚠️ Innlegget kan inneholde en forbudt frase — sjekk manuelt før publisering.';
+    }
+  }
 
   // Build a human-readable markdown artifact for review
   const markdownLines: string[] = [];
   markdownLines.push(`# LinkedIn-utkast — ${output.generatedAt}\n`);
   markdownLines.push(`Artikler analysert: ${output.totalArticlesAnalyzed}\n`);
   markdownLines.push(`Utkast generert: ${output.drafts.length}\n`);
+  if (personaId !== 'fyrk') {
+    markdownLines.push(`Persona: ${personaId}\n`);
+  }
+  if (topic) {
+    markdownLines.push(`Ukens tema: ${topic}\n`);
+  }
+  if (warning) {
+    markdownLines.push(`${warning}\n`);
+  }
 
   for (const draft of output.drafts) {
     markdownLines.push(`---\n`);
@@ -236,6 +301,17 @@ async function execute(
     markdownLines.push(`\n${draft.hashtags.join(' ')}\n`);
   }
 
+  const meta: Record<string, unknown> = {
+    totalArticles: output.totalArticlesAnalyzed,
+    draftsGenerated: output.drafts.length,
+    generatedAt: output.generatedAt,
+    visualFormats: output.drafts.map(d => d.visualFormat ?? 'tekst'),
+    persona: personaId,
+  };
+  if (warning) {
+    meta.warning = warning;
+  }
+
   return {
     output,
     artifacts: output.hasDrafts
@@ -243,12 +319,7 @@ async function execute(
           {
             kind: 'linkedin-post-drafts',
             content: markdownLines.join('\n'),
-            meta: {
-              totalArticles: output.totalArticlesAnalyzed,
-              draftsGenerated: output.drafts.length,
-              generatedAt: output.generatedAt,
-              visualFormats: output.drafts.map(d => d.visualFormat ?? 'tekst'),
-            },
+            meta,
           },
         ]
       : [],
@@ -257,7 +328,7 @@ async function execute(
 
 export const linkedInPostAgent: AgentDefinition<LinkedInPostInput, LinkedInPostOutput> = {
   name: 'linkedin-post',
-  version: '0.3',
+  version: '0.4',
   inputSchema: LinkedInPostInputSchema,
   outputSchema: LinkedInPostOutputSchema,
   execute,

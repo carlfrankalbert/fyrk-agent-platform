@@ -52,7 +52,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const feedData = $input.first().json;\n\nconst agentResponse = await this.helpers.httpRequest({\n  method: 'POST',\n  url: 'https://fyrk-agent-runtime.fly.dev/run/linkedin-post',\n  headers: { 'Content-Type': 'application/json' },\n  body: {\n    version: '0.3',\n    input: {\n      articles: feedData.articles,\n      topics: ['AI', 'automatisering', 'beslutningsverktøy'],\n      maxPosts: 3,\n      language: 'no',\n      tone: 'thought-leader'\n    },\n    dryRun: false,\n    publish: true\n  },\n  json: true,\n  timeout: 60000\n});\n\nreturn [{ json: agentResponse }];"
+        "jsCode": "const feedData = $input.first().json;\n\nconst agentResponse = await this.helpers.httpRequest({\n  method: 'POST',\n  url: 'https://fyrk-agent-runtime.fly.dev/run/linkedin-post',\n  headers: { 'Content-Type': 'application/json' },\n  body: {\n    version: '0.4',\n    input: {\n      articles: feedData.articles,\n      topics: ['AI', 'automatisering', 'beslutningsverktøy'],\n      maxPosts: 3,\n      language: 'no',\n      tone: 'thought-leader'\n    },\n    dryRun: false,\n    publish: true\n  },\n  json: true,\n  timeout: 60000\n});\n\nreturn [{ json: agentResponse }];"
       },
       "id": "run-agent",
       "name": "Run LinkedIn Post Agent",

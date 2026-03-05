@@ -21,6 +21,7 @@ vi.mock('../src/lib/claude.js', () => ({
 }));
 
 import { linkedInPostAgent } from '../src/agents/linkedin-post/index.js';
+import { getTopicForWeek } from '../src/agents/linkedin-post/personas.js';
 import {
   mockCallClaude,
   createTestContext,
@@ -143,6 +144,7 @@ describe('linkedin-post agent', () => {
         draftsGenerated: 1,
         generatedAt: '2026-02-23T10:00:00Z',
         visualFormats: ['tekst'],
+        persona: 'fyrk',
       });
     });
 
@@ -332,6 +334,133 @@ describe('linkedin-post agent', () => {
       makeBadJsonClaudeResponse();
 
       await expect(linkedInPostAgent.execute(linkedInPostBasic, ctx)).rejects.toThrow();
+    });
+  });
+
+  describe('persona support', () => {
+    it('should use Carl-Johnson system prompt when persona is carl-johnson', async () => {
+      makeMockClaudeResponse(sampleDrafts);
+      const input = { ...linkedInPostBasic, persona: 'carl-johnson' as const };
+      await linkedInPostAgent.execute(input, ctx);
+
+      const call = mockCallClaude.mock.calls[0];
+      expect(call[1].system).toContain('Carl Johnson');
+      expect(call[1].system).toContain('fractional CPO');
+      expect(call[1].system).not.toContain('Scroll-stopper');
+    });
+
+    it('should use FYRK system prompt when persona is fyrk (default)', async () => {
+      makeMockClaudeResponse(sampleDrafts);
+      await linkedInPostAgent.execute(linkedInPostBasic, ctx);
+
+      const call = mockCallClaude.mock.calls[0];
+      expect(call[1].system).toContain('Scroll-stopper');
+      expect(call[1].system).toContain('KILDEBEHANDLING');
+    });
+
+    it('should include persona in artifact meta', async () => {
+      makeMockClaudeResponse(sampleDrafts);
+      const input = { ...linkedInPostBasic, persona: 'carl-johnson' as const };
+      const result = await linkedInPostAgent.execute(input, ctx);
+
+      expect(result.artifacts[0].meta).toMatchObject({ persona: 'carl-johnson' });
+    });
+
+    it('should retry when forbidden phrase is found in carl-johnson output', async () => {
+      const draftsWithForbidden: LinkedInPostOutput = {
+        ...sampleDrafts,
+        drafts: [
+          {
+            ...sampleDrafts.drafts[0],
+            postText: 'This is about thought leadership in fintech.',
+          },
+        ],
+      };
+
+      // First call returns forbidden phrase, second returns clean
+      mockCallClaude
+        .mockResolvedValueOnce({
+          id: 'msg_1',
+          content: [{ type: 'text', text: JSON.stringify(draftsWithForbidden) }],
+          model: 'claude-sonnet-4-5-20250929',
+          stop_reason: 'end_turn',
+          usage: { input_tokens: 100, output_tokens: 50 },
+        })
+        .mockResolvedValueOnce({
+          id: 'msg_2',
+          content: [{ type: 'text', text: JSON.stringify(sampleDrafts) }],
+          model: 'claude-sonnet-4-5-20250929',
+          stop_reason: 'end_turn',
+          usage: { input_tokens: 100, output_tokens: 50 },
+        });
+      const { extractText } = await import('../src/lib/claude.js');
+      vi.mocked(extractText)
+        .mockReturnValueOnce(JSON.stringify(draftsWithForbidden))
+        .mockReturnValueOnce(JSON.stringify(sampleDrafts));
+
+      const input = { ...linkedInPostBasic, persona: 'carl-johnson' as const };
+      const result = await linkedInPostAgent.execute(input, ctx);
+
+      expect(mockCallClaude).toHaveBeenCalledTimes(2);
+      expect(result.artifacts[0].meta).not.toHaveProperty('warning');
+    });
+
+    it('should add warning after 2 failed retries, not throw', async () => {
+      const draftsWithForbidden: LinkedInPostOutput = {
+        ...sampleDrafts,
+        drafts: [
+          {
+            ...sampleDrafts.drafts[0],
+            postText: 'This is about thought leadership in fintech.',
+          },
+        ],
+      };
+
+      const response = {
+        id: 'msg_test',
+        content: [{ type: 'text', text: JSON.stringify(draftsWithForbidden) }],
+        model: 'claude-sonnet-4-5-20250929',
+        stop_reason: 'end_turn',
+        usage: { input_tokens: 100, output_tokens: 50 },
+      };
+
+      // All 3 calls return the forbidden phrase
+      mockCallClaude
+        .mockResolvedValueOnce(response)
+        .mockResolvedValueOnce(response)
+        .mockResolvedValueOnce(response);
+      const { extractText } = await import('../src/lib/claude.js');
+      vi.mocked(extractText).mockReturnValue(JSON.stringify(draftsWithForbidden));
+
+      const input = { ...linkedInPostBasic, persona: 'carl-johnson' as const };
+      const result = await linkedInPostAgent.execute(input, ctx);
+
+      // 1 initial + 2 retries = 3
+      expect(mockCallClaude).toHaveBeenCalledTimes(3);
+      expect(result.artifacts[0].meta).toHaveProperty('warning');
+      expect(result.artifacts[0].meta!.warning).toContain('forbudt frase');
+    });
+  });
+
+  describe('topic rotation', () => {
+    it('should wrap topic rotation correctly (week 9 -> index 0)', () => {
+      const topic1 = getTopicForWeek('carl-johnson', 1);
+      const topic8 = getTopicForWeek('carl-johnson', 8);
+      const topic9 = getTopicForWeek('carl-johnson', 9);
+
+      expect(topic1).toContain('AI-piloter stopper');
+      expect(topic8).toContain('vi trenger noen fulltid');
+      expect(topic9).toBe(topic1); // week 9 wraps to week 1
+    });
+
+    it('should return null topic for fyrk persona', () => {
+      expect(getTopicForWeek('fyrk', 1)).toBeNull();
+    });
+  });
+
+  describe('version', () => {
+    it('should be version 0.4', () => {
+      expect(linkedInPostAgent.version).toBe('0.4');
     });
   });
 });

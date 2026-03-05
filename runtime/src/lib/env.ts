@@ -12,6 +12,8 @@ const EnvSchema = z.object({
   SLACK_HUSMOR_BOT_TOKEN: z.string().min(1).optional(),
   SLACK_HUSMOR_SIGNING_SECRET: z.string().min(1).optional(),
   SLACK_CHANNEL_HUSMOR: z.string().optional(),
+  SLACK_CHANNEL_GTM: z.string().optional(),
+  SLACK_GTM_SIGNING_SECRET: z.string().min(1).optional(),
   HUSMOR_WEB_TOKEN: z.string().min(1).optional(),
   ODA_EMAIL: z.preprocess((v) => (v === '' ? undefined : v), z.string().email().optional()),
   ODA_PASSWORD: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),

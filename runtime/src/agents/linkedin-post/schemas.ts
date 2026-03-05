@@ -17,6 +17,7 @@ export const LinkedInPostInputSchema = z.object({
   maxPosts: z.number().int().min(1).max(10).optional(),
   language: z.enum(['no', 'en']).optional(),
   tone: z.enum(['professional', 'conversational', 'thought-leader']).optional(),
+  persona: z.enum(['fyrk', 'carl-johnson']).optional(),
 });
 
 export type LinkedInPostInput = z.infer<typeof LinkedInPostInputSchema>;

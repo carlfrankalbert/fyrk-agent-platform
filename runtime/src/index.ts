@@ -4,6 +4,7 @@ import { healthRoutes } from './routes/health.js';
 import { runRoutes } from './routes/run.js';
 import { leadRoutes } from './routes/leads/index.js';
 import { husmorRoutes } from './routes/husmor/index.js';
+import { gtmRoutes } from './routes/gtm/index.js';
 
 async function main(): Promise<void> {
   const env = validateEnv();
@@ -19,6 +20,7 @@ async function main(): Promise<void> {
   await fastify.register(runRoutes);
   await fastify.register(leadRoutes);
   await fastify.register(husmorRoutes);
+  await fastify.register(gtmRoutes);
 
   // Graceful shutdown
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
