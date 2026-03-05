@@ -54,6 +54,7 @@ const sampleDrafts: LinkedInPostOutput = {
       hashtags: ['#AI', '#Beslutningskvalitet', '#OKR', '#Automatisering', '#Strategi'],
       topic: 'Beslutningskvalitet',
       characterCount: 950,
+      visualFormat: 'tekst',
     },
   ],
   totalArticlesAnalyzed: 3,
@@ -141,6 +142,7 @@ describe('linkedin-post agent', () => {
         totalArticles: 3,
         draftsGenerated: 1,
         generatedAt: '2026-02-23T10:00:00Z',
+        visualFormats: ['tekst'],
       });
     });
 
@@ -148,6 +150,71 @@ describe('linkedin-post agent', () => {
       const result = await linkedInPostAgent.execute(linkedInPostBasic, ctx);
       const content = result.artifacts[0].content;
       expect(content).toContain('AI-beslutningskvalitet vs AI-effektivitet');
+    });
+
+    it('should include visual format in artifact content', async () => {
+      const result = await linkedInPostAgent.execute(linkedInPostBasic, ctx);
+      const content = result.artifacts[0].content;
+      expect(content).toContain('**Visuelt format:** tekst');
+    });
+  });
+
+  describe('visual format', () => {
+    it('should accept tekst visual format', async () => {
+      makeMockClaudeResponse(sampleDrafts);
+      const result = await linkedInPostAgent.execute(linkedInPostBasic, ctx);
+      expect(result.output.drafts[0].visualFormat).toBe('tekst');
+    });
+
+    it('should accept 2x2-diagram with diagram data', async () => {
+      const diagramDrafts: LinkedInPostOutput = {
+        ...sampleDrafts,
+        drafts: [
+          {
+            ...sampleDrafts.drafts[0],
+            visualFormat: '2x2-diagram',
+            diagramData: {
+              axisX: 'AI-modenhet',
+              axisY: 'Beslutningskvalitet',
+              q1: 'Strategisk AI — høy modenhet, høy kvalitet',
+              q2: 'Analytisk tradisjonell — lav modenhet, høy kvalitet',
+              q3: 'Umodne organisasjoner — lav modenhet, lav kvalitet',
+              q4: 'Automatisert uten retning — høy modenhet, lav kvalitet',
+            },
+          },
+        ],
+      };
+      makeMockClaudeResponse(diagramDrafts);
+      const result = await linkedInPostAgent.execute(linkedInPostBasic, ctx);
+      expect(result.output.drafts[0].visualFormat).toBe('2x2-diagram');
+      expect(result.output.drafts[0].diagramData).toBeDefined();
+      expect(result.output.drafts[0].diagramData!.axisX).toBe('AI-modenhet');
+      expect(result.output.drafts[0].diagramData!.q1).toContain('Strategisk AI');
+    });
+
+    it('should include visualFormats in artifact meta', async () => {
+      const diagramDrafts: LinkedInPostOutput = {
+        ...sampleDrafts,
+        drafts: [
+          {
+            ...sampleDrafts.drafts[0],
+            visualFormat: '2x2-diagram',
+            diagramData: {
+              axisX: 'X',
+              axisY: 'Y',
+              q1: 'Q1',
+              q2: 'Q2',
+              q3: 'Q3',
+              q4: 'Q4',
+            },
+          },
+        ],
+      };
+      makeMockClaudeResponse(diagramDrafts);
+      const result = await linkedInPostAgent.execute(linkedInPostBasic, ctx);
+      expect(result.artifacts[0].meta).toMatchObject({
+        visualFormats: ['2x2-diagram'],
+      });
     });
   });
 
@@ -164,11 +231,13 @@ describe('linkedin-post agent', () => {
       expect(call[1].model).toBe('claude-sonnet-4-5-20250929');
     });
 
-    it('should include decision frame instructions in system prompt', async () => {
+    it('should include v5.1 prompt markers in system prompt', async () => {
       await linkedInPostAgent.execute(linkedInPostBasic, ctx);
       const call = mockCallClaude.mock.calls[0];
-      expect(call[1].system).toContain('Beslutningsramme');
-      expect(call[1].system).toContain('DECISION FRAME MODE');
+      expect(call[1].system).toContain('Scroll-stopper');
+      expect(call[1].system).toContain('Friksjonspunktet');
+      expect(call[1].system).toContain('VISUELT_FORMAT');
+      expect(call[1].system).toContain('KILDEBEHANDLING');
     });
 
     it('should include articles in user prompt', async () => {
@@ -178,6 +247,26 @@ describe('linkedin-post agent', () => {
       expect(userMsg).toContain('AI Agents Are Transforming');
       expect(userMsg).toContain('Norske bedrifter satser');
       expect(userMsg).toContain('OKR Software in European');
+    });
+
+    it('should include sourceCategory in user prompt when provided', async () => {
+      await linkedInPostAgent.execute(linkedInPostBasic, ctx);
+      const call = mockCallClaude.mock.calls[0];
+      const userMsg = call[1].messages[0].content;
+      expect(userMsg).toContain('(tech)');
+      expect(userMsg).toContain('(economy)');
+      expect(userMsg).toContain('(leadership)');
+    });
+
+    it('should omit sourceCategory tag when not provided', async () => {
+      const inputWithoutCategory = {
+        articles: linkedInPostBasic.articles.map(({ sourceCategory: _, ...rest }) => rest),
+      };
+      await linkedInPostAgent.execute(inputWithoutCategory, ctx);
+      const call = mockCallClaude.mock.calls[0];
+      const userMsg = call[1].messages[0].content;
+      expect(userMsg).not.toContain('(tech)');
+      expect(userMsg).not.toContain('(economy)');
     });
   });
 

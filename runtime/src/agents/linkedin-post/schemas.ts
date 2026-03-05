@@ -6,6 +6,7 @@ export const FeedArticleSchema = z.object({
   summary: z.string(),
   publishedAt: z.string(),
   source: z.string(),
+  sourceCategory: z.enum(['tech', 'economy', 'policy', 'leadership']).optional(),
 });
 
 export type FeedArticle = z.infer<typeof FeedArticleSchema>;
@@ -26,6 +27,15 @@ export const SourceArticleSchema = z.object({
   source: z.string(),
 });
 
+export const DiagramDataSchema = z.object({
+  axisX: z.string(),
+  axisY: z.string(),
+  q1: z.string(),
+  q2: z.string(),
+  q3: z.string(),
+  q4: z.string(),
+});
+
 export const DraftPostSchema = z.object({
   title: z.string(),
   postText: z.string(),
@@ -33,6 +43,8 @@ export const DraftPostSchema = z.object({
   hashtags: z.array(z.string()),
   topic: z.string(),
   characterCount: z.number(),
+  visualFormat: z.enum(['tekst', '2x2-diagram']).optional(),
+  diagramData: DiagramDataSchema.optional(),
 });
 
 export type DraftPost = z.infer<typeof DraftPostSchema>;
