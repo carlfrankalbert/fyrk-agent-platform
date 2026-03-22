@@ -1,52 +1,5 @@
 import { z } from 'zod';
 
-// Slack Events API schemas for Husmor app
-
-// --- URL verification ---
-export const HusmorSlackChallengeSchema = z.object({
-  type: z.literal('url_verification'),
-  challenge: z.string(),
-  token: z.string(),
-});
-
-// --- Reaction events ---
-export const HusmorSlackReactionEvent = z.object({
-  type: z.literal('reaction_added'),
-  user: z.string(),
-  reaction: z.string(),
-  item: z.object({
-    type: z.literal('message'),
-    channel: z.string(),
-    ts: z.string(),
-  }),
-  event_ts: z.string(),
-});
-
-// --- Message events ---
-export const HusmorSlackMessageEvent = z.object({
-  type: z.literal('message'),
-  user: z.string().optional(),
-  text: z.string().optional(),
-  ts: z.string(),
-  channel: z.string(),
-  thread_ts: z.string().optional(),
-  bot_id: z.string().optional(),
-  subtype: z.string().optional(),
-  event_ts: z.string().optional(),
-});
-
-export type HusmorSlackMessage = z.infer<typeof HusmorSlackMessageEvent>;
-
-// --- Loose envelope parse (supports both reaction_added and message events) ---
-export const HusmorSlackEventEnvelope = z.object({
-  type: z.string(),
-  token: z.string().optional(),
-  challenge: z.string().optional(),
-  event: z.record(z.unknown()).optional(),
-});
-
-export type HusmorSlackEnvelope = z.infer<typeof HusmorSlackEventEnvelope>;
-
 // --- Action schemas (Claude response actions) ---
 const AddMealsAction = z.object({
   type: z.literal('add_meals'),

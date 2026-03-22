@@ -1,0 +1,21 @@
+{
+  "" : {
+    "const-values" : "/Users/carl/Desktop/FYRK/fyrk-agent-platform/ios/build/HusmorHub.build/Release-iphoneos/HusmorHub.build/Objects-normal/arm64/HusmorHub-primary.swiftconstvalues",
+    "dependencies" : "/Users/carl/Desktop/FYRK/fyrk-agent-platform/ios/build/HusmorHub.build/Release-iphoneos/HusmorHub.build/Objects-normal/arm64/HusmorHub-primary.d",
+    "diagnostics" : "/Users/carl/Desktop/FYRK/fyrk-agent-platform/ios/build/HusmorHub.build/Release-iphoneos/HusmorHub.build/Objects-normal/arm64/HusmorHub-primary.dia",
+    "emit-module-dependencies" : "/Users/carl/Desktop/FYRK/fyrk-agent-platform/ios/build/HusmorHub.build/Release-iphoneos/HusmorHub.build/Objects-normal/arm64/HusmorHub-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/carl/Desktop/FYRK/fyrk-agent-platform/ios/build/HusmorHub.build/Release-iphoneos/HusmorHub.build/Objects-normal/arm64/HusmorHub-primary-emit-module.dia",
+    "pch" : "/Users/carl/Desktop/FYRK/fyrk-agent-platform/ios/build/HusmorHub.build/Release-iphoneos/HusmorHub.build/Objects-normal/arm64/HusmorHub-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/carl/Desktop/FYRK/fyrk-agent-platform/ios/build/HusmorHub.build/Release-iphoneos/HusmorHub.build/Objects-normal/arm64/HusmorHub-primary.swiftdeps"
+  },
+  "/Users/carl/Desktop/FYRK/fyrk-agent-platform/ios/HusmorHub/App.swift" : {
+    "index-unit-output-path" : "/HusmorHub.build/Release-iphoneos/HusmorHub.build/Objects-normal/arm64/App.o",
+    "llvm-bc" : "/Users/carl/Desktop/FYRK/fyrk-agent-platform/ios/build/HusmorHub.build/Release-iphoneos/HusmorHub.build/Objects-normal/arm64/App.bc",
+    "object" : "/Users/carl/Desktop/FYRK/fyrk-agent-platform/ios/build/HusmorHub.build/Release-iphoneos/HusmorHub.build/Objects-normal/arm64/App.o"
+  },
+  "/Users/carl/Desktop/FYRK/fyrk-agent-platform/ios/HusmorHub/HubWebView.swift" : {
+    "index-unit-output-path" : "/HusmorHub.build/Release-iphoneos/HusmorHub.build/Objects-normal/arm64/HubWebView.o",
+    "llvm-bc" : "/Users/carl/Desktop/FYRK/fyrk-agent-platform/ios/build/HusmorHub.build/Release-iphoneos/HusmorHub.build/Objects-normal/arm64/HubWebView.bc",
+    "object" : "/Users/carl/Desktop/FYRK/fyrk-agent-platform/ios/build/HusmorHub.build/Release-iphoneos/HusmorHub.build/Objects-normal/arm64/HubWebView.o"
+  }
+}

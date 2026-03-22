@@ -1,7 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getOrCreateCurrentWeekPlan } from './db.js';
-import { syncCanvas } from './canvas.js';
-import { replyInThread } from '../../lib/slack.js';
 import type { HusmorAction } from './schemas.js';
 import { invalidateCache } from './cache.js';
 import { enrichRecipeNutrition } from '../../lib/nutrition-enrichment.js';
@@ -12,11 +10,9 @@ export async function executeActions(
   supabase: SupabaseClient,
   actions: HusmorAction[],
   logger: Logger,
-  slackToken?: string,
-  actionCtx?: { channel?: string; threadTs?: string },
 ): Promise<void> {
   const results = await Promise.allSettled(
-    actions.map(action => executeOneAction(supabase, action, logger, slackToken, actionCtx)),
+    actions.map(action => executeOneAction(supabase, action, logger)),
   );
 
   for (let i = 0; i < results.length; i++) {
@@ -36,8 +32,6 @@ async function executeOneAction(
   supabase: SupabaseClient,
   action: HusmorAction,
   logger: Logger,
-  slackToken?: string,
-  actionCtx?: { channel?: string; threadTs?: string },
 ): Promise<void> {
   switch (action.type) {
     case 'add_meals':
@@ -53,11 +47,11 @@ async function executeOneAction(
     case 'rate_meal':
       return handleRateMeal(supabase, action, logger);
     case 'generate_shopping_list':
-      return handleGenerateShoppingList(supabase, action, logger, slackToken);
+      return handleGenerateShoppingList(supabase, action, logger);
     case 'update_plan_status':
       return handleUpdatePlanStatus(supabase, action, logger);
     case 'propose_learning':
-      return handleProposeLearning(supabase, action, logger, slackToken, actionCtx?.channel, actionCtx?.threadTs);
+      return handleProposeLearning(supabase, action, logger);
     case 'save_recipe':
       return handleSaveRecipe(supabase, action, logger);
     case 'update_inventory_status':
@@ -67,7 +61,7 @@ async function executeOneAction(
     case 'log_child_reaction':
       return handleLogChildReaction(supabase, action, logger);
     case 'sync_oda_cart':
-      return handleSyncOdaCart(action, logger, slackToken, actionCtx?.channel, actionCtx?.threadTs);
+      return handleSyncOdaCart(action, logger);
     case 'add_shopping_items':
       return handleAddShoppingItems(supabase, action, logger);
     case 'remove_shopping_items':
@@ -233,7 +227,6 @@ async function handleGenerateShoppingList(
   supabase: SupabaseClient,
   action: Extract<HusmorAction, { type: 'generate_shopping_list' }>,
   logger: Logger,
-  slackToken?: string,
 ): Promise<void> {
   const planId = await getOrCreateCurrentWeekPlan(supabase);
 
@@ -254,14 +247,6 @@ async function handleGenerateShoppingList(
   }));
   await supabase.from('shopping_items').insert(items);
   logger.info({ planId, listId: listData.id, count: items.length }, 'Created shopping list');
-
-  if (slackToken) {
-    try {
-      await syncCanvas(supabase, slackToken, planId, action.items, logger);
-    } catch (canvasErr) {
-      logger.warn({ canvasErr }, 'Canvas update failed (non-fatal)');
-    }
-  }
 }
 
 async function handleUpdatePlanStatus(
@@ -281,11 +266,7 @@ async function handleProposeLearning(
   supabase: SupabaseClient,
   action: Extract<HusmorAction, { type: 'propose_learning' }>,
   logger: Logger,
-  slackToken?: string,
-  channel?: string,
-  threadTs?: string,
 ): Promise<void> {
-  // Insert learning with source='proposed', confirmed=null
   const { data: learning } = await supabase
     .from('household_learnings')
     .insert({
@@ -302,22 +283,6 @@ async function handleProposeLearning(
   if (!learning) {
     logger.warn('Failed to insert proposed learning');
     return;
-  }
-
-  // Post confirmation message in thread
-  if (slackToken && channel && threadTs) {
-    const confirmMsg = `Husker du dette?\n> ${action.insight}\nReager med :white_check_mark: for a bekrefte eller :x: for a avvise.`;
-    try {
-      const result = await replyInThread(slackToken, channel, threadTs, confirmMsg);
-      if (result.ts) {
-        await supabase
-          .from('household_learnings')
-          .update({ slack_message_ts: result.ts })
-          .eq('id', learning.id);
-      }
-    } catch (err) {
-      logger.warn({ err }, 'Failed to post learning confirmation message');
-    }
   }
 
   logger.info({ learningId: learning.id, category: action.category }, 'Proposed learning');
@@ -562,9 +527,6 @@ async function handleClearShoppingList(
 async function handleSyncOdaCart(
   action: Extract<HusmorAction, { type: 'sync_oda_cart' }>,
   logger: Logger,
-  slackToken?: string,
-  channel?: string,
-  threadTs?: string,
 ): Promise<void> {
   const session = await getSession();
 
@@ -590,23 +552,6 @@ async function handleSyncOdaCart(
     } catch (err) {
       unmatched.push(item.name);
       logger.error({ query: item.name, err }, 'Oda search/add failed');
-    }
-  }
-
-  // Post summary in Slack thread
-  if (slackToken && channel && threadTs) {
-    const parts: string[] = [];
-    if (matched.length > 0) {
-      parts.push(`Lagt til i Oda-handlekurven: ${matched.length} vare${matched.length > 1 ? 'r' : ''}`);
-    }
-    if (unmatched.length > 0) {
-      parts.push(`Fant ikke: ${unmatched.join(', ')}`);
-    }
-    const summary = parts.join('. ');
-    try {
-      await replyInThread(slackToken, channel, threadTs, summary);
-    } catch (err) {
-      logger.warn({ err }, 'Failed to post Oda summary to Slack');
     }
   }
 

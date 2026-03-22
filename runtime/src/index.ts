@@ -1,10 +1,12 @@
 import Fastify from 'fastify';
+import cors from '@fastify/cors';
 import { validateEnv } from './lib/env.js';
 import { healthRoutes } from './routes/health.js';
 import { runRoutes } from './routes/run.js';
 import { leadRoutes } from './routes/leads/index.js';
-import { husmorRoutes } from './routes/husmor/index.js';
 import { gtmRoutes } from './routes/gtm/index.js';
+import { cvTailorRoutes } from './routes/cv-tailor.js';
+import { hubRoutes } from './routes/hub/index.js';
 
 async function main(): Promise<void> {
   const env = validateEnv();
@@ -15,12 +17,16 @@ async function main(): Promise<void> {
     },
   });
 
+  // CORS for local dev tools (e.g. cv-tailor.html)
+  await fastify.register(cors, { origin: true });
+
   // Register routes
   await fastify.register(healthRoutes);
   await fastify.register(runRoutes);
   await fastify.register(leadRoutes);
-  await fastify.register(husmorRoutes);
   await fastify.register(gtmRoutes);
+  await fastify.register(cvTailorRoutes);
+  await fastify.register(hubRoutes);
 
   // Graceful shutdown
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {

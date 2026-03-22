@@ -1,22 +1,23 @@
 import { z } from 'zod';
 
+/** Optional string that treats empty string as undefined */
+const optStr = z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional());
+const optEmail = z.preprocess((v) => (v === '' ? undefined : v), z.string().email().optional());
+
 const EnvSchema = z.object({
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_KEY: z.string().min(1),
-  ANTHROPIC_API_KEY: z.string().min(1).optional(),
-  SLACK_BOT_TOKEN: z.string().min(1).optional(),
-  SLACK_SIGNING_SECRET: z.string().min(1).optional(),
-  SLACK_CHANNEL_LEADS: z.string().optional(),
-  SLACK_STOCK_BOT_TOKEN: z.string().min(1).optional(),
-  SLACK_CHANNEL_STOCK: z.string().optional(),
-  SLACK_HUSMOR_BOT_TOKEN: z.string().min(1).optional(),
-  SLACK_HUSMOR_SIGNING_SECRET: z.string().min(1).optional(),
-  SLACK_CHANNEL_HUSMOR: z.string().optional(),
-  SLACK_CHANNEL_GTM: z.string().optional(),
-  SLACK_GTM_SIGNING_SECRET: z.string().min(1).optional(),
-  HUSMOR_WEB_TOKEN: z.string().min(1).optional(),
-  ODA_EMAIL: z.preprocess((v) => (v === '' ? undefined : v), z.string().email().optional()),
-  ODA_PASSWORD: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
+  ANTHROPIC_API_KEY: optStr,
+  SLACK_BOT_TOKEN: optStr,
+  SLACK_SIGNING_SECRET: optStr,
+  SLACK_CHANNEL_LEADS: optStr,
+  SLACK_STOCK_BOT_TOKEN: optStr,
+  SLACK_CHANNEL_STOCK: optStr,
+  SLACK_CHANNEL_GTM: optStr,
+  SLACK_GTM_SIGNING_SECRET: optStr,
+  HUB_ACCESS_CODE: optStr,
+  ODA_EMAIL: optEmail,
+  ODA_PASSWORD: optStr,
   PORT: z.coerce.number().int().positive().default(8787),
   HOST: z.string().default('0.0.0.0'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
