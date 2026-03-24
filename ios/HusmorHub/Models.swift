@@ -225,6 +225,271 @@ struct ChildProfile: Codable, Identifiable {
     var id: String { name }
 }
 
+// MARK: - Generate Meal Plan
+
+struct GenerateMealPlanRequest: Codable {
+    let skipDays: [Int]
+    let prefilledMeals: [[String: String]]
+    let kitchenContext: String?
+    let weekOffset: Int?
+}
+
+// MARK: - Meals Chat
+
+struct MealsChatMessage: Codable {
+    let role: String
+    let content: String
+}
+
+struct MealsChatRequest: Codable {
+    let messages: [MealsChatMessage]
+}
+
+struct MealsChatResponse: Codable {
+    let reply: String
+    let extracted: MealsChatExtracted?
+}
+
+struct MealsChatExtracted: Codable {
+    let ingredients: [String]?
+    let preferences: [String]?
+    let needToBuy: [String]?
+    let context: String?
+}
+
+struct GenerateMealPlanResponse: Codable {
+    let ok: Bool
+    let reply: String?
+    let days: [GeneratedDay]?
+}
+
+struct GeneratedDay: Codable {
+    let dayOfWeek: Int
+    let date: String?           // ISO date "2026-03-24"
+    let contextLine: String?    // "Henting 17:00", "Rolig dag"
+    let busyness: String?       // "rolig", "normal", "travel"
+    let options: [MealOption]
+}
+
+struct MealOption: Codable, Identifiable {
+    var id: String { name }
+    let name: String
+    let description: String?
+    let category: String?
+    let reasoning: String?      // Why this meal fits this day
+    let planB: String?          // Fallback for busy days
+}
+
+struct ConfirmMealsRequest: Codable {
+    let meals: [ConfirmMeal]
+    let weekOffset: Int?
+}
+
+struct ConfirmMeal: Codable {
+    let dayOfWeek: Int
+    let name: String
+    let description: String?
+    var mealType: String?
+    var yieldsLeftovers: Bool?
+    var suggestedBy: String?    // "husmor" or "user"
+}
+
+// MARK: - Meal source tracking
+
+enum MealSource: String {
+    case husmor     // Claude suggested
+    case user       // User chose manually
+    case locked     // Locked by user
+    case notDecided // No choice yet
+}
+
+// MARK: - Day planning modes
+
+enum DayMode: Equatable {
+    case generate           // Claude picks
+    case prefilled(String)  // User typed a meal
+    case away               // Nobody home
+    case fewerPeople        // Reduced servings
+    case leftovers          // Use leftovers
+    case takeaway(Cuisine?) // Ordering in, optional cuisine
+
+    var needsGeneration: Bool {
+        if case .generate = self { return true }
+        if case .fewerPeople = self { return true }
+        return false
+    }
+
+    var isSpecial: Bool {
+        switch self {
+        case .generate, .prefilled: return false
+        default: return true
+        }
+    }
+}
+
+struct Cuisine: Equatable, Identifiable {
+    let id: String       // country code
+    let flag: String
+    let name: String     // Norwegian name
+}
+
+let popularCuisines: [Cuisine] = [
+    Cuisine(id: "it", flag: "\u{1F1EE}\u{1F1F9}", name: "Italiensk"),
+    Cuisine(id: "in", flag: "\u{1F1EE}\u{1F1F3}", name: "Indisk"),
+    Cuisine(id: "th", flag: "\u{1F1F9}\u{1F1ED}", name: "Thai"),
+    Cuisine(id: "jp", flag: "\u{1F1EF}\u{1F1F5}", name: "Japansk"),
+    Cuisine(id: "mx", flag: "\u{1F1F2}\u{1F1FD}", name: "Meksikansk"),
+    Cuisine(id: "cn", flag: "\u{1F1E8}\u{1F1F3}", name: "Kinesisk"),
+    Cuisine(id: "kr", flag: "\u{1F1F0}\u{1F1F7}", name: "Koreansk"),
+    Cuisine(id: "vn", flag: "\u{1F1FB}\u{1F1F3}", name: "Vietnamesisk"),
+    Cuisine(id: "tr", flag: "\u{1F1F9}\u{1F1F7}", name: "Tyrkisk"),
+    Cuisine(id: "gr", flag: "\u{1F1EC}\u{1F1F7}", name: "Gresk"),
+    Cuisine(id: "lb", flag: "\u{1F1F1}\u{1F1E7}", name: "Libanesisk"),
+    Cuisine(id: "us", flag: "\u{1F1FA}\u{1F1F8}", name: "Amerikansk"),
+    Cuisine(id: "fr", flag: "\u{1F1EB}\u{1F1F7}", name: "Fransk"),
+    Cuisine(id: "es", flag: "\u{1F1EA}\u{1F1F8}", name: "Spansk"),
+    Cuisine(id: "et", flag: "\u{1F1EA}\u{1F1F9}", name: "Etiopisk"),
+    Cuisine(id: "no", flag: "\u{1F1F3}\u{1F1F4}", name: "Norsk"),
+    Cuisine(id: "pe", flag: "\u{1F1F5}\u{1F1EA}", name: "Peruansk"),
+    Cuisine(id: "ma", flag: "\u{1F1F2}\u{1F1E6}", name: "Marokkansk"),
+]
+
+// MARK: - Recipes
+
+struct RecipesResponse: Codable {
+    let recipes: [RecipeSummary]
+}
+
+struct RecipeSummary: Codable, Identifiable {
+    let id: String
+    let name: String
+    let description: String?
+    let tags: [String]?
+    let prepTimeMin: Int?
+    let cookTimeMin: Int?
+    let servings: Int?
+    let nutritionPerServing: NutritionInfo?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, description, tags, servings
+        case prepTimeMin = "prep_time_min"
+        case cookTimeMin = "cook_time_min"
+        case nutritionPerServing = "nutrition_per_serving"
+    }
+}
+
+struct NutritionInfo: Codable {
+    let calories: Double?
+    let proteinG: Double?
+    let fiberG: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case calories
+        case proteinG = "protein_g"
+        case fiberG = "fiber_g"
+    }
+}
+
+struct RecipeDetailResponse: Codable {
+    let recipe: RecipeDetail
+    let ingredients: [RecipeIngredient]
+    let steps: [RecipeStep]
+}
+
+struct RecipeDetail: Codable, Identifiable {
+    let id: String
+    let name: String
+    let description: String?
+    let tags: [String]?
+    let prepTimeMin: Int?
+    let cookTimeMin: Int?
+    let servings: Int?
+    let nutritionPerServing: NutritionInfo?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, description, tags, servings
+        case prepTimeMin = "prep_time_min"
+        case cookTimeMin = "cook_time_min"
+        case nutritionPerServing = "nutrition_per_serving"
+    }
+}
+
+struct RecipeIngredient: Codable, Identifiable {
+    let id: String
+    let name: String
+    let amount: Double?
+    let unit: String?
+    let ingredientGroup: String?
+    let sortOrder: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, amount, unit
+        case ingredientGroup = "ingredient_group"
+        case sortOrder = "sort_order"
+    }
+}
+
+struct RecipeStep: Codable, Identifiable {
+    let id: String
+    let stepNumber: Int
+    let instruction: String
+    let durationMin: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, instruction
+        case stepNumber = "step_number"
+        case durationMin = "duration_min"
+    }
+}
+
+// MARK: - Oda
+
+struct OdaSyncRequest: Codable {
+    let itemIds: [String]?
+}
+
+struct OdaSyncResponse: Codable {
+    let ok: Bool
+    let summary: OdaSyncSummary
+    let results: [OdaSyncResult]
+}
+
+struct OdaSyncSummary: Codable {
+    let total: Int
+    let added: Int
+    let notFound: Int
+    let errors: Int
+}
+
+struct OdaSyncResult: Codable, Identifiable {
+    var id: String { itemId }
+    let itemId: String
+    let name: String
+    let status: String
+    let odaProduct: OdaMatchedProduct?
+    let error: String?
+}
+
+struct OdaMatchedProduct: Codable {
+    let id: Int
+    let name: String
+    let price: String
+}
+
+struct OdaCart: Codable {
+    let itemCount: Int
+    let totalPrice: String
+    let items: [OdaCartItem]
+}
+
+struct OdaCartItem: Codable, Identifiable {
+    var id: Int { productId }
+    let productId: Int
+    let name: String
+    let quantity: Int
+    let price: String
+}
+
 // MARK: - Voice
 
 struct VoiceRequest: Codable {
@@ -234,6 +499,65 @@ struct VoiceRequest: Codable {
 struct VoiceResponse: Codable {
     let reply: String
     let action: String?
+}
+
+// MARK: - Proactive
+
+struct ProactiveResponse: Codable {
+    let message: String?
+}
+
+// MARK: - Settings
+
+struct HubSettings: Codable {
+    var dinnerTime: String
+    var proactiveEnabled: Bool
+    var proactiveVoice: Bool
+    var householdName: String
+    var householdSize: Int
+    var country: String
+
+    enum CodingKeys: String, CodingKey {
+        case dinnerTime = "dinner_time"
+        case proactiveEnabled = "proactive_enabled"
+        case proactiveVoice = "proactive_voice"
+        case householdName = "household_name"
+        case householdSize = "household_size"
+        case country
+    }
+}
+
+struct UpdateSettingsRequest: Codable {
+    var dinnerTime: String?
+    var proactiveEnabled: Bool?
+    var proactiveVoice: Bool?
+    var householdName: String?
+    var householdSize: Int?
+    var country: String?
+
+    enum CodingKeys: String, CodingKey {
+        case dinnerTime = "dinner_time"
+        case proactiveEnabled = "proactive_enabled"
+        case proactiveVoice = "proactive_voice"
+        case householdName = "household_name"
+        case householdSize = "household_size"
+        case country
+    }
+}
+
+// MARK: - Analytics
+
+struct AnalyticsSummary: Codable {
+    let features: [FeatureUsage]
+}
+
+struct FeatureUsage: Codable, Identifiable {
+    var id: String { feature }
+    let feature: String
+    let total: Int
+    let lastUsed: String
+    let byDay: [String: Int]
+    let actions: [String: Int]
 }
 
 // MARK: - Weather Helpers
@@ -339,6 +663,20 @@ func mealEmoji(for name: String) -> String {
 }
 
 // MARK: - Day helpers
+
+/// Format ISO date "2026-03-24" → "24. mars"
+func formatDayDate(_ isoDate: String?) -> String? {
+    guard let iso = isoDate else { return nil }
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd"
+    formatter.timeZone = TimeZone(identifier: "Europe/Oslo")
+    guard let date = formatter.date(from: iso) else { return nil }
+    let display = DateFormatter()
+    display.locale = Locale(identifier: "nb_NO")
+    display.dateFormat = "d. MMMM"
+    display.timeZone = TimeZone(identifier: "Europe/Oslo")
+    return display.string(from: date)
+}
 
 func todayDayOfWeek() -> Int {
     let weekday = Calendar.current.component(.weekday, from: Date())

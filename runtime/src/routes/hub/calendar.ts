@@ -7,7 +7,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
 const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
-interface CalendarEvent {
+export interface CalendarEvent {
   id: string;
   title: string;
   startTime: string;
@@ -117,7 +117,7 @@ async function fetchCalendarEvents(
 ): Promise<CalendarEvent[]> {
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay = new Date(startOfDay.getTime() + 2 * 24 * 60 * 60 * 1000); // today + tomorrow
+  const endOfDay = new Date(startOfDay.getTime() + 7 * 24 * 60 * 60 * 1000); // next 7 days
 
   const params = new URLSearchParams({
     timeMin: startOfDay.toISOString(),
@@ -164,7 +164,7 @@ async function fetchCalendarEvents(
   }));
 }
 
-async function fetchAllCalendars(): Promise<CalendarResponse> {
+export async function fetchAllCalendars(): Promise<CalendarResponse> {
   const key = parseServiceAccountKey();
   if (!key) return { events: [], updatedAt: new Date().toISOString() };
 
