@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CV Tailor — FYRK</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --surface: #fff;
+    --border: #e2e2e2;
+    --text: #1a1a1a;
+    --muted: #666;
+    --accent: #1a1a1a;
+    --accent-hover: #333;
+    --green: #16a34a;
+    --yellow: #ca8a04;
+    --red: #dc2626;
+    --blue: #2563eb;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.25rem; }
+  .subtitle { color: var(--muted); margin-bottom: 2rem; font-size: 0.9rem; }
+
+  label { display: block; font-weight: 500; margin-bottom: 0.25rem; font-size: 0.875rem; }
+  .hint { color: var(--muted); font-size: 0.8rem; margin-bottom: 0.5rem; }
+
+  textarea, input, select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    background: var(--surface);
+    color: var(--text);
+    transition: border-color 0.15s;
+  }
+
+  textarea:focus, input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  textarea { min-height: 200px; resize: vertical; }
+
+  .field { margin-bottom: 1.25rem; }
+
+  .row { display: flex; gap: 1rem; }
+  .row .field { flex: 1; }
+
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 0.75rem 2rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button:hover { background: var(--accent-hover); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .actions { display: flex; gap: 0.75rem; align-items: center; margin-top: 0.5rem; }
+
+  .status {
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .status.error { color: var(--red); }
+
+  #output { display: none; margin-top: 2rem; }
+  #output.visible { display: block; }
+
+  .score-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 100px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: white;
+  }
+  .score-badge.strong { background: var(--green); }
+  .score-badge.good { background: var(--blue); }
+  .score-badge.partial { background: var(--yellow); color: var(--text); }
+  .score-badge.weak { background: var(--red); }
+
+  .tabs {
+    display: flex;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 1.5rem;
+    gap: 0;
+  }
+  .tab {
+    padding: 0.5rem 1.25rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.15s;
+    background: none;
+    border-radius: 0;
+  }
+  .tab:hover { color: var(--text); background: none; }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); background: none; }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .cv-section { margin-bottom: 1.5rem; }
+  .cv-section h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+  .cv-section h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.15rem; }
+  .cv-section .period { color: var(--muted); font-size: 0.85rem; }
+  .cv-section .desc { margin: 0.25rem 0; font-size: 0.9rem; }
+  .cv-section ul { padding-left: 1.25rem; margin-top: 0.25rem; }
+  .cv-section li { font-size: 0.9rem; margin-bottom: 0.15rem; }
+  .cv-section .competencies { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .cv-section .chip {
+    background: #f0f0f0;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+  }
+
+  .gap-question {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+  }
+
+  .suggestion {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+  }
+
+  .copy-btn {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    border-radius: 4px;
+  }
+  .copy-btn:hover { background: #f5f5f5; }
+
+  pre {
+    background: #f5f5f5;
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  .answer-field { margin-top: 0.5rem; }
+  .answer-field textarea { min-height: 60px; font-size: 0.85rem; }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+
+  .learnings-count {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 0.5rem;
+  }
+</style>
+</head>
+<body>
+
+<h1>CV Tailor</h1>
+<p class="subtitle">Lim inn en stillingsannonse, velg vinkling, og generer en skreddersydd CV.</p>
+
+<div class="field">
+  <label for="job-posting">Stillingsannonse</label>
+  <div class="hint">Lim inn hele annonsen, eller det mest relevante.</div>
+  <textarea id="job-posting" placeholder="Vi søker en senior produktleder..."></textarea>
+</div>
+
+<div class="row">
+  <div class="field">
+    <label for="role-hint">Vinkling</label>
+    <select id="role-hint">
+      <option value="">Automatisk</option>
+      <option value="produktleder">Produktleder</option>
+      <option value="testleder">Testleder</option>
+      <option value="teamleder">Teamleder</option>
+      <option value="smidig-coach">Smidig coach</option>
+      <option value="product-owner">Product Owner</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="language">Språk</label>
+    <select id="language">
+      <option value="no">Norsk</option>
+      <option value="en">English</option>
+    </select>
+  </div>
+</div>
+
+<div class="field" id="additional-context-field" style="display:none;">
+  <label for="additional-context">Tilleggsinformasjon</label>
+  <div class="hint">Svar på gap-spørsmål eller annen kontekst agenten bør vite.</div>
+  <textarea id="additional-context" placeholder="Ja, jeg har erfaring med PSD2 via..."></textarea>
+</div>
+
+<div class="actions">
+  <button id="generate-btn" onclick="generate()">Generer CV</button>
+  <button id="regenerate-btn" class="copy-btn" style="display:none;" onclick="regenerateWithContext()">Regenerer med tilleggssvar</button>
+  <span class="status" id="status"></span>
+</div>
+<div class="learnings-count" id="learnings-count"></div>
+
+<div id="output">
+  <hr>
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+    <div>
+      <span class="score-badge" id="fit-badge"></span>
+      <span style="margin-left:0.5rem; font-size:0.9rem;" id="fit-label"></span>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('cv')">CV</button>
+    <button class="tab" onclick="showTab('analysis')">Treffanalyse</button>
+    <button class="tab" onclick="showTab('gaps')">Gap-analyse</button>
+    <button class="tab" onclick="showTab('raw')">Markdown</button>
+  </div>
+
+  <div class="tab-content active" id="tab-cv"></div>
+  <div class="tab-content" id="tab-analysis"></div>
+  <div class="tab-content" id="tab-gaps"></div>
+  <div class="tab-content" id="tab-raw">
+    <div style="margin-bottom:0.5rem;">
+      <button class="copy-btn" onclick="copyMarkdown()">Kopier markdown</button>
+    </div>
+    <pre id="raw-markdown"></pre>
+  </div>
+</div>
+
+<script>
+let lastResult = null;
+let artifactMarkdown = '';
+
+// Use same origin — no need for API URL config
+const API_BASE = '';
+
+// Show learnings count on load
+fetch(`${API_BASE}/cv-tailor/learnings`)
+  .then(r => r.json())
+  .then(d => {
+    if (d.count > 0) {
+      document.getElementById('learnings-count').textContent =
+        `Erfaringsbasen har ${d.count} lagrede tilleggssvar.`;
+    }
+  })
+  .catch(() => {});
+
+async function generate() {
+  const btn = document.getElementById('generate-btn');
+  const status = document.getElementById('status');
+  const output = document.getElementById('output');
+
+  const jobPosting = document.getElementById('job-posting').value.trim();
+  const roleHint = document.getElementById('role-hint').value || undefined;
+  const language = document.getElementById('language').value;
+  const additionalContext = document.getElementById('additional-context').value.trim() || undefined;
+
+  if (!jobPosting) {
+    status.textContent = 'Lim inn en stillingsannonse.';
+    status.className = 'status error';
+    return;
+  }
+
+  btn.disabled = true;
+  status.textContent = 'Genererer CV...';
+  status.className = 'status';
+  output.className = '';
+
+  try {
+    const res = await fetch(`${API_BASE}/run/cv-tailor`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: { jobPosting, roleHint, language, additionalContext },
+        dryRun: true,
+        publish: false,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (data.status === 'error') {
+      throw new Error(data.error || 'Agent returned error');
+    }
+
+    lastResult = data.output;
+    artifactMarkdown = data.artifacts?.[0]?.content || '';
+
+    renderOutput(lastResult);
+    output.className = 'visible';
+    status.textContent = `Ferdig (${lastResult.matchAnalysis.fitScore}/100)`;
+
+    // Show regenerate button and additional context field
+    document.getElementById('regenerate-btn').style.display = '';
+    document.getElementById('additional-context-field').style.display = '';
+
+  } catch (err) {
+    status.textContent = `Feil: ${err.message}`;
+    status.className = 'status error';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function regenerateWithContext() {
+  generate();
+}
+
+function renderOutput(result) {
+  renderCv(result.cv);
+  renderAnalysis(result.matchAnalysis);
+  renderGaps(result.gaps);
+  document.getElementById('raw-markdown').textContent = artifactMarkdown;
+
+  // Fit badge
+  const badge = document.getElementById('fit-badge');
+  const label = document.getElementById('fit-label');
+  const fit = result.matchAnalysis;
+  badge.textContent = `${fit.fitScore}/100`;
+  badge.className = `score-badge ${fit.overallFit}`;
+  const fitLabels = { strong: 'Sterkt treff', good: 'Godt treff', partial: 'Delvis treff', weak: 'Svakt treff' };
+  label.textContent = fitLabels[fit.overallFit] || fit.overallFit;
+}
+
+function renderCv(cv) {
+  const el = document.getElementById('tab-cv');
+  let html = '';
+
+  html += `<div class="cv-section"><h2>${esc(cv.name)}</h2>`;
+  html += `<p><strong>${esc(cv.title)}</strong></p>`;
+  html += `<p style="color:var(--muted);font-size:0.85rem;">${esc(cv.contact)}</p>`;
+  html += `<p style="margin-top:0.75rem;">${esc(cv.profile)}</p></div>`;
+
+  html += '<div class="cv-section"><h2>Kjernekompetanse</h2>';
+  html += '<div class="competencies">';
+  for (const c of cv.coreCompetencies) html += `<span class="chip">${esc(c)}</span>`;
+  html += '</div></div>';
+
+  html += '<div class="cv-section"><h2>Erfaring</h2>';
+  for (const exp of cv.experience) {
+    html += `<div style="margin-bottom:1rem;">`;
+    html += `<h3>${esc(exp.company)} | ${esc(exp.role)}</h3>`;
+    html += `<div class="period">${esc(exp.period)}</div>`;
+    html += `<div class="desc">${esc(exp.description)}</div>`;
+    html += '<ul>';
+    for (const h of exp.highlights) html += `<li>${esc(h)}</li>`;
+    html += '</ul></div>';
+  }
+  html += '</div>';
+
+  if (cv.education.length) {
+    html += '<div class="cv-section"><h2>Utdanning</h2><ul>';
+    for (const e of cv.education) html += `<li>${esc(e)}</li>`;
+    html += '</ul></div>';
+  }
+
+  if (cv.certifications.length) {
+    html += '<div class="cv-section"><h2>Sertifiseringer</h2><ul>';
+    for (const c of cv.certifications) html += `<li>${esc(c)}</li>`;
+    html += '</ul></div>';
+  }
+
+  if (cv.talks.length) {
+    html += '<div class="cv-section"><h2>Foredrag</h2><ul>';
+    for (const t of cv.talks) html += `<li>${esc(t)}</li>`;
+    html += '</ul></div>';
+  }
+
+  if (cv.languages.length) {
+    html += `<div class="cv-section"><h2>Språk</h2><p>${cv.languages.map(esc).join(' | ')}</p></div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+function renderAnalysis(analysis) {
+  const el = document.getElementById('tab-analysis');
+  let html = '';
+
+  html += `<div class="cv-section"><h2>Styrkefortelling</h2><p>${esc(analysis.strengthNarrative)}</p></div>`;
+
+  html += '<div class="cv-section"><h2>Matchede kompetanser</h2><div class="competencies">';
+  for (const s of analysis.matchedSkills) html += `<span class="chip">${esc(s)}</span>`;
+  html += '</div></div>';
+
+  html += '<div class="cv-section"><h2>Matchede erfaringer</h2><ul>';
+  for (const e of analysis.matchedExperience) html += `<li>${esc(e)}</li>`;
+  html += '</ul></div>';
+
+  el.innerHTML = html;
+}
+
+function renderGaps(gaps) {
+  const el = document.getElementById('tab-gaps');
+  let html = '';
+
+  if (gaps.missingSkills.length) {
+    html += '<div class="cv-section"><h2>Manglende kompetanser</h2><ul>';
+    for (const s of gaps.missingSkills) html += `<li>${esc(s)}</li>`;
+    html += '</ul></div>';
+  }
+
+  if (gaps.missingExperience.length) {
+    html += '<div class="cv-section"><h2>Manglende erfaring</h2><ul>';
+    for (const e of gaps.missingExperience) html += `<li>${esc(e)}</li>`;
+    html += '</ul></div>';
+  }
+
+  if (gaps.questions.length) {
+    html += '<div class="cv-section"><h2>Spørsmål til deg</h2>';
+    html += '<p style="font-size:0.85rem;color:var(--muted);margin-bottom:0.75rem;">Svar på spørsmålene og klikk "Lagre svar" for å legge dem permanent i erfaringsbasen.</p>';
+    for (let i = 0; i < gaps.questions.length; i++) {
+      const q = gaps.questions[i];
+      html += `<div class="gap-question">${esc(q)}`;
+      html += `<div class="answer-field"><textarea id="gap-answer-${i}" placeholder="Skriv svaret ditt her..."></textarea></div>`;
+      html += '</div>';
+    }
+    html += '<div style="margin-top:0.75rem;display:flex;gap:0.5rem;align-items:center;">';
+    html += '<button onclick="saveLearnings()">Lagre svar i erfaringsbasen</button>';
+    html += '<button class="copy-btn" onclick="saveAndRegenerate()">Lagre + regenerer CV</button>';
+    html += '<span class="status" id="save-status"></span>';
+    html += '</div></div>';
+  }
+
+  if (gaps.suggestions.length) {
+    html += '<div class="cv-section"><h2>Forslag til vinkling</h2>';
+    for (const s of gaps.suggestions) {
+      html += `<div class="suggestion">${esc(s)}</div>`;
+    }
+    html += '</div>';
+  }
+
+  if (!html) html = '<p style="color:var(--muted);">Ingen gaps funnet — erfaringsbasen dekker stillingen godt.</p>';
+  el.innerHTML = html;
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab[onclick="showTab('${name}')"]`).classList.add('active');
+  document.getElementById(`tab-${name}`).classList.add('active');
+}
+
+async function saveLearnings() {
+  const saveStatus = document.getElementById('save-status');
+  const gaps = lastResult?.gaps;
+  if (!gaps || !gaps.questions.length) return;
+
+  const entries = [];
+  for (let i = 0; i < gaps.questions.length; i++) {
+    const answer = document.getElementById(`gap-answer-${i}`)?.value?.trim();
+    if (answer) {
+      entries.push({
+        question: gaps.questions[i],
+        answer,
+        jobContext: document.getElementById('job-posting').value.trim().slice(0, 200),
+      });
+    }
+  }
+
+  if (!entries.length) {
+    saveStatus.textContent = 'Skriv minst ett svar.';
+    saveStatus.className = 'status error';
+    return;
+  }
+
+  saveStatus.textContent = 'Lagrer...';
+  saveStatus.className = 'status';
+
+  try {
+    const res = await fetch(`${API_BASE}/cv-tailor/learn`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      saveStatus.textContent = `Lagret ${data.saved} svar (totalt ${data.total} i basen)`;
+      saveStatus.className = 'status';
+      document.getElementById('learnings-count').textContent =
+        `Erfaringsbasen har ${data.total} lagrede tilleggssvar.`;
+    } else {
+      throw new Error(data.error || 'Lagring feilet');
+    }
+  } catch (err) {
+    saveStatus.textContent = `Feil: ${err.message}`;
+    saveStatus.className = 'status error';
+  }
+}
+
+async function saveAndRegenerate() {
+  await saveLearnings();
+  const saveStatus = document.getElementById('save-status');
+  if (!saveStatus.classList.contains('error')) {
+    const gaps = lastResult?.gaps;
+    if (gaps?.questions.length) {
+      const answers = [];
+      for (let i = 0; i < gaps.questions.length; i++) {
+        const answer = document.getElementById(`gap-answer-${i}`)?.value?.trim();
+        if (answer) answers.push(`${gaps.questions[i]}: ${answer}`);
+      }
+      if (answers.length) {
+        document.getElementById('additional-context').value = answers.join('\n\n');
+        document.getElementById('additional-context-field').style.display = '';
+      }
+    }
+    generate();
+  }
+}
+
+function copyMarkdown() {
+  navigator.clipboard.writeText(artifactMarkdown).then(() => {
+    const btn = document.querySelector('#tab-raw .copy-btn');
+    btn.textContent = 'Kopiert!';
+    setTimeout(() => btn.textContent = 'Kopier markdown', 1500);
+  });
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+</script>
+
+</body>
+</html>
