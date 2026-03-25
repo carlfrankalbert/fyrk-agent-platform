@@ -19,6 +19,17 @@
 		A100000B /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000C /* Theme.swift */; };
 		A100000C /* ChildProfilesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000D /* ChildProfilesCard.swift */; };
 		A100000D /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000E /* SpeechRecognizer.swift */; };
+		A100000E /* MealGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000F /* MealGeneratorView.swift */; };
+		A100000F /* HusmorSpeaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000011 /* HusmorSpeaker.swift */; };
+		A1000010 /* RecipeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000012 /* RecipeView.swift */; };
+		A1000020 /* VoiceOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000020 /* VoiceOverlay.swift */; };
+		A1000021 /* Overlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000021 /* Overlays.swift */; };
+		A1000022 /* DayCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000022 /* DayCard.swift */; };
+		A1000023 /* ShoppingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000023 /* ShoppingViews.swift */; };
+		A1000024 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000024 /* SettingsView.swift */; };
+		A1000025 /* UsageTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000025 /* UsageTracker.swift */; };
+		A1000026 /* AnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000026 /* AnalyticsView.swift */; };
+		A1000027 /* ShoppingCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000027 /* ShoppingCard.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,7 +46,18 @@
 		A200000C /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		A200000D /* ChildProfilesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChildProfilesCard.swift; sourceTree = "<group>"; };
 		A200000E /* SpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognizer.swift; sourceTree = "<group>"; };
+		A200000F /* MealGeneratorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealGeneratorView.swift; sourceTree = "<group>"; };
+		A2000011 /* HusmorSpeaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HusmorSpeaker.swift; sourceTree = "<group>"; };
+		A2000012 /* RecipeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeView.swift; sourceTree = "<group>"; };
 		A2000010 /* HusmorHub.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HusmorHub.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A2000020 /* VoiceOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOverlay.swift; sourceTree = "<group>"; };
+		A2000021 /* Overlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Overlays.swift; sourceTree = "<group>"; };
+		A2000022 /* DayCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayCard.swift; sourceTree = "<group>"; };
+		A2000023 /* ShoppingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingViews.swift; sourceTree = "<group>"; };
+		A2000024 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A2000025 /* UsageTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageTracker.swift; sourceTree = "<group>"; };
+		A2000026 /* AnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsView.swift; sourceTree = "<group>"; };
+		A2000027 /* ShoppingCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingCard.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -62,6 +84,17 @@
 				A200000B /* MealPlanCard.swift */,
 				A200000D /* ChildProfilesCard.swift */,
 				A200000E /* SpeechRecognizer.swift */,
+				A200000F /* MealGeneratorView.swift */,
+				A2000011 /* HusmorSpeaker.swift */,
+				A2000012 /* RecipeView.swift */,
+				A2000020 /* VoiceOverlay.swift */,
+				A2000021 /* Overlays.swift */,
+				A2000022 /* DayCard.swift */,
+				A2000023 /* ShoppingViews.swift */,
+				A2000024 /* SettingsView.swift */,
+				A2000025 /* UsageTracker.swift */,
+				A2000026 /* AnalyticsView.swift */,
+				A2000027 /* ShoppingCard.swift */,
 				A2000003 /* Info.plist */,
 			);
 			path = HusmorHub;
@@ -138,6 +171,17 @@
 				A100000B /* Theme.swift in Sources */,
 				A100000C /* ChildProfilesCard.swift in Sources */,
 				A100000D /* SpeechRecognizer.swift in Sources */,
+				A100000E /* MealGeneratorView.swift in Sources */,
+				A100000F /* HusmorSpeaker.swift in Sources */,
+				A1000010 /* RecipeView.swift in Sources */,
+				A1000020 /* VoiceOverlay.swift in Sources */,
+				A1000021 /* Overlays.swift in Sources */,
+				A1000022 /* DayCard.swift in Sources */,
+				A1000023 /* ShoppingViews.swift in Sources */,
+				A1000024 /* SettingsView.swift in Sources */,
+				A1000025 /* UsageTracker.swift in Sources */,
+				A1000026 /* AnalyticsView.swift in Sources */,
+				A1000027 /* ShoppingCard.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -154,7 +198,7 @@
 				DEVELOPMENT_TEAM = 66LZMLSXHM;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HusmorHub/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -181,7 +225,7 @@
 				DEVELOPMENT_TEAM = 66LZMLSXHM;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HusmorHub/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

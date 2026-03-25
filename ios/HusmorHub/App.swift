@@ -16,8 +16,11 @@ struct HusmorHubApp: App {
                     Self.forceLandscape()
                 }
         }
-        .onChange(of: scenePhase) { _ in
+        .onChange(of: scenePhase) {
             Self.forceLandscape()
+            if scenePhase == .background {
+                UsageTracker.shared.flush()
+            }
         }
     }
 
@@ -50,6 +53,7 @@ struct RootView: View {
                 AuthView(api: api)
             }
         }
+        .persistentSystemOverlays(.hidden)
         .task {
             await api.checkAuth()
             checking = false

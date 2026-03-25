@@ -14,7 +14,7 @@ struct AuthView: View {
             VStack(spacing: 32) {
                 Text("HUSMOR HUB")
                     .font(.system(size: 14, weight: .medium, design: .monospaced))
-                    .foregroundColor(Theme.muted.opacity(0.5))
+                    .foregroundColor(Theme.muted)
                     .tracking(4)
 
                 VStack(spacing: 24) {
@@ -26,14 +26,13 @@ struct AuthView: View {
                         .font(.system(size: 15))
                         .foregroundColor(Theme.muted)
 
-                    TextField("", text: $code, prompt: Text("Kode").foregroundColor(Theme.muted.opacity(0.5)))
+                    TextField("", text: $code, prompt: Text("Kode").foregroundColor(Theme.muted))
                         .textFieldStyle(.plain)
                         .font(.system(size: 24, weight: .medium, design: .monospaced))
                         .foregroundColor(Theme.text)
                         .multilineTextAlignment(.center)
                         .padding(14)
-                        .background(Theme.surface)
-                        .cornerRadius(10)
+                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 10))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
 
@@ -50,8 +49,7 @@ struct AuthView: View {
                         .foregroundColor(Theme.text)
                         .frame(maxWidth: .infinity)
                         .padding(14)
-                        .background(Theme.accent)
-                        .cornerRadius(10)
+                        .glassEffect(.regular.tint(Theme.accent).interactive(), in: RoundedRectangle(cornerRadius: 10))
                     }
                     .disabled(code.isEmpty || loading)
                     .opacity(code.isEmpty ? 0.5 : 1)
@@ -63,8 +61,7 @@ struct AuthView: View {
                     }
                 }
                 .padding(32)
-                .background(Theme.card)
-                .cornerRadius(Theme.cardCorner)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.cardCorner))
                 .frame(maxWidth: 400)
             }
         }

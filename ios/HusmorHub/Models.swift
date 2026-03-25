@@ -277,7 +277,9 @@ struct MealOption: Codable, Identifiable {
     let description: String?
     let category: String?
     let reasoning: String?      // Why this meal fits this day
-    let planB: String?          // Fallback for busy days
+    let planB: String?          // Fallback — shares ingredients with Plan A or uses staples
+    let cookTimeMin: Int?       // Estimated cooking time in minutes
+    let startTime: String?      // Recommended start time "HH:mm"
 }
 
 struct ConfirmMealsRequest: Codable {
@@ -516,6 +518,12 @@ struct HubSettings: Codable {
     var householdName: String
     var householdSize: Int
     var country: String
+    var dayTypes: [String: String]?      // {1:"rask",3:"fisk",5:"koselig"}
+    var staples: [String]?               // ["pasta","ris","løk",...]
+    var fishTarget: Int?                 // weekly fish target (default 2)
+    var veggieTarget: Int?               // weekly veggie target (default 1)
+    var maxCookingTime: Int?             // max minutes (default 45)
+    var traditions: [String: String]?    // {5:"Taco"}
 
     enum CodingKeys: String, CodingKey {
         case dinnerTime = "dinner_time"
@@ -524,6 +532,12 @@ struct HubSettings: Codable {
         case householdName = "household_name"
         case householdSize = "household_size"
         case country
+        case dayTypes = "day_types"
+        case staples
+        case fishTarget = "fish_target"
+        case veggieTarget = "veggie_target"
+        case maxCookingTime = "max_cooking_time"
+        case traditions
     }
 }
 
@@ -534,6 +548,12 @@ struct UpdateSettingsRequest: Codable {
     var householdName: String?
     var householdSize: Int?
     var country: String?
+    var dayTypes: [String: String]?
+    var staples: [String]?
+    var fishTarget: Int?
+    var veggieTarget: Int?
+    var maxCookingTime: Int?
+    var traditions: [String: String]?
 
     enum CodingKeys: String, CodingKey {
         case dinnerTime = "dinner_time"
@@ -542,6 +562,12 @@ struct UpdateSettingsRequest: Codable {
         case householdName = "household_name"
         case householdSize = "household_size"
         case country
+        case dayTypes = "day_types"
+        case staples
+        case fishTarget = "fish_target"
+        case veggieTarget = "veggie_target"
+        case maxCookingTime = "max_cooking_time"
+        case traditions
     }
 }
 

@@ -19,7 +19,8 @@ struct ChildProfilesCard: View {
                     .frame(maxWidth: .infinity)
             }
         }
-        .padding(Theme.cardPadding)
+        .padding(.horizontal, Theme.cardPadding)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity)
         .background(Theme.card)
         .cornerRadius(Theme.cardCorner)

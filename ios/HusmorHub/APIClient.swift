@@ -91,13 +91,69 @@ class APIClient: ObservableObject {
         try await post("/shopping/items", body: body)
     }
 
+    func deleteCheckedItems() async throws {
+        try await delete("/shopping/checked")
+    }
+
     func rateMeal(dayOfWeek: Int, feedbackEmoji: String) async throws {
         let body = RateMealRequest(dayOfWeek: dayOfWeek, feedbackEmoji: feedbackEmoji)
         try await post("/meals/rate", body: body)
     }
 
+    func generateMealPlan(skipDays: [Int] = [], prefilledMeals: [[String: String]] = [], kitchenContext: String? = nil, weekOffset: Int = 0) async throws -> GenerateMealPlanResponse {
+        let body = GenerateMealPlanRequest(skipDays: skipDays, prefilledMeals: prefilledMeals, kitchenContext: kitchenContext, weekOffset: weekOffset > 0 ? weekOffset : nil)
+        return try await postJSON("/meals/generate", body: body)
+    }
+
+    func mealChat(messages: [MealsChatMessage]) async throws -> MealsChatResponse {
+        let body = MealsChatRequest(messages: messages)
+        return try await postJSON("/meals/chat", body: body)
+    }
+
+    func confirmMealPlan(meals: [ConfirmMeal], weekOffset: Int = 0) async throws {
+        let body = ConfirmMealsRequest(meals: meals, weekOffset: weekOffset > 0 ? weekOffset : nil)
+        try await post("/meals/confirm", body: body)
+    }
+
     func fetchChildProfiles() async throws -> ChildProfilesResponse {
         try await get("/children/profiles")
+    }
+
+    func fetchRecipes() async throws -> RecipesResponse {
+        try await get("/recipes")
+    }
+
+    func fetchRecipe(id: String) async throws -> RecipeDetailResponse {
+        try await get("/recipes/\(id)")
+    }
+
+    func syncOda(itemIds: [String]? = nil) async throws -> OdaSyncResponse {
+        let body = OdaSyncRequest(itemIds: itemIds)
+        return try await postJSON("/oda/sync", body: body)
+    }
+
+    func fetchOdaCart() async throws -> OdaCart {
+        try await get("/oda/cart")
+    }
+
+    func removeOdaItem(productId: Int) async throws {
+        try await delete("/oda/cart/\(productId)")
+    }
+
+    func fetchProactive() async throws -> ProactiveResponse {
+        try await get("/proactive")
+    }
+
+    func fetchSettings() async throws -> HubSettings {
+        try await get("/settings")
+    }
+
+    func updateSettings(_ settings: UpdateSettingsRequest) async throws {
+        try await put("/settings", body: settings)
+    }
+
+    func fetchAnalytics() async throws -> AnalyticsSummary {
+        try await get("/analytics/summary")
     }
 
     func sendVoice(text: String) async throws -> VoiceResponse {
@@ -153,6 +209,18 @@ class APIClient: ObservableObject {
     private func patch(_ path: String, body: some Encodable) async throws -> Data {
         var request = URLRequest(url: URL(string: baseURL + path)!)
         request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        addAuth(&request)
+        request.httpBody = try JSONEncoder().encode(body)
+        let (data, response) = try await session.data(for: request)
+        try checkResponse(response)
+        return data
+    }
+
+    @discardableResult
+    private func put(_ path: String, body: some Encodable) async throws -> Data {
+        var request = URLRequest(url: URL(string: baseURL + path)!)
+        request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         addAuth(&request)
         request.httpBody = try JSONEncoder().encode(body)

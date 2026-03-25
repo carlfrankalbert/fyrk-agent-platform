@@ -8,156 +8,186 @@ struct TodayCard: View {
 
     @State private var showingAddReminder = false
     @State private var newTitle = ""
-    @State private var newEmoji = "📌"
+    @State private var newEmoji = "\u{1F4CC}"
 
-    private var dateNumber: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d"
-        return formatter.string(from: Date())
-    }
+    private let emojiOptions = ["\u{1F4CC}", "\u{1F392}", "\u{1F5D1}\u{FE0F}", "\u{1F511}", "\u{1F48A}", "\u{1F4E6}", "\u{1F9F9}", "\u{1F415}", "\u{1F4B3}", "\u{1F4DE}"]
 
-    private var dayName: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "nb_NO")
-        formatter.dateFormat = "EEEE"
-        return formatter.string(from: Date()).capitalized
-    }
+    private var importantItems: [ImportantItem] {
+        var items: [ImportantItem] = []
 
-    private var fullDate: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "nb_NO")
-        formatter.dateFormat = "d. MMMM"
-        return formatter.string(from: Date())
-    }
+        if let cal = calendar {
+            let now = Date()
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            let fallback = ISO8601DateFormatter()
+            fallback.formatOptions = [.withInternetDateTime]
 
-    private var todayEvents: [CalendarEvent] {
-        guard let cal = calendar else { return [] }
-        let todayStr = {
-            let f = DateFormatter()
-            f.dateFormat = "yyyy-MM-dd"
-            return f.string(from: Date())
-        }()
-        return cal.events.filter { $0.startTime.hasPrefix(todayStr) || $0.allDay }
-    }
+            for event in cal.events where event.isNow && !event.allDay {
+                items.append(ImportantItem(
+                    icon: "circle.fill",
+                    iconColor: Theme.green,
+                    title: event.title,
+                    subtitle: "N\u{00E5}",
+                    priority: 0
+                ))
+                break
+            }
 
-    private let emojiOptions = ["📌", "🎒", "🗑️", "🔑", "💊", "📦", "🧹", "🐕", "💳", "📞"]
-
-    var body: some View {
-        CardContainer(title: "I dag") {
-            VStack(alignment: .leading, spacing: 10) {
-                // Date display
-                HStack(spacing: 12) {
-                    Text(dateNumber)
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundColor(Theme.text)
-                        .frame(width: 44, height: 44)
-                        .background(Theme.accent)
-                        .cornerRadius(10)
-
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(dayName)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(Theme.text)
-                        Text(fullDate)
-                            .font(.system(size: 13))
-                            .foregroundColor(Theme.muted)
-                    }
+            if items.isEmpty {
+                let upcoming = cal.events.filter { event in
+                    guard !event.allDay else { return false }
+                    let date = formatter.date(from: event.startTime) ?? fallback.date(from: event.startTime)
+                    return date.map { $0 > now } ?? false
                 }
-
-                Divider().background(Theme.surface)
-
-                // Calendar events
-                if !todayEvents.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        sectionHeader("Kalender")
-                        ForEach(todayEvents.prefix(4)) { event in
-                            eventRow(event)
-                        }
-                    }
-                }
-
-                Spacer(minLength: 2)
-
-                // Reminders — prominent
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Husk i dag")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(Theme.text)
-                        Spacer()
-                        Button(action: { showingAddReminder.toggle() }) {
-                            Image(systemName: showingAddReminder ? "xmark.circle.fill" : "plus.circle.fill")
-                                .font(.system(size: 18))
-                                .foregroundColor(Theme.accent)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    if let r = reminders, !r.reminders.isEmpty {
-                        ForEach(r.reminders) { reminder in
-                            HStack(spacing: 10) {
-                                Text(reminder.emoji)
-                                    .font(.system(size: 20))
-                                Text(reminder.title)
-                                    .font(.system(size: 16))
-                                    .foregroundColor(Theme.text)
-                                Spacer()
-                                Button(action: { onDeleteReminder(reminder.id) }) {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 11, weight: .bold))
-                                        .foregroundColor(Theme.muted.opacity(0.4))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
-
-                    if showingAddReminder {
-                        addReminderRow
-                    }
+                if let next = upcoming.first {
+                    items.append(ImportantItem(
+                        icon: "clock.fill",
+                        iconColor: Theme.accent,
+                        title: next.title,
+                        subtitle: next.timeString,
+                        priority: 1
+                    ))
                 }
             }
         }
+
+        if let r = reminders {
+            for reminder in r.reminders.prefix(2) {
+                items.append(ImportantItem(
+                    icon: nil,
+                    iconColor: nil,
+                    title: reminder.title,
+                    subtitle: nil,
+                    priority: 2,
+                    emoji: reminder.emoji,
+                    reminderId: reminder.id
+                ))
+            }
+        }
+
+        return Array(items.prefix(3))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            // Header
+            HStack {
+                Text("Viktig n\u{00E5}")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(Theme.text)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+
+                Spacer()
+
+                Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showingAddReminder.toggle() } }) {
+                    Image(systemName: showingAddReminder ? "xmark" : "plus")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(Theme.muted)
+                        .frame(width: 22, height: 22)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if importantItems.isEmpty && !showingAddReminder {
+                Text("Alt rolig")
+                    .font(.system(size: 12))
+                    .foregroundColor(Theme.muted)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+            } else {
+                VStack(spacing: 2) {
+                    ForEach(importantItems) { item in
+                        importantRow(item)
+                    }
+                }
+            }
+
+            if showingAddReminder {
+                addReminderRow
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+
+    private func importantRow(_ item: ImportantItem) -> some View {
+        HStack(spacing: 7) {
+            if let emoji = item.emoji {
+                Text(emoji)
+                    .font(.system(size: 14))
+                    .frame(width: 20)
+            } else if let icon = item.icon, let color = item.iconColor {
+                Image(systemName: icon)
+                    .font(.system(size: 7))
+                    .foregroundColor(color)
+                    .frame(width: 20)
+            }
+
+            Text(item.title)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(Theme.text)
+                .lineLimit(1)
+
+            if let sub = item.subtitle {
+                Spacer(minLength: 4)
+                Text(sub)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Theme.muted)
+            }
+
+            Spacer(minLength: 0)
+
+            if let rid = item.reminderId {
+                Button(action: { onDeleteReminder(rid) }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(Theme.muted)
+                        .frame(width: 20, height: 20)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 3)
+        .padding(.horizontal, 4)
     }
 
     private var addReminderRow: some View {
-        VStack(spacing: 8) {
-            // Emoji picker
-            HStack(spacing: 6) {
+        VStack(spacing: 4) {
+            HStack(spacing: 3) {
                 ForEach(emojiOptions, id: \.self) { emoji in
                     Button(action: { newEmoji = emoji }) {
                         Text(emoji)
-                            .font(.system(size: 16))
-                            .padding(4)
+                            .font(.system(size: 12))
+                            .padding(2)
                             .background(newEmoji == emoji ? Theme.accent.opacity(0.3) : Color.clear)
-                            .cornerRadius(6)
+                            .cornerRadius(4)
                     }
                     .buttonStyle(.plain)
                 }
             }
 
-            HStack(spacing: 6) {
+            HStack(spacing: 4) {
                 Text(newEmoji)
-                    .font(.system(size: 14))
+                    .font(.system(size: 12))
 
-                TextField("", text: $newTitle, prompt: Text("Ny påminnelse...").foregroundColor(Theme.muted.opacity(0.4)))
-                    .font(.system(size: 13))
+                TextField("", text: $newTitle, prompt: Text("P\u{00E5}minnelse...").foregroundColor(Theme.muted))
+                    .font(.system(size: 12))
                     .foregroundColor(Theme.text)
                     .textFieldStyle(.plain)
                     .onSubmit { submitReminder() }
 
                 Button(action: submitReminder) {
                     Image(systemName: "arrow.right.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundColor(newTitle.isEmpty ? Theme.muted.opacity(0.3) : Theme.accent)
+                        .font(.system(size: 14))
+                        .foregroundColor(newTitle.isEmpty ? Theme.muted : Theme.accent)
                 }
                 .buttonStyle(.plain)
                 .disabled(newTitle.isEmpty)
             }
-            .padding(8)
+            .padding(6)
             .background(Theme.surface)
-            .cornerRadius(8)
+            .cornerRadius(6)
         }
     }
 
@@ -168,26 +198,15 @@ struct TodayCard: View {
         newTitle = ""
         showingAddReminder = false
     }
+}
 
-    private func sectionHeader(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundColor(Theme.muted)
-            .textCase(.uppercase)
-            .tracking(0.5)
-    }
-
-    private func eventRow(_ event: CalendarEvent) -> some View {
-        HStack(spacing: 8) {
-            Text(event.allDay ? "●" : event.timeString)
-                .font(.system(size: 12, weight: event.isNow ? .bold : .regular, design: .monospaced))
-                .foregroundColor(event.isNow ? Theme.accent : Theme.muted)
-                .frame(width: 44, alignment: .leading)
-
-            Text(event.title)
-                .font(.system(size: 13, weight: event.isNow ? .medium : .regular))
-                .foregroundColor(event.isNow ? Theme.text : Theme.text.opacity(0.8))
-                .lineLimit(1)
-        }
-    }
+private struct ImportantItem: Identifiable {
+    let id = UUID()
+    let icon: String?
+    let iconColor: Color?
+    let title: String
+    let subtitle: String?
+    let priority: Int
+    var emoji: String? = nil
+    var reminderId: String? = nil
 }

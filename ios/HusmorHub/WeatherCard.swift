@@ -44,8 +44,8 @@ struct WeatherCard: View {
                 ProgressView().tint(Theme.muted)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
         .background(Theme.card)
         .cornerRadius(Theme.cardCorner)
     }
@@ -53,18 +53,18 @@ struct WeatherCard: View {
     // MARK: - Column
 
     private func weatherColumn(label: String, icon: String, temp: Int, big: Bool) -> some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 1) {
             Text(label)
-                .font(.system(size: big ? 11 : 10, weight: .medium, design: .rounded))
+                .font(.system(size: 9, weight: .medium, design: .rounded))
                 .foregroundColor(Theme.muted)
                 .textCase(.uppercase)
 
             Image(systemName: icon)
                 .symbolRenderingMode(.multicolor)
-                .font(.system(size: big ? 40 : 28))
+                .font(.system(size: big ? 28 : 20))
 
             Text("\(temp)°")
-                .font(.system(size: big ? 34 : 22, weight: .bold, design: .rounded))
+                .font(.system(size: big ? 24 : 17, weight: .bold, design: .rounded))
                 .foregroundColor(Theme.text)
         }
         .frame(maxWidth: .infinity)
@@ -72,8 +72,8 @@ struct WeatherCard: View {
 
     private var divider: some View {
         Rectangle()
-            .fill(Theme.muted.opacity(0.2))
-            .frame(width: 1, height: 50)
+            .fill(Theme.muted.opacity(0.15))
+            .frame(width: 1, height: 36)
     }
 
     // MARK: - Next change (today)

@@ -179,7 +179,7 @@ struct MealGeneratorView: View {
                         }
                         .buttonStyle(.plain)
 
-                        TextField("", text: $chatInput, prompt: Text("Jeg har agurk, tomater...").foregroundColor(Theme.muted.opacity(0.4)))
+                        TextField("", text: $chatInput, prompt: Text("Jeg har agurk, tomater...").foregroundColor(Theme.muted))
                             .font(.system(size: 15))
                             .foregroundColor(Theme.text)
                             .textFieldStyle(.plain)
@@ -204,7 +204,7 @@ struct MealGeneratorView: View {
                     if chatSpeech.isListening && !chatSpeech.transcript.isEmpty {
                         Text(chatSpeech.transcript)
                             .font(.system(size: 14))
-                            .foregroundColor(Theme.accent.opacity(0.7))
+                            .foregroundColor(Theme.accent)
                             .padding(.horizontal, 16)
                             .padding(.bottom, 4)
                     }
@@ -469,8 +469,8 @@ struct MealGeneratorView: View {
 
             // Instructions
             HStack {
-                Text("Trykk p\u{00E5} en dag for \u{00E5} velge hva som skjer")
-                    .font(.system(size: 13))
+                Text("Velg hva som skjer hver dag")
+                    .font(.system(size: 12))
                     .foregroundColor(Theme.muted)
                 if planNextWeek {
                     Button(action: { withAnimation { planNextWeek = false } }) {
@@ -504,6 +504,7 @@ struct MealGeneratorView: View {
                 }
             }
             .padding(.horizontal, 16)
+            .frame(maxHeight: .infinity)
 
             // Day detail panel
             if let editing = editingDay {
@@ -521,10 +522,9 @@ struct MealGeneratorView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            Spacer()
-
             // Generate button
             setupGenerateButton
+                .padding(.bottom, 16)
         }
     }
 
@@ -534,24 +534,24 @@ struct MealGeneratorView: View {
                 planNextWeek = true
             }
         }) {
-            VStack(spacing: 5) {
+            VStack(spacing: 8) {
                 Text(dayNamesShort[day])
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 16, weight: .bold))
 
                 Image(systemName: "chevron.right.circle")
-                    .font(.system(size: 18))
+                    .font(.system(size: 28))
 
                 Text("Neste uke")
-                    .font(.system(size: 8, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
             }
-            .foregroundColor(Theme.yellow.opacity(0.6))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(Theme.yellow.opacity(0.06))
-            .cornerRadius(12)
+            .foregroundColor(Theme.yellow)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.vertical, 20)
+            .background(Theme.yellow.opacity(0.08))
+            .cornerRadius(14)
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Theme.yellow.opacity(0.15), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(Theme.yellow.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
             )
         }
         .buttonStyle(.plain)
@@ -573,20 +573,21 @@ struct MealGeneratorView: View {
                 }
             }
         }) {
-            VStack(spacing: 5) {
+            VStack(spacing: 8) {
                 Text(dayNamesShort[day])
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 16, weight: .bold))
 
                 setupDayIcon(mode)
+
                 setupDayLabel(mode)
             }
             .foregroundColor(setupDayColor(mode))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.vertical, 20)
             .background(setupDayBackground(mode))
-            .cornerRadius(12)
+            .cornerRadius(14)
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 14)
                     .stroke(isEditing ? Theme.accent : setupDayBorder(mode), lineWidth: isEditing ? 2 : 1)
             )
             .opacity(mode == .away ? 0.6 : 1)
@@ -598,17 +599,17 @@ struct MealGeneratorView: View {
         Group {
             switch mode {
             case .generate:
-                Image(systemName: "wand.and.stars").font(.system(size: 20))
+                Image(systemName: "wand.and.stars").font(.system(size: 28))
             case .prefilled(let meal):
-                Text(mealEmoji(for: meal)).font(.system(size: 20))
+                Text(mealEmoji(for: meal)).font(.system(size: 28))
             case .away:
-                Image(systemName: "airplane").font(.system(size: 20))
+                Image(systemName: "airplane").font(.system(size: 28))
             case .fewerPeople:
-                Image(systemName: "person.2").font(.system(size: 18))
+                Image(systemName: "person.2").font(.system(size: 24))
             case .leftovers:
-                Text("\u{1F372}").font(.system(size: 20))
+                Text("\u{1F372}").font(.system(size: 28))
             case .takeaway(let cuisine):
-                Text(cuisine?.flag ?? "\u{1F961}").font(.system(size: 20))
+                Text(cuisine?.flag ?? "\u{1F961}").font(.system(size: 28))
             }
         }
     }
@@ -617,17 +618,17 @@ struct MealGeneratorView: View {
         Group {
             switch mode {
             case .generate:
-                Text("Generer").font(.system(size: 10))
+                Text("Generer").font(.system(size: 12, weight: .medium))
             case .prefilled(let meal):
-                Text(meal).font(.system(size: 10, weight: .medium)).lineLimit(1)
+                Text(meal).font(.system(size: 12, weight: .medium)).lineLimit(1)
             case .away:
-                Text("Borte").font(.system(size: 10))
+                Text("Borte").font(.system(size: 12, weight: .medium))
             case .fewerPeople:
-                Text("F\u{00E6}rre").font(.system(size: 10))
+                Text("F\u{00E6}rre").font(.system(size: 12, weight: .medium))
             case .leftovers:
-                Text("Rester").font(.system(size: 10))
+                Text("Rester").font(.system(size: 12, weight: .medium))
             case .takeaway(let cuisine):
-                Text(cuisine?.name ?? "Takeaway").font(.system(size: 10, weight: .medium)).lineLimit(1)
+                Text(cuisine?.name ?? "Takeaway").font(.system(size: 12, weight: .medium)).lineLimit(1)
             }
         }
     }
@@ -672,13 +673,13 @@ struct MealGeneratorView: View {
     private func dayDetailPanel(_ day: Int) -> some View {
         let mode = dayModes[day] ?? .generate
 
-        return VStack(spacing: 10) {
+        return VStack(spacing: 12) {
             // Mode buttons
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Text("\(dayNames[day]):")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundColor(Theme.text)
-                    .frame(width: 75, alignment: .trailing)
+                    .frame(width: 85, alignment: .trailing)
 
                 modeButton("Generer", icon: "wand.and.stars", isActive: mode == .generate) {
                     dayModes[day] = .generate
@@ -704,7 +705,7 @@ struct MealGeneratorView: View {
                 Button(action: { withAnimation { editingDay = nil } }) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 18))
-                        .foregroundColor(Theme.muted.opacity(0.4))
+                        .foregroundColor(Theme.muted)
                 }
                 .buttonStyle(.plain)
             }
@@ -741,7 +742,7 @@ struct MealGeneratorView: View {
 
     private func prefillField(_ day: Int) -> some View {
         HStack(spacing: 8) {
-            TextField("", text: $editText, prompt: Text("Skriv inn rett (valgfritt)...").foregroundColor(Theme.muted.opacity(0.4)))
+            TextField("", text: $editText, prompt: Text("Skriv inn rett (valgfritt)...").foregroundColor(Theme.muted))
                 .font(.system(size: 14))
                 .foregroundColor(Theme.text)
                 .textFieldStyle(.plain)
@@ -768,15 +769,15 @@ struct MealGeneratorView: View {
                 showCuisinePicker = nil
             }
         }) {
-            HStack(spacing: 4) {
-                Image(systemName: icon).font(.system(size: 10))
-                Text(label).font(.system(size: 11, weight: .medium))
+            HStack(spacing: 6) {
+                Image(systemName: icon).font(.system(size: 14))
+                Text(label).font(.system(size: 14, weight: .medium))
             }
-            .foregroundColor(isActive ? .white : Theme.text.opacity(0.7))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            .foregroundColor(isActive ? .white : Theme.muted)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
             .background(isActive ? Theme.accent : Theme.surface)
-            .cornerRadius(7)
+            .cornerRadius(10)
         }
         .buttonStyle(.plain)
     }
@@ -798,7 +799,7 @@ struct MealGeneratorView: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 12))
                     .foregroundColor(Theme.muted)
-                TextField("", text: $cuisineSearch, prompt: Text("S\u{00F8}k land...").foregroundColor(Theme.muted.opacity(0.4)))
+                TextField("", text: $cuisineSearch, prompt: Text("S\u{00F8}k land...").foregroundColor(Theme.muted))
                     .font(.system(size: 13))
                     .foregroundColor(Theme.text)
                     .textFieldStyle(.plain)
@@ -948,21 +949,45 @@ struct MealGeneratorView: View {
 
             Button("Lukk") { onDone() }
                 .font(.system(size: 13))
-                .foregroundColor(Theme.muted.opacity(0.5))
+                .foregroundColor(Theme.muted)
                 .padding(.top, 8)
         }
     }
 
     // MARK: - Result
 
+    /// Days with actual generated/prefilled meal suggestions (not away/leftovers/takeaway)
+    private var suggestionDays: [GeneratedDay] {
+        days.filter { day in
+            let mode = dayModes[day.dayOfWeek]
+            if mode == .away || mode == .leftovers { return false }
+            if case .takeaway = mode { return false }
+            return true
+        }
+    }
+
+    /// Summary of non-suggestion days for the header
+    private var specialDaySummary: String? {
+        let specials = visibleDays.compactMap { dayNum -> String? in
+            guard let mode = dayModes[dayNum] else { return nil }
+            switch mode {
+            case .away: return "\(dayNamesShort[dayNum]) borte"
+            case .leftovers: return "\(dayNamesShort[dayNum]) rester"
+            case .takeaway: return "\(dayNamesShort[dayNum]) takeaway"
+            default: return nil
+            }
+        }
+        return specials.isEmpty ? nil : specials.joined(separator: ", ")
+    }
+
     private var planView: some View {
         VStack(spacing: 0) {
-            // Header
+            // Header — tight
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
-                        Text("Ny ukemeny")
-                            .font(.system(size: 22, weight: .bold))
+                        Text("Forslag til ukemeny")
+                            .font(.system(size: 18, weight: .bold))
                             .foregroundColor(Theme.text)
                         if planNextWeek {
                             Text("NESTE UKE")
@@ -974,130 +999,86 @@ struct MealGeneratorView: View {
                                 .cornerRadius(5)
                         }
                     }
-                    if let reply = reply {
-                        Text(reply)
-                            .font(.system(size: 13))
-                            .foregroundColor(Theme.muted)
-                            .lineLimit(2)
+                    if let summary = specialDaySummary {
+                        Text(summary)
+                            .font(.system(size: 11))
+                            .foregroundColor(Theme.dimmed)
                     }
                 }
                 Spacer()
 
-                // Fill rest button
-                if hasUndecidedDays {
-                    Button(action: fillRest) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "wand.and.stars")
-                                .font(.system(size: 11))
-                            Text("Fyll resten")
-                                .font(.system(size: 12, weight: .medium))
-                        }
-                        .foregroundColor(Theme.accent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Theme.accent.opacity(0.15))
-                        .cornerRadius(8)
-                    }
-                    .buttonStyle(.plain)
-                }
-
                 Button("Avbryt") { onDone() }
                     .font(.system(size: 14))
                     .foregroundColor(Theme.muted)
-                    .padding(.leading, 4)
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)
-            .padding(.bottom, 8)
+            .padding(.bottom, 10)
 
-            // Hint
-            if revealedDays.count == days.count && !days.isEmpty && showActionDay == nil {
-                Text("Trykk p\u{00E5} en dag for valg")
-                    .font(.system(size: 12))
-                    .foregroundColor(Theme.muted.opacity(0.6))
-                    .padding(.bottom, 4)
-            }
+            // Only show cards for days that need suggestions — wider, fewer
+            HStack(spacing: 12) {
+                ForEach(suggestionDays, id: \.dayOfWeek) { day in
+                    let idx = selectedOption[day.dayOfWeek] ?? 0
+                    let option = day.options[safe: idx] ?? day.options[0]
+                    let isRevealed = revealedDays.contains(day.dayOfWeek)
+                    let source = mealSources[day.dayOfWeek] ?? .husmor
+                    let locked = lockedDays.contains(day.dayOfWeek)
 
-            // Day cards grid
-            HStack(spacing: 10) {
-                ForEach(visibleDays, id: \.self) { dayNum in
-                    let mode = dayModes[dayNum] ?? .generate
-
-                    if mode == .away {
-                        specialResultCard(dayNum, icon: "airplane", label: "Borte", color: Theme.muted)
-                    } else if mode == .leftovers {
-                        specialResultCard(dayNum, emoji: "\u{1F372}", label: "Rester", color: Theme.yellow)
-                    } else if case .takeaway(let cuisine) = mode {
-                        specialResultCard(dayNum, emoji: cuisine?.flag ?? "\u{1F961}", label: cuisine?.name ?? "Takeaway", color: .orange)
-                    } else if let day = days.first(where: { $0.dayOfWeek == dayNum }) {
-                        let idx = selectedOption[day.dayOfWeek] ?? 0
-                        let option = day.options[safe: idx] ?? day.options[0]
-                        let isRevealed = revealedDays.contains(day.dayOfWeek)
-                        let source = mealSources[day.dayOfWeek] ?? .husmor
-                        let locked = lockedDays.contains(day.dayOfWeek)
-
-                        DayCard(
-                            dayName: dayNames[day.dayOfWeek],
-                            dateString: formatDayDate(day.date),
-                            contextLine: day.contextLine,
-                            busyness: day.busyness,
-                            option: option,
-                            alternativeCount: day.options.count,
-                            currentIndex: idx,
-                            isRevealed: isRevealed,
-                            source: source,
-                            isLocked: locked
-                        )
-                        .onTapGesture {
-                            guard isRevealed else { return }
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                showActionDay = showActionDay == day.dayOfWeek ? nil : day.dayOfWeek
-                                manualMealText = ""
-                            }
+                    DayCard(
+                        dayName: dayNames[day.dayOfWeek],
+                        dateString: formatDayDate(day.date),
+                        contextLine: day.contextLine,
+                        busyness: day.busyness,
+                        option: option,
+                        alternativeCount: day.options.count,
+                        currentIndex: idx,
+                        isRevealed: isRevealed,
+                        source: source,
+                        isLocked: locked
+                    )
+                    .onTapGesture {
+                        guard isRevealed else { return }
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showActionDay = showActionDay == day.dayOfWeek ? nil : day.dayOfWeek
+                            manualMealText = ""
                         }
                     }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 20)
+            .frame(maxHeight: .infinity)
 
             // Action panel for selected day
             if let actionDay = showActionDay,
                let day = days.first(where: { $0.dayOfWeek == actionDay }) {
                 dayActionPanel(day)
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 20)
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            Spacer()
-
-            // Bottom actions
+            // Bottom: Godkjenn meny
             if !days.isEmpty {
-                VStack(spacing: 8) {
-                    Button(action: confirmPlan) {
-                        HStack(spacing: 8) {
-                            if isSaving {
-                                ProgressView()
-                                    .tint(.white)
-                                    .scaleEffect(0.8)
-                            } else {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 18))
-                            }
-                            Text("Godkjenn meny")
-                                .font(.system(size: 17, weight: .semibold))
+                Button(action: confirmPlan) {
+                    HStack(spacing: 8) {
+                        if isSaving {
+                            ProgressView().tint(.white).scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "checkmark.circle.fill").font(.system(size: 16))
                         }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: 400)
-                        .padding(.vertical, 14)
-                        .glassEffect(.regular.tint(Theme.green).interactive(), in: RoundedRectangle(cornerRadius: 14))
+                        Text("Godkjenn meny")
+                            .font(.system(size: 16, weight: .semibold))
                     }
-                    .buttonStyle(.plain)
-                    .disabled(isSaving)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: 360)
+                    .padding(.vertical, 12)
+                    .glassEffect(.regular.tint(Theme.green).interactive(), in: RoundedRectangle(cornerRadius: 12))
                 }
+                .buttonStyle(.plain)
+                .disabled(isSaving)
                 .padding(.horizontal, 20)
-                .padding(.bottom, 20)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.bottom, 16)
+                .padding(.top, 8)
             }
         }
     }
@@ -1170,14 +1151,14 @@ struct MealGeneratorView: View {
                 Button(action: { withAnimation { showActionDay = nil } }) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 18))
-                        .foregroundColor(Theme.muted.opacity(0.4))
+                        .foregroundColor(Theme.muted)
                 }
                 .buttonStyle(.plain)
             }
 
             // Manual meal input
             HStack(spacing: 8) {
-                TextField("", text: $manualMealText, prompt: Text("Velg selv...").foregroundColor(Theme.muted.opacity(0.4)))
+                TextField("", text: $manualMealText, prompt: Text("Velg selv...").foregroundColor(Theme.muted))
                     .font(.system(size: 14))
                     .foregroundColor(Theme.text)
                     .textFieldStyle(.plain)
@@ -1210,7 +1191,7 @@ struct MealGeneratorView: View {
             date: days.first(where: { $0.dayOfWeek == dayOfWeek })?.date,
             contextLine: days.first(where: { $0.dayOfWeek == dayOfWeek })?.contextLine,
             busyness: days.first(where: { $0.dayOfWeek == dayOfWeek })?.busyness,
-            options: [MealOption(name: trimmed, description: nil, category: nil, reasoning: nil, planB: nil)]
+            options: [MealOption(name: trimmed, description: nil, category: nil, reasoning: nil, planB: nil, cookTimeMin: nil, startTime: nil)]
         )
         days.removeAll { $0.dayOfWeek == dayOfWeek }
         days.append(manualDay)
@@ -1235,29 +1216,7 @@ struct MealGeneratorView: View {
         Task { await generate() }
     }
 
-    private func specialResultCard(_ dayNum: Int, icon: String? = nil, emoji: String? = nil, label: String, color: Color) -> some View {
-        VStack(spacing: 8) {
-            Text(dayNames[dayNum])
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(color.opacity(0.6))
-            Spacer()
-            if let emoji = emoji {
-                Text(emoji).font(.system(size: 28))
-            } else if let icon = icon {
-                Image(systemName: icon)
-                    .font(.system(size: 24))
-                    .foregroundColor(color.opacity(0.4))
-            }
-            Text(label)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(color.opacity(0.5))
-            Spacer()
-        }
-        .padding(.vertical, 14)
-        .padding(.horizontal, 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .glassEffect(.regular.tint(color), in: RoundedRectangle(cornerRadius: 12))
-    }
+    // specialResultCard removed — only show days with actual suggestions
 
     // MARK: - Actions
 
@@ -1280,7 +1239,7 @@ struct MealGeneratorView: View {
                 date: nil,
                 contextLine: nil,
                 busyness: nil,
-                options: [MealOption(name: meal, description: nil, category: nil, reasoning: nil, planB: nil)]
+                options: [MealOption(name: meal, description: nil, category: nil, reasoning: nil, planB: nil, cookTimeMin: nil, startTime: nil)]
             )
             days.append(prefilledDay)
             revealedDays.insert(dayNum)

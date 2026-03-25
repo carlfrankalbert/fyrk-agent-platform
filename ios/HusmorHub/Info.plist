@@ -25,7 +25,9 @@
     <key>UILaunchScreen</key>
     <dict>
         <key>UIColorName</key>
-        <string>LaunchBackground</string>
+        <string></string>
+        <key>UIImageName</key>
+        <string></string>
     </dict>
     <key>UIRequiresFullScreen</key>
     <true/>

@@ -1,6 +1,6 @@
 import Foundation
 import Speech
-import AVFoundation
+import AVFoundation 
 
 enum SpeechMode: Equatable {
     case idle
@@ -26,6 +26,7 @@ class SpeechRecognizer: ObservableObject {
     private let silenceTimeout: TimeInterval = 3.0
     var onAutoComplete: ((String) -> Void)?
 
+    var autoWakeRestart = true
     private var sessionID: UInt64 = 0
     private let wakePhrase = "hei husmor"
 
@@ -157,7 +158,7 @@ class SpeechRecognizer: ObservableObject {
         } else {
             stopEngine()
             // Auto-restart wake listening when recognition times out (~60s)
-            if currentMode == .wake {
+            if currentMode == .wake && autoWakeRestart {
                 Task {
                     try? await Task.sleep(nanoseconds: 500_000_000)
                     if self.mode == .idle {
@@ -178,11 +179,13 @@ class SpeechRecognizer: ObservableObject {
             onAutoComplete?(text)
         }
 
-        // Return to wake listening after command
-        Task {
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            if self.mode == .idle {
-                self.startRecognition(as: .wake)
+        // Return to wake listening after command (only if enabled)
+        if autoWakeRestart {
+            Task {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                if self.mode == .idle {
+                    self.startRecognition(as: .wake)
+                }
             }
         }
     }
