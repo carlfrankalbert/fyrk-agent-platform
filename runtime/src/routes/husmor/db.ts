@@ -497,8 +497,11 @@ export async function loadDbContextCached(supabase: SupabaseClient): Promise<DbC
 
 // --- Plan upsert ---
 
-export async function getOrCreateCurrentWeekPlan(supabase: SupabaseClient): Promise<string> {
-  const { week, year } = getCurrentWeekNumber();
+export async function getOrCreateCurrentWeekPlan(supabase: SupabaseClient, weekOffset = 0): Promise<string> {
+  const { week: currentWeek, year: currentYear } = getCurrentWeekNumber();
+  let week = currentWeek + weekOffset;
+  let year = currentYear;
+  if (week > 52) { week -= 52; year += 1; }
 
   const { data, error } = await supabase
     .from('weekly_plans')

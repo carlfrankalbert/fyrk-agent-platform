@@ -330,6 +330,21 @@ export async function addToCart(productId: number, quantity = 1): Promise<{ stat
   return { status: res.status, bodySnippet };
 }
 
+/** Remove a product from the Oda cart */
+export async function removeFromCart(productId: number): Promise<void> {
+  const res = await authedFetch(`${BASE_URL}/tienda-web-api/v1/cart/items/${productId}/`, {
+    method: 'DELETE',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!res.ok && res.status !== 404) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Oda removeFromCart failed: ${res.status} ${body.slice(0, 200)}`);
+  }
+}
+
 /** Get the current Oda cart */
 export async function getCart(): Promise<OdaCart> {
   const res = await authedFetch(`${BASE_URL}/tienda-web-api/v1/cart/`, {

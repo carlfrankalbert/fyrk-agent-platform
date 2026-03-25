@@ -91,6 +91,23 @@ export async function hubShoppingRoutes(fastify: FastifyInstance): Promise<void>
     return { ok: true };
   });
 
+  // Delete all checked items
+  fastify.delete('/hub/api/shopping/checked', async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!(await requireAuth(request, reply))) return;
+
+    const supabase = getSupabase();
+    const listId = await getOrCreateShoppingList(supabase);
+
+    const { error } = await supabase
+      .from('shopping_items')
+      .delete()
+      .eq('list_id', listId)
+      .eq('checked', true);
+
+    if (error) return reply.status(500).send({ error: error.message });
+    return { ok: true };
+  });
+
   // Delete item
   fastify.delete('/hub/api/shopping/items/:id', async (request: FastifyRequest, reply: FastifyReply) => {
     if (!(await requireAuth(request, reply))) return;

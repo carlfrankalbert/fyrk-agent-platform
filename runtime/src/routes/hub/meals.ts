@@ -50,10 +50,28 @@ export async function hubMealsRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     const supabase = getSupabase();
-    const [ctx, calendar] = await Promise.all([
+    const t0 = Date.now();
+    const [ctx, calendar, settingsRows] = await Promise.all([
       loadDbContextCached(supabase),
       getOrCompute('hub:calendar', fetchAllCalendars, 5 * 60 * 1000),
+      supabase.from('family_preferences').select('key, value').in('key', [
+        'day_types', 'staples', 'fish_target', 'veggie_target', 'max_cooking_time', 'traditions', 'dinner_time',
+      ]),
     ]);
+    // Build settings map with defaults
+    const settings: Record<string, unknown> = {
+      day_types: {},
+      staples: ['pasta', 'ris', 'løk', 'hvitløk', 'egg', 'smør', 'olje', 'tomat på boks', 'salt', 'pepper'],
+      fish_target: 2,
+      veggie_target: 1,
+      max_cooking_time: 45,
+      traditions: {},
+      dinner_time: '17:00',
+    };
+    for (const row of settingsRows.data ?? []) {
+      settings[row.key] = row.value;
+    }
+    fastify.log.info({ ms: Date.now() - t0 }, 'Meal gen: context loaded');
 
     const body = request.body as { skipDays?: number[]; prefilledMeals?: Array<{ dayOfWeek: string; meal: string }>; kitchenContext?: string; weekOffset?: number } | null;
     const skipDays = body?.skipDays ?? [];
@@ -90,70 +108,34 @@ export async function hubMealsRoutes(fastify: FastifyInstance): Promise<void> {
     // Build calendar context section for Claude
     const calendarSection = buildCalendarSection(calendarByDay, dayNames, weekDates, daysToGenerate);
 
-    const systemPrompt = buildSlimMealPrompt(ctx);
-    const userMessage = `Lag ukemeny for uke ${targetWeek} med alternativer.
+    const systemPrompt = buildSlimMealPrompt(ctx, settings);
+    const dinnerTime = (settings.dinner_time as string) ?? '17:00';
 
-Generer middag for disse dagene: ${activeDayNames}.${skipNote}${prefilledNote}${kitchenNote}
+    const userMessage = `Uke ${targetWeek}: lag middag for ${activeDayNames}.${skipNote}${prefilledNote}${kitchenNote}
 ${calendarSection}
-For HVER aktive dag, gi 2 middagsforslag.
-Ta hensyn til sesongvarer, familiepreferanser, barnas smaksprofiler og ernæringsbalanse.
-Varier mellom fisk, kjøtt, vegetar og belgvekster i tråd med kostrådene.
+2 forslag per dag. Varier fisk/kjøtt/vegetar/belgvekst. Travel dager = raske retter (<30 min).
 
-TILPASS TIL HVOR TRAVEL DAGEN ER:
-- "travel" dager (mange avtaler, henting, trening) → raske retter under 30 min
-- "normal" dager → vanlige retter
-- "rolig" dager (ingen avtaler) → kan være mer ambisiøse retter
+REGLER:
+- "name" = kjent rettnavn (Chicken Kiev, Pasta Carbonara, Pad Thai, Fish & Chips, Moussaka, Shakshuka, Teriyaki-laks). ALDRI generiske navn som "Fiskegrateng med purre".
+- "description" = kort for foreldrene.
+- "category" = fisk/kjøtt/fjærkre/vegetar/vegan/belgvekst.
+- "cookTimeMin" = estimert tilberedningstid i minutter (heltall).
+- "contextLine" = maks 4 ord om dagen (Travelt, Henting 17:00, Rolig dag).
+- "busyness" = rolig/normal/travel.
+- "reasoning" = maks 10 ord om hvorfor denne retten.
+- "planB" = enklere alternativ. VIKTIG REGEL: Fallback MÅ bruke enten basisvarer familien har hjemme, eller ingredienser som overlapper med Plan A. ALDRI et helt annet varegrunnlag.
+- ALDRI referer til rester fra andre dager.
 
-NAVNGIVING — veldig viktig:
-- Gi hver rett et SKIKKELIG RETTNAVN som er gjenkjennelig og minneverdig for barn.
-- Bruk kjente rettnavn fra verdens matkultur: "Chicken Kiev", "Svenske kjøttboller", "Pasta Carbonara", "Teriyaki-laks", "Fish & Chips", "Shakshuka", "Pad Thai".
-- IKKE bruk generiske beskrivelser som "Fiskegrateng med purre og gulrot" — gi retten et ordentlig navn.
-- Beskrivelsen (description) er til foreldrene og forklarer kort hva retten inneholder.
+Middagstid er ${dinnerTime}. Beregn "startTime" = middagstid minus cookTimeMin (format "HH:mm").
 
-KATEGORI — inkluder alltid:
-- "category" på hver option: "fisk", "kjøtt", "fjærkre", "vegetar", "vegan", eller "belgvekst"
-
-VIKTIG:
-- IKKE referer til "rester fra gårsdagen" eller anta hva som ble servert andre dager.
-- Svar BARE med denne JSON-strukturen:
-{
-  "reply": "Kort kommentar om ukeplanen",
-  "days": [
-    {
-      "dayOfWeek": 1,
-      "contextLine": "Henting 17:00",
-      "busyness": "travel",
-      "options": [
-        {
-          "name": "Chicken Kiev",
-          "description": "Panert kyllingbryst fylt med hvitløkssmør, servert med ris og salat",
-          "category": "fjærkre",
-          "reasoning": "Rask rett som passer en travel dag",
-          "planB": "Brødmat med pålegg"
-        },
-        {
-          "name": "Teriyaki-laks",
-          "description": "Ovnsbakt laks med teriyakiglasur, edamame og jasminris",
-          "category": "fisk",
-          "reasoning": "Sunn og rask — ferdig på 25 min"
-        }
-      ]
-    }
-  ]
-}
-
-- "contextLine": Kort oppsummering av dagen (maks 4 ord). F.eks. "Travelt", "Henting 17:00", "Rolig dag", "Trening ettermiddag".
-- "busyness": "rolig", "normal" eller "travel" — basert på kalenderaktivitet.
-- "reasoning": Én setning (maks 15 ord) om hvorfor denne retten passer denne dagen.
-- "planB": KUN for travel-dager — et enkelt alternativ hvis planen ryker (f.eks. "Frossenpizza + salat", "Brødmat").
-
-Sørg for at alternativene er varierte — ikke bare varianter av samme rett.
-Det første alternativet for hver dag er hovedforslaget.`;
+Svar KUN med JSON:
+{"reply":"...","days":[{"dayOfWeek":1,"contextLine":"...","busyness":"...","options":[{"name":"Chicken Kiev","description":"...","category":"fjærkre","cookTimeMin":35,"reasoning":"...","planB":"Pasta aglio e olio"}]}]}`;
 
     try {
+      const t1 = Date.now();
       const response = await callClaude(apiKey, {
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 3000,
+        max_tokens: 2500,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
       });
@@ -163,6 +145,8 @@ Det første alternativet for hver dag er hovedforslaget.`;
         .map((b: { text: string }) => b.text)
         .join('');
 
+      fastify.log.info({ ms: Date.now() - t1 }, 'Meal gen: Claude responded');
+
       // Extract JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
@@ -171,11 +155,22 @@ Det første alternativet for hver dag er hovedforslaget.`;
 
       const result = JSON.parse(jsonMatch[0]);
 
-      // Inject server-computed dates (don't trust Claude for date math)
+      // Inject server-computed dates and start times (don't trust Claude for math)
+      const [dinnerH, dinnerM] = dinnerTime.split(':').map(Number);
+      const dinnerMinutes = dinnerH * 60 + dinnerM;
       for (const day of result.days ?? []) {
         const date = weekDates[day.dayOfWeek];
         if (date) {
           day.date = date.toISOString().slice(0, 10);
+        }
+        // Compute startTime for each option from dinnerTime - cookTimeMin
+        for (const opt of day.options ?? []) {
+          if (opt.cookTimeMin && typeof opt.cookTimeMin === 'number') {
+            const startMin = dinnerMinutes - opt.cookTimeMin;
+            const h = Math.floor(startMin / 60);
+            const m = startMin % 60;
+            opt.startTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+          }
         }
       }
 
@@ -198,6 +193,9 @@ Det første alternativet for hver dag er hovedforslaget.`;
     const supabase = getSupabase();
     const weekOffset = body.weekOffset ?? 0;
     const planId = await getOrCreateCurrentWeekPlan(supabase, weekOffset);
+
+    // Delete existing meals for this plan before inserting new ones
+    await supabase.from('planned_meals').delete().eq('plan_id', planId);
 
     const rows = body.meals.map(m => ({
       plan_id: planId,
@@ -253,7 +251,7 @@ Det første alternativet for hver dag er hovedforslaget.`;
 }
 
 /** Lightweight system prompt for meal generation — ~2-3k chars instead of ~80k */
-function buildSlimMealPrompt(ctx: DbContext): string {
+function buildSlimMealPrompt(ctx: DbContext, settings: Record<string, unknown>): string {
   const sections: string[] = [];
 
   sections.push(`Du er Husmor, en matplanlegger for en norsk familie. Du svarer BARE med JSON — ingen annen tekst.`);
@@ -266,6 +264,28 @@ function buildSlimMealPrompt(ctx: DbContext): string {
     day: 'numeric',
   });
   sections.push(`I dag er ${dateStr}. Uke ${ctx.plan.weekNumber}, ${ctx.plan.year}.`);
+
+  // Day-type rhythm (principle 1)
+  const dayTypes = settings.day_types as Record<string, string> | undefined;
+  if (dayTypes && Object.keys(dayTypes).length > 0) {
+    const dayNames = ['', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag', 'søndag'];
+    const lines = Object.entries(dayTypes).map(([d, type]) => `- ${dayNames[parseInt(d)] ?? d}: ${type}`);
+    sections.push(`## Ukerytme (dagstyper)\nFølg disse dagsslotene:\n${lines.join('\n')}\nTilpass forslagene til dagstypen. "rask" = maks 20 min, "fisk" = fiskerett, "koselig" = langsom god mat, "pizza" = pizza/favoritt.`);
+  }
+
+  // Traditions (principle 2) — fixed meals for certain days
+  const traditions = settings.traditions as Record<string, string> | undefined;
+  if (traditions && Object.keys(traditions).length > 0) {
+    const dayNames = ['', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag', 'søndag'];
+    const lines = Object.entries(traditions).map(([d, meal]) => `- ${dayNames[parseInt(d)] ?? d}: ${meal}`);
+    sections.push(`## Faste tradisjoner\nDisse dagene har fast middag:\n${lines.join('\n')}\nForeslå varianter av tradisjonsretten, ikke noe helt annet.`);
+  }
+
+  // Staples (principle 6) — what the family always has at home
+  const staples = settings.staples as string[] | undefined;
+  if (staples && staples.length > 0) {
+    sections.push(`## Basisvarer (alltid hjemme)\n${staples.join(', ')}\nDisse har familien alltid. Fallback-retter bør kunne lages av disse + det som er i Plan A.`);
+  }
 
   // Family preferences
   if (ctx.preferences.length > 0) {
@@ -293,11 +313,16 @@ function buildSlimMealPrompt(ctx: DbContext): string {
     sections.push(`## Må brukes opp\n${notes}`);
   }
 
-  // Core dietary guidelines (condensed)
-  sections.push(`## Kostråd (norske)
-- Fisk 2-3x/uke (fet fisk minst 1x)
+  // Dietary targets from settings
+  const fishTarget = (settings.fish_target as number) ?? 2;
+  const veggieTarget = (settings.veggie_target as number) ?? 1;
+  const maxTime = (settings.max_cooking_time as number) ?? 45;
+
+  sections.push(`## Kostråd og regler
+- Fisk: ${fishTarget}x/uke (fet fisk minst 1x)
+- Vegetar/belgvekst: minst ${veggieTarget}x/uke
 - Begrens rødt kjøtt til 2-3x/uke
-- Minst 1 vegetar/belgvekst-dag per uke
+- Maks tilberedningstid: ${maxTime} min (med mindre dagen er "koselig")
 - Varier proteinkilder gjennom uken`);
 
   return sections.join('\n\n');

@@ -233,13 +233,15 @@ describe('linkedin-post agent', () => {
       expect(call[1].model).toBe('claude-sonnet-4-5-20250929');
     });
 
-    it('should include v5.1 prompt markers in system prompt', async () => {
+    it('should include v6 prompt markers in system prompt', async () => {
       await linkedInPostAgent.execute(linkedInPostBasic, ctx);
       const call = mockCallClaude.mock.calls[0];
-      expect(call[1].system).toContain('Scroll-stopper');
-      expect(call[1].system).toContain('Friksjonspunktet');
-      expect(call[1].system).toContain('VISUELT_FORMAT');
+      expect(call[1].system).toContain('POSTSTRUKTUR');
+      expect(call[1].system).toContain('Påstand');
+      expect(call[1].system).toContain('Bevis');
+      expect(call[1].system).toContain('Implikasjon');
       expect(call[1].system).toContain('KILDEBEHANDLING');
+      expect(call[1].system).toContain('STEMME');
     });
 
     it('should include articles in user prompt', async () => {
@@ -354,7 +356,7 @@ describe('linkedin-post agent', () => {
       await linkedInPostAgent.execute(linkedInPostBasic, ctx);
 
       const call = mockCallClaude.mock.calls[0];
-      expect(call[1].system).toContain('Scroll-stopper');
+      expect(call[1].system).toContain('POSTSTRUKTUR');
       expect(call[1].system).toContain('KILDEBEHANDLING');
     });
 
@@ -364,6 +366,44 @@ describe('linkedin-post agent', () => {
       const result = await linkedInPostAgent.execute(input, ctx);
 
       expect(result.artifacts[0].meta).toMatchObject({ persona: 'carl-johnson' });
+    });
+
+    it('should retry when forbidden phrase is found in fyrk output', async () => {
+      const draftsWithForbidden: LinkedInPostOutput = {
+        ...sampleDrafts,
+        drafts: [
+          {
+            ...sampleDrafts.drafts[0],
+            postText: 'Denne posten handler om innovativ teknologi i bank.',
+          },
+        ],
+      };
+
+      // First call returns forbidden phrase, second returns clean
+      mockCallClaude
+        .mockResolvedValueOnce({
+          id: 'msg_1',
+          content: [{ type: 'text', text: JSON.stringify(draftsWithForbidden) }],
+          model: 'claude-sonnet-4-5-20250929',
+          stop_reason: 'end_turn',
+          usage: { input_tokens: 100, output_tokens: 50 },
+        })
+        .mockResolvedValueOnce({
+          id: 'msg_2',
+          content: [{ type: 'text', text: JSON.stringify(sampleDrafts) }],
+          model: 'claude-sonnet-4-5-20250929',
+          stop_reason: 'end_turn',
+          usage: { input_tokens: 100, output_tokens: 50 },
+        });
+      const { extractText } = await import('../src/lib/claude.js');
+      vi.mocked(extractText)
+        .mockReturnValueOnce(JSON.stringify(draftsWithForbidden))
+        .mockReturnValueOnce(JSON.stringify(sampleDrafts));
+
+      const result = await linkedInPostAgent.execute(linkedInPostBasic, ctx);
+
+      expect(mockCallClaude).toHaveBeenCalledTimes(2);
+      expect(result.artifacts[0].meta).not.toHaveProperty('warning');
     });
 
     it('should retry when forbidden phrase is found in carl-johnson output', async () => {
@@ -459,8 +499,8 @@ describe('linkedin-post agent', () => {
   });
 
   describe('version', () => {
-    it('should be version 0.4', () => {
-      expect(linkedInPostAgent.version).toBe('0.4');
+    it('should be version 0.5', () => {
+      expect(linkedInPostAgent.version).toBe('0.5');
     });
   });
 });

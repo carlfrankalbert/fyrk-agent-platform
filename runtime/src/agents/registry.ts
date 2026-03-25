@@ -6,6 +6,7 @@ import { mealPlanAgent } from './meal-plan/index.js';
 import { stockMonitorAgent } from './stock-monitor/index.js';
 import { gtmPipelineAgent } from './gtm-pipeline/index.js';
 import { leadScannerAgent } from './lead-scanner/index.js';
+import { cvTailorAgent } from './cv-tailor/index.js';
 
 // Agent registry - add new agents here
 const agents: Map<string, AgentDefinition<unknown, unknown>> = new Map();
@@ -18,6 +19,7 @@ agents.set('meal-plan', mealPlanAgent as AgentDefinition<unknown, unknown>);
 agents.set('stock-monitor', stockMonitorAgent as AgentDefinition<unknown, unknown>);
 agents.set('gtm-pipeline', gtmPipelineAgent as AgentDefinition<unknown, unknown>);
 agents.set('lead-scanner', leadScannerAgent as AgentDefinition<unknown, unknown>);
+agents.set('cv-tailor', cvTailorAgent as AgentDefinition<unknown, unknown>);
 
 export function getAgent(name: string): AgentDefinition<unknown, unknown> | undefined {
   return agents.get(name);

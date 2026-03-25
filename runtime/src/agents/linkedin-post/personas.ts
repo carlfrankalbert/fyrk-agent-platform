@@ -7,7 +7,19 @@ export interface PersonaConfig {
 export const personas: Record<string, PersonaConfig> = {
   fyrk: {
     systemPrompt: null,
-    forbiddenPhrases: [],
+    forbiddenPhrases: [
+      'innovativ',
+      'banebrytende',
+      'ledende',
+      'revolusjonerende',
+      'game-changer',
+      'transformerer',
+      'synergier',
+      'fremtidssikre',
+      'i en verden der',
+      'det er ingen hemmelighet at',
+      'la oss dykke inn i',
+    ],
     topicRotation: null,
   },
   'carl-johnson': {

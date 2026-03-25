@@ -8,6 +8,11 @@ import { hubCalendarRoutes } from './calendar.js';
 import { hubReminderRoutes } from './reminders.js';
 import { hubChildrenRoutes } from './children.js';
 import { hubVoiceRoutes } from './voice.js';
+import { hubOdaRoutes } from './oda.js';
+import { hubMealsChatRoutes } from './meals-chat.js';
+import { hubProactiveRoutes } from './proactive.js';
+import { hubSettingsRoutes } from './settings.js';
+import { hubAnalyticsRoutes } from './analytics.js';
 import { join } from 'path';
 import { existsSync } from 'fs';
 
@@ -22,6 +27,11 @@ export async function hubRoutes(fastify: FastifyInstance): Promise<void> {
   await hubReminderRoutes(fastify);
   await hubChildrenRoutes(fastify);
   await hubVoiceRoutes(fastify);
+  await hubOdaRoutes(fastify);
+  await hubMealsChatRoutes(fastify);
+  await hubProactiveRoutes(fastify);
+  await hubSettingsRoutes(fastify);
+  await hubAnalyticsRoutes(fastify);
 
   // Serve frontend static files (production build)
   const hubDistPath = join(process.cwd(), '..', 'hub', 'dist');
