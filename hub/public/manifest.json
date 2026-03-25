@@ -1,0 +1,21 @@
+{
+  "name": "Husmor Hub",
+  "short_name": "Hub",
+  "start_url": "/hub/",
+  "display": "standalone",
+  "background_color": "#13151E",
+  "theme_color": "#13151E",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "/hub/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/hub/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
