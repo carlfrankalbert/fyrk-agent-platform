@@ -4,8 +4,8 @@ import { getSupabase } from '../../lib/supabase.js';
 import { requireAuth } from './auth.js';
 import { callClaude } from '../../lib/claude.js';
 import { getEnv } from '../../lib/env.js';
-import { executeActions } from '../husmor/actions.js';
-import { loadDbContextCached } from '../husmor/db.js';
+import { executeActions } from '../../lib/meal-actions.js';
+import { loadDbContextCached } from '../../lib/meal-db.js';
 
 const VoiceInputSchema = z.object({
   text: z.string().min(1).max(500),

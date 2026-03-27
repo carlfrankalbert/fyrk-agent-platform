@@ -14,12 +14,10 @@ services:
       - LOG_LEVEL=info
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
-      - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
-      - SLACK_CHANNEL_LEADS=${SLACK_CHANNEL_LEADS:-#fyrk-leads}
-      - SLACK_HUSMOR_BOT_TOKEN=${SLACK_HUSMOR_BOT_TOKEN}
-      - SLACK_HUSMOR_SIGNING_SECRET=${SLACK_HUSMOR_SIGNING_SECRET}
-      - SLACK_CHANNEL_HUSMOR=${SLACK_CHANNEL_HUSMOR:-#husmor}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - HUB_ACCESS_CODE=${HUB_ACCESS_CODE}
+      - ODA_EMAIL=${ODA_EMAIL}
+      - ODA_PASSWORD=${ODA_PASSWORD}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8787/health"]
       interval: 30s
@@ -38,12 +36,8 @@ services:
       - WEBHOOK_URL=http://localhost:5678/
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
-      - SLACK_HUSMOR_BOT_TOKEN=${SLACK_HUSMOR_BOT_TOKEN}
-      - SLACK_CHANNEL_HUSMOR=${SLACK_CHANNEL_HUSMOR:-#husmor}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     volumes:
       - n8n-data:/home/node/.n8n
       - ./n8n/workflows:/home/node/workflows:ro

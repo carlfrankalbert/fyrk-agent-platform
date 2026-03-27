@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { getSupabase } from '../../lib/supabase.js';
-import { getOrCreateCurrentWeekPlan } from '../husmor/db.js';
+import { getOrCreateCurrentWeekPlan } from '../../lib/meal-db.js';
 import { requireAuth } from './auth.js';
 import { AddShoppingItemsSchema } from './schemas.js';
 

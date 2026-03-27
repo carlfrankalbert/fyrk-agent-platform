@@ -10,7 +10,6 @@ import { hubChildrenRoutes } from './children.js';
 import { hubVoiceRoutes } from './voice.js';
 import { hubOdaRoutes } from './oda.js';
 import { hubMealsChatRoutes } from './meals-chat.js';
-import { hubProactiveRoutes } from './proactive.js';
 import { hubSettingsRoutes } from './settings.js';
 import { hubAnalyticsRoutes } from './analytics.js';
 import { join } from 'path';
@@ -29,7 +28,6 @@ export async function hubRoutes(fastify: FastifyInstance): Promise<void> {
   await hubVoiceRoutes(fastify);
   await hubOdaRoutes(fastify);
   await hubMealsChatRoutes(fastify);
-  await hubProactiveRoutes(fastify);
   await hubSettingsRoutes(fastify);
   await hubAnalyticsRoutes(fastify);
 

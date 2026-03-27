@@ -3,7 +3,7 @@ import { requireAuth } from './auth.js';
 import { callClaude } from '../../lib/claude.js';
 import { getEnv } from '../../lib/env.js';
 import { getSupabase } from '../../lib/supabase.js';
-import { loadDbContextCached } from '../husmor/db.js';
+import { loadDbContextCached } from '../../lib/meal-db.js';
 
 interface ChatMessage {
   role: 'user' | 'assistant';

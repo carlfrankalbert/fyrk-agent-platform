@@ -3,8 +3,6 @@ import cors from '@fastify/cors';
 import { validateEnv } from './lib/env.js';
 import { healthRoutes } from './routes/health.js';
 import { runRoutes } from './routes/run.js';
-import { leadRoutes } from './routes/leads/index.js';
-import { gtmRoutes } from './routes/gtm/index.js';
 import { cvTailorRoutes } from './routes/cv-tailor.js';
 import { hubRoutes } from './routes/hub/index.js';
 
@@ -23,8 +21,6 @@ async function main(): Promise<void> {
   // Register routes
   await fastify.register(healthRoutes);
   await fastify.register(runRoutes);
-  await fastify.register(leadRoutes);
-  await fastify.register(gtmRoutes);
   await fastify.register(cvTailorRoutes);
   await fastify.register(hubRoutes);
 

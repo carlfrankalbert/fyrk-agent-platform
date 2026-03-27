@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { createSign } from 'crypto';
-import { getOrCompute } from '../husmor/cache.js';
+import { getOrCompute } from '../../lib/cache.js';
 import { requireAuth } from './auth.js';
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min

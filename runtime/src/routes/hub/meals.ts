@@ -1,13 +1,13 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { getSupabase } from '../../lib/supabase.js';
-import { loadDbContextCached, getOrCreateCurrentWeekPlan } from '../husmor/db.js';
-import { executeActions } from '../husmor/actions.js';
+import { loadDbContextCached, getOrCreateCurrentWeekPlan } from '../../lib/meal-db.js';
+import { executeActions } from '../../lib/meal-actions.js';
 import { requireAuth } from './auth.js';
 import { RateMealSchema } from './schemas.js';
 import { callClaude } from '../../lib/claude.js';
 import { getEnv } from '../../lib/env.js';
-import { invalidateCache, getOrCompute } from '../husmor/cache.js';
-import type { DbContext } from '../husmor/db.js';
+import { invalidateCache, getOrCompute } from '../../lib/cache.js';
+import type { DbContext } from '../../lib/meal-db.js';
 import { fetchAllCalendars, type CalendarEvent } from './calendar.js';
 
 export async function hubMealsRoutes(fastify: FastifyInstance): Promise<void> {
@@ -18,10 +18,7 @@ export async function hubMealsRoutes(fastify: FastifyInstance): Promise<void> {
     const supabase = getSupabase();
     const ctx = await loadDbContextCached(supabase);
 
-    return {
-      plan: ctx.plan,
-      weeklyNutrition: ctx.weeklyNutrition,
-    };
+    return { plan: ctx.plan };
   });
 
   // Rate a meal

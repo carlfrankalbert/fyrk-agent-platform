@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { getOrCompute } from '../husmor/cache.js';
+import { getOrCompute } from '../../lib/cache.js';
 import { requireAuth } from './auth.js';
 
 // Gaustad T-bane, Oslo
