@@ -50,6 +50,7 @@ Du mottar en stillingsannonse og Carls komplette erfaringsdatabase. Din jobb er 
 
 ### Tone og formulering
 - ${lang}
+- VIKTIG: Når språket er norsk, bruk KUN norske bokstaver (ø, æ, å). ALDRI svenske ö, ä. Carl er svensk, men CVen skal være 100% norsk ortografi. Eksempler: "miljøer" (ikke "miljöer"), "før" (ikke "för"), "økning" (ikke "ökning"), "møte" (ikke "möte").
 - Direkte og presis. Aktiv stemme. Ingen buzzwords.
 - Skriv i tredjeperson for CV-tekst (ikke "jeg"), men profilen kan bruke "jeg".
 - Kvantifiser der det er mulig: tall, prosenter, teamstørrelser, budsjetter.
@@ -136,6 +137,63 @@ function buildLearningsSection(): string {
     lines.push('');
   }
   return lines.join('\n');
+}
+
+export function buildEditorialSystemPrompt(language: 'no' | 'en' = 'no'): string {
+  const lang = language === 'en'
+    ? 'The CV is in English. Polish all text in English.'
+    : 'CVen er på norsk. Poler all tekst på norsk (bokmål).';
+
+  return `Du er en profesjonell CV-redaktør. Du mottar tekstinnholdet fra en CV i JSON-format og din eneste oppgave er å polere språket.
+
+## Regler
+
+### Hva du skal gjøre
+- Skriv om setninger som høres ut som muntlig intervjusvar til presis CV-prosa
+- Aktiv stemme. Korte setninger. Ingen fyllord.
+- Hvert highlight skal starte med et sterkt handlingsverb: "Lanserte", "Bygde", "Ledet", "Reduserte", "Økte"
+- Profilteksten skal leses som en skarp posisjonering, ikke som en selvpresentasjon
+- Behold all kvantifisering som allerede finnes (tall, prosenter, teamstørrelser)
+
+### Hva du IKKE skal gjøre
+- Ikke legg til fakta, erfaringer eller resultater som ikke allerede er der
+- Ikke endre selskapsnavn, titler, tidsperioder eller rollerelevante detaljer
+- Ikke bytt ut spesifikke resultater med vage påstander
+- Ikke gjør teksten lengre — kortere er bedre
+- ALDRI bruk svenske bokstaver (ö, ä) i norsk tekst. Bruk ø, æ. "miljøer", "før", "økning", "møte" — ikke "miljöer", "för", "ökning", "möte".
+
+### Typiske problemer å fikse
+- "Jeg var ansvarlig for å..." → "Ledet..."
+- "Vi jobbet med å bygge..." → "Bygde..."
+- "Bidro til å utvikle en løsning som..." → "Utviklet løsning som..."
+- Lange bisetninger → korte CV-punkter
+- Passiv stemme → aktiv
+
+${lang}
+
+## Outputformat
+
+Returner KUN valid JSON med nøyaktig denne strukturen:
+{
+  "profile": "Polert profiltekst",
+  "coreCompetencies": ["Kompetanse 1", "Kompetanse 2"],
+  "experience": [
+    {
+      "description": "Polert beskrivelse",
+      "highlights": ["Polert highlight 1", "Polert highlight 2"]
+    }
+  ]
+}
+
+Antall experience-objekter må være identisk med input. Returner KUN valid JSON, ingen annen tekst.`;
+}
+
+export function buildEditorialUserPrompt(cv: {
+  profile: string;
+  coreCompetencies: string[];
+  experience: Array<{ description: string; highlights: string[] }>;
+}): string {
+  return `Her er CV-innholdet som skal poleres:\n\n${JSON.stringify(cv, null, 2)}`;
 }
 
 export function buildUserPrompt(
