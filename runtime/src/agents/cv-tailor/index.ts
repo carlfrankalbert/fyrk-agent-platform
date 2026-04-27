@@ -1,10 +1,11 @@
 import type { AgentDefinition, AgentContext, AgentResult } from '../base.js';
 import { callClaudeJson } from '../../lib/claude-json.js';
-import { buildSystemPrompt, buildUserPrompt } from './prompt.js';
+import { buildSystemPrompt, buildUserPrompt, buildEditorialSystemPrompt, buildEditorialUserPrompt } from './prompt.js';
 
 import {
   CvTailorInputSchema,
   CvTailorOutputSchema,
+  EditorialPassSchema,
   type CvTailorInput,
   type CvTailorOutput,
 } from './schemas.js';
@@ -26,6 +27,30 @@ async function execute(
     maxTokens: 8192,
     cacheControl: { type: 'ephemeral' },
   });
+
+  // Editorial pass — Haiku polishes language without changing facts
+  const editorialInput = {
+    profile: output.cv.profile,
+    coreCompetencies: output.cv.coreCompetencies,
+    experience: output.cv.experience.map(e => ({ description: e.description, highlights: e.highlights })),
+  };
+
+  const { parsed: editorial } = await callClaudeJson(EditorialPassSchema, {
+    model: 'claude-haiku-4-5-20251001',
+    system: buildEditorialSystemPrompt(language),
+    messages: [{ role: 'user', content: buildEditorialUserPrompt(editorialInput) }],
+    maxTokens: 4096,
+  });
+
+  // Merge polished text back into output
+  output.cv.profile = editorial.profile;
+  output.cv.coreCompetencies = editorial.coreCompetencies;
+  for (let i = 0; i < output.cv.experience.length; i++) {
+    if (editorial.experience[i]) {
+      output.cv.experience[i].description = editorial.experience[i].description;
+      output.cv.experience[i].highlights = editorial.experience[i].highlights;
+    }
+  }
 
   // Build markdown artifact for human review
   const md: string[] = [];

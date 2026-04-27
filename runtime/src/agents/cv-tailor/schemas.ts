@@ -53,3 +53,14 @@ export const CvTailorOutputSchema = z.object({
 });
 
 export type CvTailorOutput = z.infer<typeof CvTailorOutputSchema>;
+
+export const EditorialPassSchema = z.object({
+  profile: z.string(),
+  coreCompetencies: z.array(z.string()),
+  experience: z.array(z.object({
+    description: z.string(),
+    highlights: z.array(z.string()),
+  })),
+});
+
+export type EditorialPass = z.infer<typeof EditorialPassSchema>;
