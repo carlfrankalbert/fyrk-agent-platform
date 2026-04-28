@@ -107,61 +107,8 @@ async function execute(
     md.push('');
   }
 
-  // Match analysis section
-  md.push('---\n');
-  md.push('# Treffanalyse\n');
-  md.push(`**Overordnet match:** ${output.matchAnalysis.overallFit} (${output.matchAnalysis.fitScore}/100)\n`);
-  md.push(`${output.matchAnalysis.strengthNarrative}\n`);
-
-  md.push('**Matchede kompetanser:**');
-  for (const skill of output.matchAnalysis.matchedSkills) {
-    md.push(`- ${skill}`);
-  }
-  md.push('');
-
-  md.push('**Matchede erfaringer:**');
-  for (const exp of output.matchAnalysis.matchedExperience) {
-    md.push(`- ${exp}`);
-  }
-  md.push('');
-
-  // Gap analysis section
-  if (output.gaps.questions.length > 0 || output.gaps.missingSkills.length > 0) {
-    md.push('---\n');
-    md.push('# Gap-analyse\n');
-
-    if (output.gaps.missingSkills.length > 0) {
-      md.push('**Manglende kompetanser:**');
-      for (const skill of output.gaps.missingSkills) {
-        md.push(`- ${skill}`);
-      }
-      md.push('');
-    }
-
-    if (output.gaps.missingExperience.length > 0) {
-      md.push('**Manglende erfaring:**');
-      for (const exp of output.gaps.missingExperience) {
-        md.push(`- ${exp}`);
-      }
-      md.push('');
-    }
-
-    if (output.gaps.questions.length > 0) {
-      md.push('**Spørsmål til Carl:**');
-      for (const q of output.gaps.questions) {
-        md.push(`- ${q}`);
-      }
-      md.push('');
-    }
-
-    if (output.gaps.suggestions.length > 0) {
-      md.push('**Forslag til vinkling:**');
-      for (const s of output.gaps.suggestions) {
-        md.push(`- ${s}`);
-      }
-      md.push('');
-    }
-  }
+  // Match analysis and gap analysis are kept in JSON output only (output.matchAnalysis, output.gaps)
+  // but NOT included in the markdown artifact — the CV should be clean and ready to use
 
   return {
     output,

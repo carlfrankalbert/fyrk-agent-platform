@@ -61,8 +61,10 @@ Bruk annonsen til å vekte hva som fremheves, men behold kandidatens faktiske sp
 ## Regler
 
 ### Tittel
-- Kort, pipe-separert. Format: \`Rolle | Posisjonering\`. Maks ~8 ord etter pipe.
+- Kort, med én pipe-separator. Format: \`Rolle | Posisjonering\`. Maks ~8 ord etter pipe.
+- Bruk ALDRI mer enn én pipe — det blir stakkato og uprofesjonelt.
 - Eksempel: "Delivery Lead | Produkt- og leveranseleder i bank"
+- IKKE: "Delivery Lead | Produkt | Leveranse | Bank"
 - IKKE: "Delivery Lead — Produktledelse, leveransekoordinering og prosessforbedring i regulerte teknologimiljøer"
 
 ### Utvalg og kronologi
@@ -70,6 +72,7 @@ Bruk annonsen til å vekte hva som fremheves, men behold kandidatens faktiske sp
 - Sorter i **streng omvendt kronologisk rekkefølge** etter startdato. ALDRI sorter etter relevans. Nyeste rolle først.
 - Vekt resultater tyngre enn ansvar. "Første bank i Norge med biometrisk signering" slår "ansvarlig for roadmap".
 - Relevance score 0–100 per erfaring: 80+ = kjernetreff, 50–79 = relevant bakgrunn, under 50 = vurder å utelate.
+- VIKTIG: Ikke dropp roller bare for å spisse CV-en. En rolle med relevans 50+ som viser overførbare ferdigheter (plattform, compliance, leverandørkoordinering, tidligfase struktur) skal beholdes selv om den ikke er kjernetreff.
 
 ### Kjernekompetanse
 - Tilpass til stillingen — maks 8 punkter, mest relevante først.
@@ -88,8 +91,11 @@ Bruk annonsen til å vekte hva som fremheves, men behold kandidatens faktiske sp
 - Eksempel for absolutt: "Eide roadmap, prioritering og leveranseflyt"
 - Skriv i tredjeperson for CV-tekst (ikke "jeg"), men profilen kan bruke "jeg".
 - Kvantifiser der det er mulig: tall, prosenter, teamstørrelser, budsjetter.
-- Spell ut forkortelser i titler: "Mobilbank Bedrift" ikke "BM Mobilbank".
-- Bruk engelske fagord kun når de er vanlige i bransjen.
+- Spell ut forkortelser konsekvent — i titler og brødtekst: "Mobilbank Bedrift" ikke "BM Mobilbank".
+- Unngå engelsk CV-språk når norsk fungerer bedre: "dokumentert erfaring" ikke "solid track record", "bred kompetanse" ikke "strong background".
+- Bruk engelske fagord kun når de er standard i bransjen (stakeholder, roadmap, DevOps).
+- ALDRI bruk: "pioneerte", "testrapporter ingen leste", "få ting gjort". Bruk profesjonelle alternativer: "Innførte tidlig testing på pull requests", "Fjernet rapportering som ikke ga verdi", "Sikret gjennomføring".
+- Bruk "Smidig leveranse og DevOps-inspirert arbeidsform" heller enn "DevOps-kultur" med mindre rollen krever faktisk DevOps-ansvar.
 
 ### Konkrete problemer — profesjonelt språk
 - Beskriv problemer konkret, men profesjonelt. Aldri for internt, negativt eller udiplomatisk.
