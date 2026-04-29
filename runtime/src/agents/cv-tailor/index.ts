@@ -34,7 +34,13 @@ async function execute(
   const env = getEnv();
 
   const systemPrompt = buildSystemPrompt(language);
-  const userPrompt = buildUserPrompt(rawInput.jobPosting, roleHint, rawInput.additionalContext);
+  const userPrompt = buildUserPrompt(
+    rawInput.jobPosting,
+    roleHint,
+    rawInput.additionalContext,
+    rawInput.previousCvMarkdown,
+    rawInput.revisionNotes,
+  );
 
   const { parsed: output } = await callClaudeJson(CvTailorOutputSchema, {
     model: 'claude-sonnet-4-5-20250929',

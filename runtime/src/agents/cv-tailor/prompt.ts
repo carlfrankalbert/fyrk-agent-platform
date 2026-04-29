@@ -472,6 +472,8 @@ export function buildUserPrompt(
   jobPosting: string,
   roleHint?: string | null,
   additionalContext?: string | null,
+  previousCvMarkdown?: string | null,
+  revisionNotes?: string | null,
 ): string {
   const lines: string[] = [];
 
@@ -484,6 +486,16 @@ export function buildUserPrompt(
 
   if (additionalContext) {
     lines.push(`\n## Tilleggsinformasjon fra Carl\n${additionalContext}`);
+  }
+
+  if (previousCvMarkdown) {
+    lines.push(`\n## Siste genererte CV-utkast\n${previousCvMarkdown}`);
+    lines.push('\nBruk dette som utgangspunkt for neste revisjon. Behold det som fungerer, men forbedre det som er svakt.');
+  }
+
+  if (revisionNotes) {
+    lines.push(`\n## Tilbakemelding på siste CV-utkast\n${revisionNotes}`);
+    lines.push('\nDette er konkrete revisjonsønsker til siste genererte CV. Prioriter å forbedre disse punktene uten å endre fakta.');
   }
 
   lines.push('\nGenerer en skreddersydd CV med treffanalyse og gap-spørsmål basert på stillingen over.');

@@ -223,14 +223,14 @@
 </div>
 
 <div class="field" id="additional-context-field" style="display:none;">
-  <label for="additional-context">Tilleggsinformasjon</label>
-  <div class="hint">Svar på gap-spørsmål eller annen kontekst agenten bør vite.</div>
-  <textarea id="additional-context" placeholder="Ja, jeg har erfaring med PSD2 via..."></textarea>
+  <label for="additional-context" id="additional-context-label">Tilbakemelding på siste CV</label>
+  <div class="hint" id="additional-context-hint">Skriv konkrete forbedringer på siste genererte CV, for eksempel språk, presisjon, struktur eller hva som mangler.</div>
+  <textarea id="additional-context" placeholder="Forbedre profilen, ton ned sterke påstander, og få FYRK tydeligere frem øverst..."></textarea>
 </div>
 
 <div class="actions">
   <button id="generate-btn" onclick="generate()">Generer CV</button>
-  <button id="regenerate-btn" class="copy-btn" style="display:none;" onclick="regenerateWithContext()">Regenerer med tilleggssvar</button>
+  <button id="regenerate-btn" class="copy-btn" style="display:none;" onclick="regenerateWithContext()">Revider siste CV</button>
   <span class="status" id="status"></span>
 </div>
 
@@ -289,6 +289,8 @@ async function generate() {
   const roleHint = document.getElementById('role-hint').value || undefined;
   const language = document.getElementById('language').value;
   const additionalContext = document.getElementById('additional-context').value.trim() || undefined;
+  const isRevision = Boolean(lastResult && artifactMarkdown);
+  const revisionNotes = isRevision ? additionalContext : undefined;
 
   if (!jobPosting) {
     status.textContent = 'Lim inn en stillingsannonse.';
@@ -306,7 +308,14 @@ async function generate() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        input: { jobPosting, roleHint, language, additionalContext },
+        input: {
+          jobPosting,
+          roleHint,
+          language,
+          additionalContext: isRevision ? undefined : additionalContext,
+          previousCvMarkdown: isRevision ? artifactMarkdown : undefined,
+          revisionNotes,
+        },
         dryRun: true,
         publish: false,
       }),

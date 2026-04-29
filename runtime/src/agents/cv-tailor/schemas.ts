@@ -5,6 +5,8 @@ export const CvTailorInputSchema = z.object({
   roleHint: z.string().optional(),
   language: z.enum(['no', 'en']).optional(),
   additionalContext: z.string().optional(),
+  previousCvMarkdown: z.string().optional(),
+  revisionNotes: z.string().optional(),
 });
 
 export type CvTailorInput = z.infer<typeof CvTailorInputSchema>;
