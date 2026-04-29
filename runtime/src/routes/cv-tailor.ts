@@ -52,13 +52,19 @@ async function saveLearnings(learnings: Learning[]): Promise<void> {
 }
 
 export async function cvTailorRoutes(fastify: FastifyInstance): Promise<void> {
-  // Serve the CV Tailor UI
-  fastify.get('/cv-tailor', async (_request, reply) => {
+  const serveCvTailorHtml = async (_request: unknown, reply: { type: (contentType: string) => { send: (body: string) => unknown } }) => {
     const html = await readFile(HTML_PATH, 'utf-8');
     return reply.type('text/html').send(html);
-  });
+  };
+
+  // Serve the CV Tailor UI
+  fastify.get('/cv-tailor', serveCvTailorHtml);
+  fastify.get('/cv-tailor/', serveCvTailorHtml);
 
   fastify.get('/cv-tailor/version', async () => {
+    return loadRuntimeVersion();
+  });
+  fastify.get('/cv-tailor/version/', async () => {
     return loadRuntimeVersion();
   });
 
