@@ -232,7 +232,7 @@ function normalizePreviousExperienceSummary(
   const oldestStartYear = experience.reduce((min, entry) => Math.min(min, parsePeriod(entry.period).year), Number.POSITIVE_INFINITY);
 
   if (summary) {
-    return stripForbiddenSections(cleanText(summary, language, issues, 'Tidligere erfaring'), issues, 'Tidligere erfaring');
+    return stripForbiddenSections(cleanText(summary, language, issues, 'Øvrig relevant erfaring'), issues, 'Øvrig relevant erfaring');
   }
 
   if (oldestStartYear >= 2014) {
@@ -240,10 +240,10 @@ function normalizePreviousExperienceSummary(
       severity: 'warning',
       category: 'experience_scope',
       message: 'Added a short previous experience summary to preserve older breadth without expanding older roles.',
-      location: 'Tidligere erfaring',
+      location: 'Øvrig relevant erfaring',
       suggestedFix: 'Keep older experience as a compact summary below detailed roles.',
     });
-    return 'Tidligere erfaring fra test, kvalitetssikring og leveranse i bank, finans og offentlig sektor, blant annet for Nets/BBS, EVRY, SEB, Handelsbanken og Domstoladministrasjonen.';
+    return 'Øvrig relevant erfaring fra test, kvalitetssikring og leveranse i bank, finans og offentlig sektor, blant annet for Nets/BBS, EVRY, SEB, Handelsbanken og Domstoladministrasjonen.';
   }
 
   return null;

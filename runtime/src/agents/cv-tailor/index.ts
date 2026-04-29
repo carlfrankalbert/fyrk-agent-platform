@@ -197,7 +197,7 @@ async function execute(
   }
 
   if (cv.previousExperienceSummary) {
-    md.push('## Tidligere erfaring\n');
+    md.push('## Øvrig relevant erfaring\n');
     md.push(`${cv.previousExperienceSummary}\n`);
   }
 

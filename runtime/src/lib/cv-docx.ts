@@ -65,7 +65,7 @@ export async function buildCvDocx(cv: CvTailorOutput['cv']): Promise<Buffer> {
   pushSection(children, 'Erfaring', experienceParagraphs);
 
   if (cv.previousExperienceSummary) {
-    pushSection(children, 'Tidligere erfaring', [
+    pushSection(children, 'Øvrig relevant erfaring', [
       new Paragraph({ text: cv.previousExperienceSummary }),
     ]);
   }
