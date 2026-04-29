@@ -1,11 +1,22 @@
 import type { AgentDefinition, AgentContext, AgentResult } from '../base.js';
 import { callClaudeJson } from '../../lib/claude-json.js';
-import { buildSystemPrompt, buildUserPrompt, buildEditorialSystemPrompt, buildEditorialUserPrompt } from './prompt.js';
+import { callOpenAiJson } from '../../lib/openai-json.js';
+import { getEnv } from '../../lib/env.js';
+import {
+  buildSystemPrompt,
+  buildUserPrompt,
+  buildEditorialSystemPrompt,
+  buildEditorialUserPrompt,
+  buildSecondOpinionSystemPrompt,
+  buildSecondOpinionUserPrompt,
+} from './prompt.js';
 
 import {
   CvTailorInputSchema,
   CvTailorOutputSchema,
   EditorialPassSchema,
+  ReviewPassSchema,
+  ReviewPassJsonSchema,
   type CvTailorInput,
   type CvTailorOutput,
 } from './schemas.js';
@@ -16,6 +27,7 @@ async function execute(
 ): Promise<AgentResult<CvTailorOutput>> {
   const language = rawInput.language ?? 'no';
   const roleHint = rawInput.roleHint ?? null;
+  const env = getEnv();
 
   const systemPrompt = buildSystemPrompt(language);
   const userPrompt = buildUserPrompt(rawInput.jobPosting, roleHint, rawInput.additionalContext);
@@ -50,6 +62,45 @@ async function execute(
       output.cv.experience[i].description = editorial.experience[i].description;
       output.cv.experience[i].highlights = editorial.experience[i].highlights;
     }
+  }
+
+  let secondOpinion: CvTailorOutput['secondOpinion'] | undefined;
+
+  if (env.CV_SECOND_OPINION_PROVIDER === 'openai') {
+    const reviewInput = {
+      profile: output.cv.profile,
+      coreCompetencies: output.cv.coreCompetencies,
+      experience: output.cv.experience.map(e => ({ description: e.description, highlights: e.highlights })),
+    };
+
+    const { parsed: review } = await callOpenAiJson(ReviewPassSchema, {
+      system: buildSecondOpinionSystemPrompt(language),
+      input: buildSecondOpinionUserPrompt({
+        jobPosting: rawInput.jobPosting,
+        roleHint,
+        cv: reviewInput,
+      }),
+      schemaName: 'cv_second_opinion_review',
+      schemaDescription: 'Independent review of a CV draft with concise findings and safe text revisions.',
+      schemaJson: ReviewPassJsonSchema,
+      maxTokens: 4096,
+    });
+
+    output.cv.profile = review.profile;
+    output.cv.coreCompetencies = review.coreCompetencies;
+    for (let i = 0; i < output.cv.experience.length; i++) {
+      if (review.experience[i]) {
+        output.cv.experience[i].description = review.experience[i].description;
+        output.cv.experience[i].highlights = review.experience[i].highlights;
+      }
+    }
+
+    secondOpinion = {
+      provider: 'openai',
+      summary: review.summary,
+      findings: review.findings,
+    };
+    output.secondOpinion = secondOpinion;
   }
 
   // Build markdown artifact for human review
@@ -121,6 +172,8 @@ async function execute(
           fitScore: output.matchAnalysis.fitScore,
           overallFit: output.matchAnalysis.overallFit,
           gapQuestions: output.gaps.questions.length,
+          secondOpinionProvider: secondOpinion?.provider ?? null,
+          secondOpinionFindings: secondOpinion?.findings.length ?? 0,
           generatedAt: output.generatedAt,
         },
       },

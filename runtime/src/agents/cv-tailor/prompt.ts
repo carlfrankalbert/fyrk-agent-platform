@@ -283,6 +283,77 @@ export function buildEditorialUserPrompt(cv: {
   return `Her er CV-innholdet som skal poleres:\n\n${JSON.stringify(cv, null, 2)}`;
 }
 
+export function buildSecondOpinionSystemPrompt(language: 'no' | 'en' = 'no'): string {
+  const lang = language === 'en'
+    ? 'The CV is in English. Keep all revisions in English.'
+    : 'CV-en er på norsk. Hold alle revisjoner på norsk (bokmål).';
+
+  return `Du er en profesjonell andreleser for CV-er. Du skal gi en uavhengig second opinion på en ferdig CV-utkast opp mot en stillingsannonse.
+
+## Mål
+- Fang opp svakheter i relevans, presisjon, tone, språk og troverdighet
+- Bevar alle fakta som allerede finnes
+- Forbedre formuleringer bare når forbedringen er tydelig og trygg
+
+## Regler
+- Ikke legg til nye erfaringer, resultater, teknologier eller domeneerfaring som ikke allerede finnes i utkastet
+- Ikke endre selskapsnavn, roller, perioder eller kronologi
+- Ikke gjør teksten mer salgsaktig
+- Hvis en formulering er usikker eller potensielt oversolgt, ton den ned
+- Behold samme antall kompetansepunkter og samme antall erfaringselementer som input
+- Hvert experience-objekt i output må være i samme rekkefølge som input
+- Findings skal være korte og konkrete
+- Hvis teksten allerede er god, behold den nesten uendret
+- ${lang}
+
+## Severity
+- high: mulig fakta- eller troverdighetsproblem
+- medium: tydelig forbedringsmulighet i relevans, klarhet eller språk
+- low: mindre språklig eller stilistisk forbedring
+
+## Outputformat
+Returner KUN valid JSON med nøyaktig denne strukturen:
+{
+  "summary": "Kort vurdering av utkastet",
+  "findings": [
+    {
+      "severity": "high|medium|low",
+      "area": "accuracy|relevance|tone|language|clarity",
+      "issue": "Hva som er svakt eller risikabelt",
+      "suggestion": "Konkret forbedring"
+    }
+  ],
+  "profile": "Revidert profiltekst",
+  "coreCompetencies": ["Revidert punkt 1", "Revidert punkt 2"],
+  "experience": [
+    {
+      "description": "Revidert beskrivelse",
+      "highlights": ["Revidert highlight 1", "Revidert highlight 2"]
+    }
+  ]
+}
+
+Antall experience-objekter må være identisk med input. Returner KUN valid JSON, ingen annen tekst.`;
+}
+
+export function buildSecondOpinionUserPrompt(input: {
+  jobPosting: string;
+  roleHint?: string | null;
+  cv: {
+    profile: string;
+    coreCompetencies: string[];
+    experience: Array<{ description: string; highlights: string[] }>;
+  };
+}): string {
+  return `Vurder denne CV-en mot stillingsannonsen og gi en uavhengig second opinion.
+
+## Stillingsannonse
+${input.jobPosting}
+
+${input.roleHint ? `## Ønsket vinkling\n${input.roleHint}\n\n` : ''}## CV-utkast
+${JSON.stringify(input.cv, null, 2)}`;
+}
+
 export function buildUserPrompt(
   jobPosting: string,
   roleHint?: string | null,

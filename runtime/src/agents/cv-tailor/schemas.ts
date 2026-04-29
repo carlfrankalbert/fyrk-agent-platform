@@ -33,6 +33,21 @@ const GapAnalysisSchema = z.object({
   suggestions: z.array(z.string()),
 });
 
+export const ReviewFindingSchema = z.object({
+  severity: z.enum(['high', 'medium', 'low']),
+  area: z.enum(['accuracy', 'relevance', 'tone', 'language', 'clarity']),
+  issue: z.string(),
+  suggestion: z.string(),
+});
+
+export const SecondOpinionSchema = z.object({
+  provider: z.literal('openai'),
+  summary: z.string(),
+  findings: z.array(ReviewFindingSchema),
+});
+
+export type SecondOpinion = z.infer<typeof SecondOpinionSchema>;
+
 export const CvTailorOutputSchema = z.object({
   cv: z.object({
     name: z.string(),
@@ -50,6 +65,7 @@ export const CvTailorOutputSchema = z.object({
   gaps: GapAnalysisSchema,
   generatedAt: z.string(),
   roleHint: z.string().nullable(),
+  secondOpinion: SecondOpinionSchema.optional(),
 });
 
 export type CvTailorOutput = z.infer<typeof CvTailorOutputSchema>;
@@ -64,3 +80,59 @@ export const EditorialPassSchema = z.object({
 });
 
 export type EditorialPass = z.infer<typeof EditorialPassSchema>;
+
+export const ReviewPassSchema = z.object({
+  summary: z.string(),
+  findings: z.array(ReviewFindingSchema),
+  profile: z.string(),
+  coreCompetencies: z.array(z.string()),
+  experience: z.array(z.object({
+    description: z.string(),
+    highlights: z.array(z.string()),
+  })),
+});
+
+export type ReviewPass = z.infer<typeof ReviewPassSchema>;
+
+export const ReviewPassJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['summary', 'findings', 'profile', 'coreCompetencies', 'experience'],
+  properties: {
+    summary: { type: 'string' },
+    findings: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['severity', 'area', 'issue', 'suggestion'],
+        properties: {
+          severity: { type: 'string', enum: ['high', 'medium', 'low'] },
+          area: { type: 'string', enum: ['accuracy', 'relevance', 'tone', 'language', 'clarity'] },
+          issue: { type: 'string' },
+          suggestion: { type: 'string' },
+        },
+      },
+    },
+    profile: { type: 'string' },
+    coreCompetencies: {
+      type: 'array',
+      items: { type: 'string' },
+    },
+    experience: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['description', 'highlights'],
+        properties: {
+          description: { type: 'string' },
+          highlights: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+        },
+      },
+    },
+  },
+} satisfies Record<string, unknown>;

@@ -24,9 +24,8 @@ import { cvTailorAgent } from '../src/agents/cv-tailor/index.js';
 import { buildSystemPrompt, buildUserPrompt } from '../src/agents/cv-tailor/prompt.js';
 import {
   mockCallClaude,
+  mockExtractText,
   createTestContext,
-  makeMockClaudeResponse,
-  makeFencedClaudeResponse,
   makeBadJsonClaudeResponse,
 } from './helpers/claude-agent.js';
 
@@ -94,6 +93,49 @@ const sampleOutput: CvTailorOutput = {
   generatedAt: '2026-03-16T10:00:00Z',
   roleHint: 'produktleder',
 };
+
+function makeCvEditorialPayload(output: CvTailorOutput) {
+  return {
+    profile: output.cv.profile,
+    coreCompetencies: output.cv.coreCompetencies,
+    experience: output.cv.experience.map((entry) => ({
+      description: entry.description,
+      highlights: entry.highlights,
+    })),
+  };
+}
+
+function makeMockClaudeResponse(output: CvTailorOutput): void {
+  const generationText = JSON.stringify(output);
+  const editorialText = JSON.stringify(makeCvEditorialPayload(output));
+
+  mockCallClaude
+    .mockResolvedValueOnce(makeClaudeResponse(generationText))
+    .mockResolvedValueOnce(makeClaudeResponse(editorialText));
+
+  mockExtractText.mockImplementation((response: any) => response.content[0].text);
+}
+
+function makeFencedClaudeResponse(output: CvTailorOutput): void {
+  const generationText = '```json\n' + JSON.stringify(output) + '\n```';
+  const editorialText = JSON.stringify(makeCvEditorialPayload(output));
+
+  mockCallClaude
+    .mockResolvedValueOnce(makeClaudeResponse(generationText))
+    .mockResolvedValueOnce(makeClaudeResponse(editorialText));
+
+  mockExtractText.mockImplementation((response: any) => response.content[0].text);
+}
+
+function makeClaudeResponse(text: string) {
+  return {
+    id: 'msg_test',
+    content: [{ type: 'text', text }],
+    model: 'claude-haiku-4-5-20251001',
+    stop_reason: 'end_turn',
+    usage: { input_tokens: 100, output_tokens: 50 },
+  };
+}
 
 describe('cv-tailor agent', () => {
   let ctx: ReturnType<typeof createTestContext>;
@@ -218,17 +260,18 @@ describe('cv-tailor agent', () => {
       const content = result.artifacts[0].content;
 
       expect(content).toContain('Carl Johnson');
-      expect(content).toContain('Treffanalyse');
       expect(content).toContain('Kjernekompetanse');
+      expect(content).not.toContain('Treffanalyse');
     });
 
-    it('should include gap section when gaps exist', async () => {
+    it('should keep gap analysis out of the markdown artifact', async () => {
       makeMockClaudeResponse(sampleOutput);
       const result = await cvTailorAgent.execute(cvTailorBasic, ctx);
       const content = result.artifacts[0].content;
 
-      expect(content).toContain('Gap-analyse');
-      expect(content).toContain('Spørsmål til Carl');
+      expect(content).not.toContain('Gap-analyse');
+      expect(content).not.toContain('Spørsmål til Carl');
+      expect(result.output.gaps.questions).toHaveLength(1);
     });
 
     it('should include meta with fitScore and roleHint', async () => {
