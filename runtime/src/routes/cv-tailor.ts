@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { CvTailorOutputSchema } from '../agents/cv-tailor/schemas.js';
+import { buildCvDocx, buildCvDocxFilename } from '../lib/cv-docx.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LEARNINGS_PATH = join(__dirname, '..', 'agents', 'cv-tailor', 'learnings.json');
@@ -15,6 +17,10 @@ const LearnRequestSchema = z.object({
     answer: z.string().min(1),
     jobContext: z.string().optional(),
   })).min(1),
+});
+
+const ExportDocxRequestSchema = z.object({
+  cv: CvTailorOutputSchema.shape.cv,
 });
 
 export interface Learning {
@@ -66,6 +72,35 @@ export async function cvTailorRoutes(fastify: FastifyInstance): Promise<void> {
   });
   fastify.get('/cv-tailor/version/', async () => {
     return loadRuntimeVersion();
+  });
+
+  fastify.post('/cv-tailor/export-docx', async (request, reply) => {
+    const parse = ExportDocxRequestSchema.safeParse(request.body);
+    if (!parse.success) {
+      return reply.status(400).send({ error: parse.error.message });
+    }
+
+    const buffer = await buildCvDocx(parse.data.cv);
+    const filename = buildCvDocxFilename(parse.data.cv.name);
+
+    return reply
+      .header('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+      .header('content-disposition', `attachment; filename="${filename}"`)
+      .send(buffer);
+  });
+  fastify.post('/cv-tailor/export-docx/', async (request, reply) => {
+    const parse = ExportDocxRequestSchema.safeParse(request.body);
+    if (!parse.success) {
+      return reply.status(400).send({ error: parse.error.message });
+    }
+
+    const buffer = await buildCvDocx(parse.data.cv);
+    const filename = buildCvDocxFilename(parse.data.cv.name);
+
+    return reply
+      .header('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+      .header('content-disposition', `attachment; filename="${filename}"`)
+      .send(buffer);
   });
 
   // Save gap-analysis answers to the experience learnings

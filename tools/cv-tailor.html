@@ -256,6 +256,7 @@
   <div class="tab-content" id="tab-raw">
     <div style="margin-bottom:0.5rem;">
       <button class="copy-btn" onclick="copyMarkdown()">Kopier markdown</button>
+      <button class="copy-btn" onclick="exportDocx()" style="margin-left:0.5rem;">Eksporter DOCX</button>
     </div>
     <pre id="raw-markdown"></pre>
   </div>
@@ -487,6 +488,40 @@ function showTab(name) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   document.querySelector(`.tab[onclick="showTab('${name}')"]`).classList.add('active');
   document.getElementById(`tab-${name}`).classList.add('active');
+}
+
+async function exportDocx() {
+  if (!lastResult?.cv) return;
+
+  const apiUrl = document.getElementById('api-url').value.replace(/\/$/, '');
+
+  try {
+    const res = await fetch(`${apiUrl}/cv-tailor/export-docx`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cv: lastResult.cv }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'DOCX-eksport feilet');
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const filename = `${(lastResult.cv.name || 'cv').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'cv'}.docx`;
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    const status = document.getElementById('status');
+    status.textContent = `Feil: ${err.message}`;
+    status.className = 'status error';
+  }
 }
 
 async function saveLearnings() {
