@@ -9,12 +9,15 @@ import {
   buildEditorialUserPrompt,
   buildSecondOpinionSystemPrompt,
   buildSecondOpinionUserPrompt,
+  buildReviewerSystemPrompt,
+  buildReviewerUserPrompt,
 } from './prompt.js';
 
 import {
   CvTailorInputSchema,
   CvTailorOutputSchema,
   EditorialPassSchema,
+  ReviewerPassSchema,
   ReviewPassSchema,
   ReviewPassJsonSchema,
   type CvTailorInput,
@@ -108,10 +111,59 @@ async function execute(
     output.secondOpinion = secondOpinion;
   }
 
+  const { parsed: reviewer } = await callClaudeJson(ReviewerPassSchema, {
+    model: 'claude-sonnet-4-5-20250929',
+    system: buildReviewerSystemPrompt(language),
+    messages: [{
+      role: 'user',
+      content: buildReviewerUserPrompt({
+        jobPosting: rawInput.jobPosting,
+        roleHint,
+        cv: {
+          title: output.cv.title,
+          profile: output.cv.profile,
+          coreCompetencies: output.cv.coreCompetencies,
+          previousExperienceSummary: output.cv.previousExperienceSummary ?? null,
+          experience: output.cv.experience.map(e => ({
+            company: e.company,
+            role: e.role,
+            period: e.period,
+            description: e.description,
+            highlights: e.highlights,
+          })),
+        },
+      }),
+    }],
+    maxTokens: 4096,
+  });
+
+  output.cv.profile = reviewer.profile;
+  output.cv.coreCompetencies = reviewer.coreCompetencies;
+  output.cv.previousExperienceSummary = reviewer.previousExperienceSummary ?? output.cv.previousExperienceSummary ?? null;
+  for (let i = 0; i < output.cv.experience.length; i++) {
+    if (reviewer.experience[i]) {
+      output.cv.experience[i].description = reviewer.experience[i].description;
+      output.cv.experience[i].highlights = reviewer.experience[i].highlights;
+    }
+  }
+  output.reviewer = {
+    sendable: reviewer.sendable,
+    blockingErrors: reviewer.blockingErrors,
+    precisionRisks: reviewer.precisionRisks,
+    languageAndProof: reviewer.languageAndProof,
+    roleMatch: reviewer.roleMatch,
+    concreteChanges: reviewer.concreteChanges,
+  };
+
   const { output: validatedOutput, issues } = validateAndFinalizeCv(output, {
     language,
     roleHint,
   });
+
+  if (!validatedOutput.finalChecks || !validatedOutput.finalChecks.sendable) {
+    const blockingIssues = validatedOutput.finalChecks?.blockingIssues ?? ['Unknown final sendability failure'];
+    throw new Error(`CV failed final sendability check: ${blockingIssues.join(' | ')}`);
+  }
 
   // Build markdown artifact for human review
   const md: string[] = [];

@@ -40,6 +40,14 @@ export const ReviewFindingSchema = z.object({
   suggestion: z.string(),
 });
 
+export const ReviewerIssueSchema = z.object({
+  severity: z.enum(['error', 'warning']),
+  category: z.enum(['blocking', 'precision', 'language', 'match', 'sendability']),
+  issue: z.string(),
+  suggestion: z.string(),
+  replacement: z.string().nullable().optional(),
+});
+
 export const SecondOpinionSchema = z.object({
   provider: z.literal('openai'),
   summary: z.string(),
@@ -67,6 +75,18 @@ export const CvTailorOutputSchema = z.object({
   generatedAt: z.string(),
   roleHint: z.string().nullable(),
   secondOpinion: SecondOpinionSchema.optional(),
+  reviewer: z.object({
+    sendable: z.boolean(),
+    blockingErrors: z.array(ReviewerIssueSchema),
+    precisionRisks: z.array(ReviewerIssueSchema),
+    languageAndProof: z.array(ReviewerIssueSchema),
+    roleMatch: z.array(ReviewerIssueSchema),
+    concreteChanges: z.array(z.string()),
+  }).optional(),
+  finalChecks: z.object({
+    sendable: z.boolean(),
+    blockingIssues: z.array(z.string()),
+  }).optional(),
 });
 
 export type CvTailorOutput = z.infer<typeof CvTailorOutputSchema>;
@@ -82,6 +102,24 @@ export const EditorialPassSchema = z.object({
 });
 
 export type EditorialPass = z.infer<typeof EditorialPassSchema>;
+
+export const ReviewerPassSchema = z.object({
+  sendable: z.boolean(),
+  blockingErrors: z.array(ReviewerIssueSchema),
+  precisionRisks: z.array(ReviewerIssueSchema),
+  languageAndProof: z.array(ReviewerIssueSchema),
+  roleMatch: z.array(ReviewerIssueSchema),
+  concreteChanges: z.array(z.string()),
+  profile: z.string(),
+  coreCompetencies: z.array(z.string()),
+  previousExperienceSummary: z.string().nullable().optional(),
+  experience: z.array(z.object({
+    description: z.string(),
+    highlights: z.array(z.string()),
+  })),
+});
+
+export type ReviewerPass = z.infer<typeof ReviewerPassSchema>;
 
 export const ReviewPassSchema = z.object({
   summary: z.string(),

@@ -107,13 +107,33 @@ function makeCvEditorialPayload(output: CvTailorOutput) {
   };
 }
 
+function makeCvReviewerPayload(output: CvTailorOutput) {
+  return {
+    sendable: true,
+    blockingErrors: [],
+    precisionRisks: [],
+    languageAndProof: [],
+    roleMatch: [],
+    concreteChanges: ['Små språklige og presisjonsmessige justeringer'],
+    profile: output.cv.profile,
+    coreCompetencies: output.cv.coreCompetencies,
+    previousExperienceSummary: output.cv.previousExperienceSummary ?? null,
+    experience: output.cv.experience.map((entry) => ({
+      description: entry.description,
+      highlights: entry.highlights,
+    })),
+  };
+}
+
 function makeMockClaudeResponse(output: CvTailorOutput): void {
   const generationText = JSON.stringify(output);
   const editorialText = JSON.stringify(makeCvEditorialPayload(output));
+  const reviewerText = JSON.stringify(makeCvReviewerPayload(output));
 
   mockCallClaude
     .mockResolvedValueOnce(makeClaudeResponse(generationText))
-    .mockResolvedValueOnce(makeClaudeResponse(editorialText));
+    .mockResolvedValueOnce(makeClaudeResponse(editorialText))
+    .mockResolvedValueOnce(makeClaudeResponse(reviewerText));
 
   mockExtractText.mockImplementation((response: any) => response.content[0].text);
 }
@@ -121,10 +141,12 @@ function makeMockClaudeResponse(output: CvTailorOutput): void {
 function makeFencedClaudeResponse(output: CvTailorOutput): void {
   const generationText = '```json\n' + JSON.stringify(output) + '\n```';
   const editorialText = JSON.stringify(makeCvEditorialPayload(output));
+  const reviewerText = JSON.stringify(makeCvReviewerPayload(output));
 
   mockCallClaude
     .mockResolvedValueOnce(makeClaudeResponse(generationText))
-    .mockResolvedValueOnce(makeClaudeResponse(editorialText));
+    .mockResolvedValueOnce(makeClaudeResponse(editorialText))
+    .mockResolvedValueOnce(makeClaudeResponse(reviewerText));
 
   mockExtractText.mockImplementation((response: any) => response.content[0].text);
 }
@@ -184,6 +206,14 @@ describe('cv-tailor agent', () => {
       makeMockClaudeResponse(sampleOutput);
       const result = await cvTailorAgent.execute(cvTailorBasic, ctx);
       expect(result.output.roleHint).toBe('produktleder');
+    });
+
+    it('should attach reviewer and final checks to output', async () => {
+      makeMockClaudeResponse(sampleOutput);
+      const result = await cvTailorAgent.execute(cvTailorBasic, ctx);
+
+      expect(result.output.reviewer?.sendable).toBe(true);
+      expect(result.output.finalChecks?.sendable).toBe(true);
     });
 
     it('should add previous experience summary when only newer roles are detailed', async () => {
@@ -291,6 +321,7 @@ describe('cv-tailor agent', () => {
       expect(meta.roleHint).toBe('produktleder');
       expect(meta.gapQuestions).toBe(1);
       expect(meta.validationIssueCount).toBeGreaterThanOrEqual(0);
+      expect(meta.validationErrorsFixed).toBeGreaterThanOrEqual(0);
     });
   });
 

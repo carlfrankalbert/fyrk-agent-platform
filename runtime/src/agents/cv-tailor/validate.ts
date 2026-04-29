@@ -133,9 +133,15 @@ export function validateAndFinalizeCv(
     })
     .map(language => cleanText(language, options.language, issues, 'Språk'));
 
+  const blockingIssues = runFinalChecks(cv, options.language, issues);
+
   const finalOutput: CvTailorOutput = {
     ...output,
     cv,
+    finalChecks: {
+      sendable: blockingIssues.length === 0,
+      blockingIssues,
+    },
   };
 
   return { output: finalOutput, issues };
@@ -257,6 +263,9 @@ function cleanText(
     [/\bPRs\b/g, 'pull requests', 'abbreviation', 'Spelled out "PRs".'],
     [/\bWIP\b/g, 'pågående arbeid', 'abbreviation', 'Replaced "WIP" with plain language.'],
     [/\bAEM\b/g, 'Adobe Experience Manager', 'abbreviation', 'Spelled out "AEM".'],
+    [/\bAdobe Adobe Experience Manager\b/g, 'Adobe Experience Manager', 'language', 'Removed duplicated term in "Adobe Adobe Experience Manager".'],
+    [/\bsmidge arbeidsformer\b/gi, 'smidige arbeidsformer', 'language', 'Corrected typo in "smidge arbeidsformer".'],
+    [/\bØkte forutsigbarhet\b/g, 'Økte forutsigbarheten', 'language', 'Corrected missing definite form in "Økte forutsigbarhet".'],
     [/\bCSPO\b/g, 'Certified Scrum Product Owner', 'abbreviation', 'Spelled out "CSPO".'],
     [/\bStoppet parallelt arbeid\b/gi, 'Reduserte parallelt arbeid', 'overclaim', 'Softened "Stoppet parallelt arbeid".'],
     [/\bGjennomførte migrering\b/gi, 'Koordinerte migrering', 'overclaim', 'Softened "Gjennomførte migrering".'],
@@ -302,6 +311,8 @@ function cleanText(
   if (original !== next) {
     next = next.replace(/\s{2,}/g, ' ').trim();
   }
+
+  next = next.replace(/\b(\p{L}+)\s+\1\b/giu, '$1');
 
   return next;
 }
@@ -395,6 +406,65 @@ function normalize(value: string): string {
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function runFinalChecks(
+  cv: CvTailorOutput['cv'],
+  language: 'no' | 'en',
+  issues: CVValidationIssue[],
+): string[] {
+  const blocking: string[] = [];
+  const seenTerms = ['SpareBank 1 Utvikling', 'SpareBank 1', 'Adobe Experience Manager'];
+
+  const textBlocks = [
+    cv.title,
+    cv.profile,
+    cv.previousExperienceSummary ?? '',
+    ...cv.coreCompetencies,
+    ...cv.experience.flatMap(entry => [entry.company, entry.role, entry.description, ...entry.highlights]),
+  ].filter(Boolean);
+
+  for (const text of textBlocks) {
+    if (/\b(\p{L}+)\s+\1\b/iu.test(text)) {
+      blocking.push(`Dobbel ordbruk gjenstår: "${text}"`);
+    }
+    if (language === 'no' && /\bsmidge\b/i.test(text)) {
+      blocking.push(`Skrivefeil gjenstår: "${text}"`);
+    }
+    if (/Adobe Adobe Experience Manager/.test(text)) {
+      blocking.push(`Duplisert teknologinavn gjenstår: "${text}"`);
+    }
+    if (/Økte forutsigbarhet/.test(text)) {
+      blocking.push(`Feil bøyning gjenstår: "${text}"`);
+    }
+  }
+
+  for (const term of seenTerms) {
+    const normalizedTerm = normalize(term);
+    const hasBrokenVariant = textBlocks.some(text =>
+      normalize(text).includes(normalizedTerm.replace(/\s+/g, '')) && !text.includes(term)
+    );
+    if (hasBrokenVariant) {
+      blocking.push(`Inkonsistent term oppdaget for "${term}".`);
+    }
+  }
+
+  for (const entry of cv.experience) {
+    if (entry.highlights.some(highlight => !/^[A-ZÆØÅ][^.!?]*$/.test(highlight.trim()))) {
+      issues.push({
+        severity: 'warning',
+        category: 'format',
+        message: `One or more bullets are not parallel or cleanly formatted in ${entry.company}.`,
+        location: `${entry.company} | ${entry.role}`,
+      });
+    }
+  }
+
+  if (!sameExperienceOrder(cv.experience, [...cv.experience].sort((a, b) => comparePeriodsDesc(a.period, b.period)))) {
+    blocking.push('CV-en er ikke omvendt kronologisk etter sluttkontroll.');
+  }
+
+  return blocking;
 }
 
 function leftSegmentMatchSource(value: string): string {
