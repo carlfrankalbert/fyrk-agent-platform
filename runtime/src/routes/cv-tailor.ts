@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LEARNINGS_PATH = join(__dirname, '..', 'agents', 'cv-tailor', 'learnings.json');
 const HTML_PATH = join(__dirname, '..', '..', 'static', 'cv-tailor.html');
+const PACKAGE_JSON_PATH = join(__dirname, '..', '..', '..', 'package.json');
 
 const LearnRequestSchema = z.object({
   entries: z.array(z.object({
@@ -21,6 +22,20 @@ export interface Learning {
   answer: string;
   jobContext?: string;
   savedAt: string;
+}
+
+async function loadRuntimeVersion(): Promise<{ version: string; commit: string | null }> {
+  const pkg = JSON.parse(await readFile(PACKAGE_JSON_PATH, 'utf-8')) as { version?: string };
+  const commit = process.env.FLY_IMAGE_REF
+    ?? process.env.SOURCE_COMMIT
+    ?? process.env.SOURCE_VERSION
+    ?? process.env.RELEASE_VERSION
+    ?? null;
+
+  return {
+    version: pkg.version ?? 'unknown',
+    commit,
+  };
 }
 
 async function loadLearnings(): Promise<Learning[]> {
@@ -41,6 +56,10 @@ export async function cvTailorRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get('/cv-tailor', async (_request, reply) => {
     const html = await readFile(HTML_PATH, 'utf-8');
     return reply.type('text/html').send(html);
+  });
+
+  fastify.get('/cv-tailor/version', async () => {
+    return loadRuntimeVersion();
   });
 
   // Save gap-analysis answers to the experience learnings

@@ -32,7 +32,8 @@
   }
 
   h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.25rem; }
-  .subtitle { color: var(--muted); margin-bottom: 2rem; font-size: 0.9rem; }
+  .subtitle { color: var(--muted); margin-bottom: 0.35rem; font-size: 0.9rem; }
+  .build-meta { color: var(--muted); margin-bottom: 1.65rem; font-size: 0.8rem; }
 
   label { display: block; font-weight: 500; margin-bottom: 0.25rem; font-size: 0.875rem; }
   .hint { color: var(--muted); font-size: 0.8rem; margin-bottom: 0.5rem; }
@@ -187,6 +188,7 @@
 
 <h1>CV Tailor</h1>
 <p class="subtitle">Lim inn en stillingsannonse, velg vinkling, og generer en skreddersydd CV.</p>
+<p class="build-meta" id="build-meta">Versjon laster...</p>
 
 <div class="field">
   <label for="api-url">API URL</label>
@@ -262,6 +264,20 @@
 <script>
 let lastResult = null;
 let artifactMarkdown = '';
+
+loadVersion();
+
+async function loadVersion() {
+  const apiUrl = document.getElementById('api-url').value.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${apiUrl}/cv-tailor/version`);
+    const data = await res.json();
+    const commit = data.commit ? ` · ${String(data.commit).slice(0, 12)}` : '';
+    document.getElementById('build-meta').textContent = `Versjon ${data.version}${commit}`;
+  } catch {
+    document.getElementById('build-meta').textContent = 'Versjon utilgjengelig';
+  }
+}
 
 async function generate() {
   const btn = document.getElementById('generate-btn');

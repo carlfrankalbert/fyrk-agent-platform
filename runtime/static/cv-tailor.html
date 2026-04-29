@@ -32,7 +32,8 @@
   }
 
   h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.25rem; }
-  .subtitle { color: var(--muted); margin-bottom: 2rem; font-size: 0.9rem; }
+  .subtitle { color: var(--muted); margin-bottom: 0.35rem; font-size: 0.9rem; }
+  .build-meta { color: var(--muted); margin-bottom: 1.65rem; font-size: 0.8rem; }
 
   label { display: block; font-weight: 500; margin-bottom: 0.25rem; font-size: 0.875rem; }
   .hint { color: var(--muted); font-size: 0.8rem; margin-bottom: 0.5rem; }
@@ -193,6 +194,7 @@
 
 <h1>CV Tailor</h1>
 <p class="subtitle">Lim inn en stillingsannonse, velg vinkling, og generer en skreddersydd CV.</p>
+<p class="build-meta" id="build-meta">Versjon laster...</p>
 
 <div class="field">
   <label for="job-posting">Stillingsannonse</label>
@@ -267,6 +269,16 @@ let artifactMarkdown = '';
 
 // Use same origin — no need for API URL config
 const API_BASE = '';
+
+fetch(`${API_BASE}/cv-tailor/version`)
+  .then(r => r.json())
+  .then(d => {
+    const commit = d.commit ? ` · ${String(d.commit).slice(0, 12)}` : '';
+    document.getElementById('build-meta').textContent = `Versjon ${d.version}${commit}`;
+  })
+  .catch(() => {
+    document.getElementById('build-meta').textContent = 'Versjon utilgjengelig';
+  });
 
 // Show learnings count on load
 fetch(`${API_BASE}/cv-tailor/learnings`)
