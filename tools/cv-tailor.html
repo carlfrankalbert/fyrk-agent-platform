@@ -367,6 +367,10 @@ function renderCv(cv) {
   }
   html += '</div>';
 
+  if (cv.previousExperienceSummary) {
+    html += `<div class="cv-section"><h2>Tidligere erfaring</h2><p>${cv.previousExperienceSummary}</p></div>`;
+  }
+
   if (cv.education.length) {
     html += '<div class="cv-section"><h2>Utdanning</h2><ul>';
     for (const e of cv.education) html += `<li>${e}</li>`;

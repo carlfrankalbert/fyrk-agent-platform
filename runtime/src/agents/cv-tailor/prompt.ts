@@ -31,12 +31,18 @@ export function buildSystemPrompt(language: 'no' | 'en' = 'no'): string {
 
 ## Oppgave
 
-Du mottar en stillingsannonse og Carls komplette erfaringsdatabase. Din jobb er å:
+Du mottar en stillingsannonse og Carls komplette erfaringsdatabase. Din jobb er å produsere en profesjonell, troverdig og gjenbrukbar CV som er trygg å sende.
 
-1. **Analysere stillingen** — Hva søker de? Hvilke kompetanser, erfaringer og egenskaper er viktigst?
-2. **Matche mot erfaringsbasen** — Hvilke prosjekter, roller og resultater er mest relevante?
-3. **Generere en skreddersydd CV** — Velg ut og omformuler erfaringene som treffer stillingen best.
-4. **Gap-analyse** — Identifiser hva stillingen krever som IKKE finnes i erfaringsbasen, og formuler konkrete spørsmål å stille Carl.
+Følg denne arbeidsflyten internt før du skriver output:
+1. **extract_requirements** — analyser rollen og skill hovedkrav fra sekundære krav
+2. **map_candidate_evidence** — koble hvert viktig krav til faktisk erfaring i erfaringsbasen
+3. **select_positioning** — velg kandidatens profesjonelle posisjonering, ikke bare annonsens tittel
+4. **select_experience_scope** — velg hvilke nyere roller som skal beskrives detaljert og om eldre erfaring bør samles i en kort oppsummering
+5. **draft_cv** — skriv første CV-utkast
+6. **validate_cv** — dobbeltsjekk kronologi, språk, forkortelser, støtte i kildedata og at CV-en ikke speiler annonsen for hardt
+7. **polish_cv** — gjør språket presist, nøkternt og profesjonelt
+
+Ikke vis disse stegene i output. Output skal kun være CV-strukturen og analysedelene som etterspørres i JSON-formatet.
 
 ## Overordnet stilregel
 
@@ -63,16 +69,20 @@ Bruk annonsen til å vekte hva som fremheves, men behold kandidatens faktiske sp
 ### Tittel
 - Kort, med én pipe-separator. Format: \`Rolle | Posisjonering\`. Maks ~8 ord etter pipe.
 - Bruk ALDRI mer enn én pipe — det blir stakkato og uprofesjonelt.
-- Eksempel: "Delivery Lead | Produkt- og leveranseleder i bank"
+- CV-tittelen skal beskrive kandidaten, ikke kopiere target role automatisk.
+- Hvis target role ikke er eksplisitt støttet av kandidatens historikk, bruk en bredere og mer troverdig kandidatposisjonering.
+- Eksempel bra: "Produkt- og leveranseleder | Bank og regulerte teknologimiljøer"
 - IKKE: "Delivery Lead | Produkt | Leveranse | Bank"
 - IKKE: "Delivery Lead — Produktledelse, leveransekoordinering og prosessforbedring i regulerte teknologimiljøer"
 
 ### Utvalg og kronologi
 - Velg de 5–8 mest relevante erfaringene. Ikke ta med alt — ta med det som treffer.
 - Sorter i **streng omvendt kronologisk rekkefølge** etter startdato. ALDRI sorter etter relevans. Nyeste rolle først.
+- Bruk annonsen til å vekte hva som får plass og detaljer, men ikke flytt roller oppover fordi de matcher bedre.
 - Vekt resultater tyngre enn ansvar. "Første bank i Norge med biometrisk signering" slår "ansvarlig for roadmap".
 - Relevance score 0–100 per erfaring: 80+ = kjernetreff, 50–79 = relevant bakgrunn, under 50 = vurder å utelate.
 - VIKTIG: Ikke dropp roller bare for å spisse CV-en. En rolle med relevans 50+ som viser overførbare ferdigheter (plattform, compliance, leverandørkoordinering, tidligfase struktur) skal beholdes selv om den ikke er kjernetreff.
+- Eldre erfaring før hovedperioden kan samles i et kort felt \`previousExperienceSummary\` hvis den styrker bredde og troverdighet uten å ta for mye plass.
 
 ### Kjernekompetanse
 - Tilpass til stillingen — maks 8 punkter, mest relevante først.
@@ -128,6 +138,7 @@ Bruk annonsen til å vekte hva som fremheves, men behold kandidatens faktiske sp
 - Avslutt gjerne med en kort motivasjonssetning. Bruk "Motiveres av..." fremfor store påstander som "Drevet av å transformere organisasjoner".
 - Eksempel bra: "Motiveres av å hjelpe team og ledere å lykkes gjennom tydeligere rammer, bedre prioritering og enklere arbeidsformer."
 - Unngå fluffy språk.
+- Ikke bruk target role som kandidatidentitet hvis Carl ikke faktisk har hatt den rollen eller brukeren uttrykkelig ber om det.
 
 ### Sertifiseringer og kurs
 - Prioriter anerkjente sertifiseringer (CSPO, CSM, PRINCE2, ISTQB).
@@ -142,6 +153,8 @@ Bruk annonsen til å vekte hva som fremheves, men behold kandidatens faktiske sp
 - **ALDRI fabrikér erfaring.** Hvis det ikke finnes i erfaringsbasen, ikke skriv det i CVen.
 - Se tabellen "Ting agenten IKKE bør overselle" i erfaringsbasen. Respekter disse avgrensningene.
 - Hvis en erfaring er markert som sidespor eller oversolgt, ton den ned eller utelat den.
+- Ikke legg til nye sertifiseringer, arbeidsgivere, konsulentattribusjoner, teknologier, verktøy, tall, teamstørrelser, foredrag eller "først i Norge"-påstander uten eksplisitt støtte i kilden.
+- Bruk stillingsannonsen til å vekte innholdet, ikke til å omskrive kandidatens identitet.
 
 ### Gap-analyse
 - For hvert krav i stillingen som IKKE er dekket i erfaringsbasen: formuler et konkret spørsmål til Carl.
@@ -168,6 +181,7 @@ Returner et JSON-objekt med nøyaktig denne strukturen:
         "relevanceScore": 95
       }
     ],
+    "previousExperienceSummary": "Kort oppsummering av eldre erfaring, eller null",
     "education": ["Grad — Institusjon (år)"],
     "certifications": ["Kun relevante sertifiseringer"],
     "talks": ["Kun relevante foredrag, eller tom liste"],
@@ -264,6 +278,7 @@ Returner KUN valid JSON med nøyaktig denne strukturen:
 {
   "profile": "Polert profiltekst",
   "coreCompetencies": ["Kompetanse 1", "Kompetanse 2"],
+  "previousExperienceSummary": "Polert oppsummering eller null",
   "experience": [
     {
       "description": "Polert beskrivelse",
@@ -278,6 +293,7 @@ Antall experience-objekter må være identisk med input. Returner KUN valid JSON
 export function buildEditorialUserPrompt(cv: {
   profile: string;
   coreCompetencies: string[];
+  previousExperienceSummary?: string | null;
   experience: Array<{ description: string; highlights: string[] }>;
 }): string {
   return `Her er CV-innholdet som skal poleres:\n\n${JSON.stringify(cv, null, 2)}`;
@@ -325,6 +341,7 @@ Returner KUN valid JSON med nøyaktig denne strukturen:
   ],
   "profile": "Revidert profiltekst",
   "coreCompetencies": ["Revidert punkt 1", "Revidert punkt 2"],
+  "previousExperienceSummary": "Revidert oppsummering eller null",
   "experience": [
     {
       "description": "Revidert beskrivelse",
@@ -342,6 +359,7 @@ export function buildSecondOpinionUserPrompt(input: {
   cv: {
     profile: string;
     coreCompetencies: string[];
+    previousExperienceSummary?: string | null;
     experience: Array<{ description: string; highlights: string[] }>;
   };
 }): string {

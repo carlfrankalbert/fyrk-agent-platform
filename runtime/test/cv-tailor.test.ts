@@ -67,6 +67,7 @@ const sampleOutput: CvTailorOutput = {
         relevanceScore: 90,
       },
     ],
+    previousExperienceSummary: null,
     education: ['Master, Entrepreneurial Management — Jönköping International Business School (2006–2007)'],
     certifications: ['Certified Scrum Product Owner (CSPO) — Scrum Alliance (2021)'],
     talks: [],
@@ -98,6 +99,7 @@ function makeCvEditorialPayload(output: CvTailorOutput) {
   return {
     profile: output.cv.profile,
     coreCompetencies: output.cv.coreCompetencies,
+    previousExperienceSummary: output.cv.previousExperienceSummary ?? null,
     experience: output.cv.experience.map((entry) => ({
       description: entry.description,
       highlights: entry.highlights,
@@ -182,6 +184,12 @@ describe('cv-tailor agent', () => {
       makeMockClaudeResponse(sampleOutput);
       const result = await cvTailorAgent.execute(cvTailorBasic, ctx);
       expect(result.output.roleHint).toBe('produktleder');
+    });
+
+    it('should add previous experience summary when only newer roles are detailed', async () => {
+      makeMockClaudeResponse(sampleOutput);
+      const result = await cvTailorAgent.execute(cvTailorBasic, ctx);
+      expect(result.output.cv.previousExperienceSummary).toContain('Nets/BBS');
     });
   });
 
@@ -282,6 +290,75 @@ describe('cv-tailor agent', () => {
       expect(meta.fitScore).toBe(88);
       expect(meta.roleHint).toBe('produktleder');
       expect(meta.gapQuestions).toBe(1);
+      expect(meta.validationIssueCount).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('validation layer', () => {
+    it('should reorder experiences to reverse chronology', async () => {
+      const outOfOrder: CvTailorOutput = {
+        ...sampleOutput,
+        cv: {
+          ...sampleOutput.cv,
+          experience: [...sampleOutput.cv.experience].reverse(),
+        },
+      };
+      makeMockClaudeResponse(outOfOrder);
+      const result = await cvTailorAgent.execute(cvTailorBasic, ctx);
+
+      expect(result.output.cv.experience[0].period).toBe('Jan 2025 – nov 2025');
+      expect(result.output.cv.experience[1].period).toBe('Jan 2024 – des 2024');
+    });
+
+    it('should replace unsupported target-role title with candidate positioning', async () => {
+      const mirroredTitle: CvTailorOutput = {
+        ...sampleOutput,
+        cv: {
+          ...sampleOutput.cv,
+          title: 'Delivery Lead | Bank og betaling',
+        },
+      };
+      makeMockClaudeResponse(mirroredTitle);
+      const result = await cvTailorAgent.execute(cvTailorBasic, ctx);
+
+      expect(result.output.cv.title).toBe('Produkt- og leveranseleder | Bank og regulerte teknologimiljøer');
+    });
+
+    it('should clean abbreviations and overclaims in final output', async () => {
+      const aggressive: CvTailorOutput = {
+        ...sampleOutput,
+        cv: {
+          ...sampleOutput.cv,
+          experience: [
+            {
+              ...sampleOutput.cv.experience[0],
+              role: 'Produktleder — BM Mobilbank',
+              highlights: ['Eide roadmap', 'Stoppet parallelt arbeid'],
+            },
+            ...sampleOutput.cv.experience.slice(1),
+          ],
+        },
+      };
+      makeMockClaudeResponse(aggressive);
+      const result = await cvTailorAgent.execute(cvTailorBasic, ctx);
+
+      expect(result.output.cv.experience[0].role).toContain('Mobilbank Bedrift');
+      expect(result.output.cv.experience[0].highlights[0]).toContain('Hadde ansvar for');
+      expect(result.output.cv.experience[0].highlights[1]).toContain('Reduserte parallelt arbeid');
+    });
+
+    it('should remove non-professional language levels', async () => {
+      const withBasicLanguage: CvTailorOutput = {
+        ...sampleOutput,
+        cv: {
+          ...sampleOutput.cv,
+          languages: [...sampleOutput.cv.languages, 'Tysk (grunnleggende)'],
+        },
+      };
+      makeMockClaudeResponse(withBasicLanguage);
+      const result = await cvTailorAgent.execute(cvTailorBasic, ctx);
+
+      expect(result.output.cv.languages).not.toContain('Tysk (grunnleggende)');
     });
   });
 

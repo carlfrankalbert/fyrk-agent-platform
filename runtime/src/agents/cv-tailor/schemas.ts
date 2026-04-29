@@ -56,6 +56,7 @@ export const CvTailorOutputSchema = z.object({
     profile: z.string(),
     coreCompetencies: z.array(z.string()),
     experience: z.array(ExperienceEntrySchema),
+    previousExperienceSummary: z.string().nullable().optional(),
     education: z.array(z.string()),
     certifications: z.array(z.string()),
     talks: z.array(z.string()),
@@ -73,6 +74,7 @@ export type CvTailorOutput = z.infer<typeof CvTailorOutputSchema>;
 export const EditorialPassSchema = z.object({
   profile: z.string(),
   coreCompetencies: z.array(z.string()),
+  previousExperienceSummary: z.string().nullable().optional(),
   experience: z.array(z.object({
     description: z.string(),
     highlights: z.array(z.string()),
@@ -86,6 +88,7 @@ export const ReviewPassSchema = z.object({
   findings: z.array(ReviewFindingSchema),
   profile: z.string(),
   coreCompetencies: z.array(z.string()),
+  previousExperienceSummary: z.string().nullable().optional(),
   experience: z.array(z.object({
     description: z.string(),
     highlights: z.array(z.string()),
@@ -97,7 +100,7 @@ export type ReviewPass = z.infer<typeof ReviewPassSchema>;
 export const ReviewPassJsonSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['summary', 'findings', 'profile', 'coreCompetencies', 'experience'],
+  required: ['summary', 'findings', 'profile', 'coreCompetencies', 'previousExperienceSummary', 'experience'],
   properties: {
     summary: { type: 'string' },
     findings: {
@@ -118,6 +121,12 @@ export const ReviewPassJsonSchema = {
     coreCompetencies: {
       type: 'array',
       items: { type: 'string' },
+    },
+    previousExperienceSummary: {
+      anyOf: [
+        { type: 'string' },
+        { type: 'null' },
+      ],
     },
     experience: {
       type: 'array',

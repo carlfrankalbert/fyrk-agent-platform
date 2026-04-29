@@ -20,6 +20,7 @@ import {
   type CvTailorInput,
   type CvTailorOutput,
 } from './schemas.js';
+import { validateAndFinalizeCv } from './validate.js';
 
 async function execute(
   rawInput: CvTailorInput,
@@ -44,6 +45,7 @@ async function execute(
   const editorialInput = {
     profile: output.cv.profile,
     coreCompetencies: output.cv.coreCompetencies,
+    previousExperienceSummary: output.cv.previousExperienceSummary ?? null,
     experience: output.cv.experience.map(e => ({ description: e.description, highlights: e.highlights })),
   };
 
@@ -57,6 +59,7 @@ async function execute(
   // Merge polished text back into output
   output.cv.profile = editorial.profile;
   output.cv.coreCompetencies = editorial.coreCompetencies;
+  output.cv.previousExperienceSummary = editorial.previousExperienceSummary ?? output.cv.previousExperienceSummary ?? null;
   for (let i = 0; i < output.cv.experience.length; i++) {
     if (editorial.experience[i]) {
       output.cv.experience[i].description = editorial.experience[i].description;
@@ -70,6 +73,7 @@ async function execute(
     const reviewInput = {
       profile: output.cv.profile,
       coreCompetencies: output.cv.coreCompetencies,
+      previousExperienceSummary: output.cv.previousExperienceSummary ?? null,
       experience: output.cv.experience.map(e => ({ description: e.description, highlights: e.highlights })),
     };
 
@@ -88,6 +92,7 @@ async function execute(
 
     output.cv.profile = review.profile;
     output.cv.coreCompetencies = review.coreCompetencies;
+    output.cv.previousExperienceSummary = review.previousExperienceSummary ?? output.cv.previousExperienceSummary ?? null;
     for (let i = 0; i < output.cv.experience.length; i++) {
       if (review.experience[i]) {
         output.cv.experience[i].description = review.experience[i].description;
@@ -103,9 +108,14 @@ async function execute(
     output.secondOpinion = secondOpinion;
   }
 
+  const { output: validatedOutput, issues } = validateAndFinalizeCv(output, {
+    language,
+    roleHint,
+  });
+
   // Build markdown artifact for human review
   const md: string[] = [];
-  const cv = output.cv;
+  const cv = validatedOutput.cv;
 
   md.push(`# ${cv.name}`);
   md.push(`**${cv.title}**`);
@@ -126,6 +136,11 @@ async function execute(
       md.push(`- ${h}`);
     }
     md.push('');
+  }
+
+  if (cv.previousExperienceSummary) {
+    md.push('## Tidligere erfaring\n');
+    md.push(`${cv.previousExperienceSummary}\n`);
   }
 
   if (cv.education.length > 0) {
@@ -162,19 +177,21 @@ async function execute(
   // but NOT included in the markdown artifact — the CV should be clean and ready to use
 
   return {
-    output,
+    output: validatedOutput,
     artifacts: [
       {
         kind: 'cv-tailor-output',
         content: md.join('\n'),
         meta: {
           roleHint,
-          fitScore: output.matchAnalysis.fitScore,
-          overallFit: output.matchAnalysis.overallFit,
-          gapQuestions: output.gaps.questions.length,
+          fitScore: validatedOutput.matchAnalysis.fitScore,
+          overallFit: validatedOutput.matchAnalysis.overallFit,
+          gapQuestions: validatedOutput.gaps.questions.length,
           secondOpinionProvider: secondOpinion?.provider ?? null,
           secondOpinionFindings: secondOpinion?.findings.length ?? 0,
-          generatedAt: output.generatedAt,
+          validationIssueCount: issues.length,
+          validationErrorsFixed: issues.filter(issue => issue.severity === 'error').length,
+          generatedAt: validatedOutput.generatedAt,
         },
       },
     ],
