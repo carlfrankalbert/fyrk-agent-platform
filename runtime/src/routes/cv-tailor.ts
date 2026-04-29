@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LEARNINGS_PATH = join(__dirname, '..', 'agents', 'cv-tailor', 'learnings.json');
 const HTML_PATH = join(__dirname, '..', '..', 'static', 'cv-tailor.html');
-const PACKAGE_JSON_PATH = join(__dirname, '..', '..', '..', 'package.json');
+const PACKAGE_JSON_PATH = join(process.cwd(), 'package.json');
 
 const LearnRequestSchema = z.object({
   entries: z.array(z.object({
