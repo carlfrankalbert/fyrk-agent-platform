@@ -307,6 +307,13 @@
 let lastResult = null;
 let artifactMarkdown = '';
 
+// Default the API URL to wherever this page is served from, so it works
+// both on prod and on a local dev server. The field stays editable.
+const apiUrlInput = document.getElementById('api-url');
+if (window.location.origin && window.location.origin.startsWith('http')) {
+  apiUrlInput.value = window.location.origin;
+}
+
 loadVersion();
 
 async function loadVersion() {
