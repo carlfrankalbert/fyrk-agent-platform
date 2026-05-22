@@ -125,7 +125,7 @@ async function execute(
   });
 
   // Steg 7 — Sjefredaktør
-  const final = await callRole(cfg.chiefEditor, FinalPassSchema, {
+  const finalRaw = await callRole(cfg.chiefEditor, FinalPassSchema, {
     system: buildChiefEditorSystemPrompt(language),
     user: buildChiefEditorUserPrompt({
       originalDraft: draft,
@@ -139,9 +139,12 @@ async function execute(
       previousFinalPost: resolved.previousFinalPost,
     }),
     schemaName: 'editorial_final',
-    schemaDescription: 'Sjefredaktørens endelige tekst og redaksjonelle vurdering.',
+    schemaDescription: 'Sjefredaktørens endelige tekst og maks 5 endringskommentarer.',
     schemaJson: FinalJsonSchema,
   });
+
+  // Hard cap på 5 endringskommentarer ("samme tekst, bare bedre").
+  const final = { ...finalRaw, changeNotes: finalRaw.changeNotes.slice(0, 5) };
 
   const output: EditorialRoomOutput = {
     brief,
@@ -155,7 +158,8 @@ async function execute(
     mode,
   };
 
-  // Markdown-artifact
+  // Markdown-artifact — slank: anbefalt versjon + endringer.
+  // Skeptiker og faktavokter kjører internt, men vises ikke som egne seksjoner.
   const md: string[] = [];
   md.push('# Redaksjonsrommet\n');
 
@@ -163,50 +167,11 @@ async function execute(
   md.push(final.recommendedPost);
   md.push('');
 
-  if (final.groundworkUsed.length > 0) {
-    md.push('## Brukt grunnlag\n');
-    for (const g of final.groundworkUsed) md.push(`- ${g}`);
+  if (final.changeNotes.length > 0) {
+    md.push('## Endringer\n');
+    for (const note of final.changeNotes) md.push(`- ${note}`);
     md.push('');
   }
-
-  if (final.removedOrSoftened.length > 0) {
-    md.push('## Påstander som ble fjernet eller mykgjort\n');
-    for (const r of final.removedOrSoftened) md.push(`- ${r}`);
-    md.push('');
-  }
-
-  if (final.generalismRisks.length > 0) {
-    md.push('## Risiko for generiskhet\n');
-    for (const r of final.generalismRisks) md.push(`- ${r}`);
-    md.push('');
-  }
-
-  if (final.manualConcretization.length > 0) {
-    md.push('## Bør konkretiseres manuelt før publisering\n');
-    for (const m of final.manualConcretization) md.push(`- ${m}`);
-    md.push('');
-  }
-
-  if (final.alternativeOpenings.length > 0) {
-    md.push('## Alternative åpninger\n');
-    for (const opening of final.alternativeOpenings) md.push(`- ${opening}`);
-    md.push('');
-  }
-
-  if (final.alternativeClosings.length > 0) {
-    md.push('## Alternative avslutninger\n');
-    for (const closing of final.alternativeClosings) md.push(`- ${closing}`);
-    md.push('');
-  }
-
-  md.push('## Redaksjonell vurdering\n');
-  md.push(final.editorialNote);
-  md.push('');
-
-  md.push('## Skeptikerens dom\n');
-  md.push(`**Verdikt:** ${skeptic.verdict}`);
-  md.push(`**3-sekundstest:** ${skeptic.threeSecondTest}`);
-  md.push('');
 
   return {
     output,

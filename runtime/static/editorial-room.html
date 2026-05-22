@@ -278,22 +278,14 @@
 
 <div id="output">
   <hr>
-  <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
-    <span class="verdict-badge" id="verdict-badge"></span>
-    <span style="font-size:0.9rem; color:var(--muted);" id="three-second-test"></span>
-  </div>
 
   <div class="tabs">
-    <button class="tab active" onclick="showTab('final')">Endelig post</button>
-    <button class="tab" onclick="showTab('truth')">Grunnlag & risiko</button>
-    <button class="tab" onclick="showTab('alts')">Alternativer</button>
+    <button class="tab active" onclick="showTab('final')">Anbefalt versjon</button>
     <button class="tab" onclick="showTab('room')">Redaksjonsmøtet</button>
     <button class="tab" onclick="showTab('raw')">Markdown</button>
   </div>
 
   <div class="tab-content active" id="tab-final"></div>
-  <div class="tab-content" id="tab-truth"></div>
-  <div class="tab-content" id="tab-alts"></div>
   <div class="tab-content" id="tab-room"></div>
   <div class="tab-content" id="tab-raw">
     <div style="margin-bottom:0.5rem;">
@@ -387,7 +379,7 @@ async function generate() {
 
     renderOutput(lastResult);
     output.className = 'visible';
-    status.textContent = `Ferdig (${lastResult.skeptic.verdict})`;
+    status.textContent = 'Ferdig';
 
     document.getElementById('regenerate-btn').style.display = '';
     document.getElementById('revision-field').style.display = '';
@@ -401,69 +393,9 @@ async function generate() {
 }
 
 function renderOutput(result) {
-  const badge = document.getElementById('verdict-badge');
-  badge.textContent = result.skeptic.verdict;
-  badge.className = `verdict-badge ${result.skeptic.verdict}`;
-  document.getElementById('three-second-test').textContent = result.skeptic.threeSecondTest;
-
   renderFinal(result.final);
-  renderTruth(result);
-  renderAlternatives(result.final);
   renderRoom(result);
   document.getElementById('raw-markdown').textContent = artifactMarkdown;
-}
-
-function renderTruth(result) {
-  const el = document.getElementById('tab-truth');
-  const final = result.final;
-  const gw = result.groundwork;
-  const fg = result.factGuard;
-  let html = '';
-
-  // Grunnlag teksten bygger på
-  if (final.groundworkUsed?.length) {
-    html += '<div class="section"><h2>Brukt grunnlag</h2><ul>';
-    for (const g of final.groundworkUsed) html += `<li>${escapeHtml(g)}</li>`;
-    html += '</ul></div>';
-  }
-
-  if (final.removedOrSoftened?.length) {
-    html += '<div class="section"><h2>Påstander fjernet eller mykgjort</h2><ul>';
-    for (const r of final.removedOrSoftened) html += `<li>${escapeHtml(r)}</li>`;
-    html += '</ul></div>';
-  }
-
-  if (final.generalismRisks?.length) {
-    html += '<div class="section"><h2>Risiko for generiskhet</h2><ul>';
-    for (const r of final.generalismRisks) html += `<li>${escapeHtml(r)}</li>`;
-    html += '</ul></div>';
-  }
-
-  if (final.manualConcretization?.length) {
-    html += '<div class="section"><h2>Bør konkretiseres manuelt før publisering</h2><ul>';
-    for (const m of final.manualConcretization) html += `<li>${escapeHtml(m)}</li>`;
-    html += '</ul></div>';
-  }
-
-  // Detaljert klassifisering fra faktavokter
-  if (fg?.classifiedClaims?.length) {
-    html += '<div class="section"><h2>Faktavokterens klassifisering</h2>';
-    html += '<p style="color:var(--muted);font-size:0.85rem;margin-bottom:0.5rem;">Hver konkret påstand er klassifisert etter om den har dekning i Carls input eller fast kontekst.</p>';
-    html += '<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">';
-    html += '<thead><tr style="text-align:left;border-bottom:1px solid var(--border);"><th style="padding:0.5rem 0.5rem 0.5rem 0;">Påstand</th><th style="padding:0.5rem;">Klassifisering</th><th style="padding:0.5rem;">Handling</th></tr></thead><tbody>';
-    for (const c of fg.classifiedClaims) {
-      const color = c.action === 'remove' ? 'var(--red)' : c.action === 'soften' ? 'var(--yellow)' : 'var(--green)';
-      html += `<tr style="border-bottom:1px solid var(--border);">`;
-      html += `<td style="padding:0.5rem 0.5rem 0.5rem 0;">${escapeHtml(c.claim)}${c.softerPhrasing ? `<div style="color:var(--muted);font-size:0.8rem;margin-top:0.25rem;">→ ${escapeHtml(c.softerPhrasing)}</div>` : ''}</td>`;
-      html += `<td style="padding:0.5rem;font-size:0.8rem;">${escapeHtml(c.classification)}</td>`;
-      html += `<td style="padding:0.5rem;color:${color};font-weight:500;">${escapeHtml(c.action)}</td>`;
-      html += `</tr>`;
-    }
-    html += '</tbody></table></div>';
-  }
-
-  if (!html) html = '<p style="color:var(--muted);">Ingen grunnlagsdata å vise.</p>';
-  el.innerHTML = html;
 }
 
 function renderFinal(final) {
@@ -475,39 +407,12 @@ function renderFinal(final) {
   html += `<textarea id="final-post" style="position:absolute;left:-9999px;">${escapeHtml(final.recommendedPost)}</textarea>`;
   html += '</div>';
 
-  html += '<div class="section"><h2>Redaksjonell vurdering</h2>';
-  html += `<p>${escapeHtml(final.editorialNote)}</p></div>`;
-
-  if (final.whatChanged?.length) {
-    html += '<div class="section"><h2>Hva ble endret</h2><ul>';
-    for (const c of final.whatChanged) html += `<li>${escapeHtml(c)}</li>`;
+  if (final.changeNotes?.length) {
+    html += '<div class="section"><h2>Endringer</h2><ul>';
+    for (const c of final.changeNotes) html += `<li>${escapeHtml(c)}</li>`;
     html += '</ul></div>';
   }
 
-  el.innerHTML = html;
-}
-
-function renderAlternatives(final) {
-  const el = document.getElementById('tab-alts');
-  let html = '';
-
-  if (final.alternativeOpenings?.length) {
-    html += '<div class="section"><h2>Alternative åpninger</h2>';
-    for (const a of final.alternativeOpenings) {
-      html += `<div class="alt-item">${escapeHtml(a)}</div>`;
-    }
-    html += '</div>';
-  }
-
-  if (final.alternativeClosings?.length) {
-    html += '<div class="section"><h2>Alternative avslutninger</h2>';
-    for (const a of final.alternativeClosings) {
-      html += `<div class="alt-item">${escapeHtml(a)}</div>`;
-    }
-    html += '</div>';
-  }
-
-  if (!html) html = '<p style="color:var(--muted);">Ingen alternativer denne gangen.</p>';
   el.innerHTML = html;
 }
 
@@ -643,7 +548,6 @@ function renderRoom(result) {
     for (const c of fg.softenedClaims) html += `<li>${escapeHtml(c)}</li>`;
     html += '</ul>';
   }
-  html += '<p style="color:var(--muted);font-size:0.85rem;margin-top:0.5rem;">Se "Grunnlag & risiko"-fanen for full klassifisering av påstander.</p>';
   html += '</div>';
 
   el.innerHTML = html;

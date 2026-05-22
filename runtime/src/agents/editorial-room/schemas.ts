@@ -129,13 +129,9 @@ export type FactGuardPass = z.infer<typeof FactGuardPassSchema>;
 
 export const FinalPassSchema = z.object({
   recommendedPost: z.string(),
-  alternativeOpenings: z.array(z.string()),
-  alternativeClosings: z.array(z.string()),
-  editorialNote: z.string(),
-  groundworkUsed: z.array(z.string()),
-  removedOrSoftened: z.array(z.string()),
-  generalismRisks: z.array(z.string()),
-  manualConcretization: z.array(z.string()),
+  // "Samme tekst, bare bedre" — korte kommentarer om hva som ble endret og hvorfor.
+  // Kapasiteten på 5 håndheves i prompt + trimmes i index.ts, ikke i Zod (unngår runtime-feil).
+  changeNotes: z.array(z.string()),
 });
 
 export type FinalPass = z.infer<typeof FinalPassSchema>;
@@ -261,24 +257,9 @@ export const FactGuardJsonSchema = {
 export const FinalJsonSchema = {
   type: 'object',
   additionalProperties: false,
-  required: [
-    'recommendedPost',
-    'alternativeOpenings',
-    'alternativeClosings',
-    'editorialNote',
-    'groundworkUsed',
-    'removedOrSoftened',
-    'generalismRisks',
-    'manualConcretization',
-  ],
+  required: ['recommendedPost', 'changeNotes'],
   properties: {
     recommendedPost: { type: 'string' },
-    alternativeOpenings: { type: 'array', items: { type: 'string' } },
-    alternativeClosings: { type: 'array', items: { type: 'string' } },
-    editorialNote: { type: 'string' },
-    groundworkUsed: { type: 'array', items: { type: 'string' } },
-    removedOrSoftened: { type: 'array', items: { type: 'string' } },
-    generalismRisks: { type: 'array', items: { type: 'string' } },
-    manualConcretization: { type: 'array', items: { type: 'string' } },
+    changeNotes: { type: 'array', items: { type: 'string' } },
   },
 } satisfies Record<string, unknown>;

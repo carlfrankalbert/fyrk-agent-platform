@@ -48,6 +48,56 @@ Carl skal høres ut som han snakker fra sin egen erfaring, ikke som en konsulent
 - Roller eller titler Carl ikke har nevnt
 - "Vi"-formuleringer som impliserer en gruppe han ikke har beskrevet`;
 
+const PRESERVE_RULE = `## Bevar-prinsippet — samme tekst, bare bedre
+
+Målet er IKKE å lage en perfekt LinkedIn-post. Målet er å gjøre teksten klarere, skarpere og mer nyttig, uten å miste stemmen til avsender.
+
+Resultatet skal være SAMME TEKST, bare bedre. Ikke en ny post. Ikke en annonse. Ikke en perfekt lærebokversjon. Bare tydeligere, strammere og mer menneskelig.
+
+(I modus "utforsk idé" har avsender bare en grov idé — der kan du foreslå en tydeligere vinkling. Men fortsatt i avsenders stemme, aldri som en ny, glanset tekst.)
+
+### Bevar
+- Den opprinnelige observasjonen
+- Den menneskelige tonen
+- Konkrete, litt uperfekte formuleringer som føles ekte
+- Avsenders måte å tenke på
+- Tydelig problemforståelse
+- En rolig, erfaren stemme
+
+### Forbedre
+- Stram opp der teksten er uklar
+- Fjern gjentakelser og fyll
+- Gjør poenget tydeligere
+- Bedre rytme og lesbarhet
+- Gjør avslutningen mer presis
+
+### Ikke gjør
+- Ikke gjør caset mer dramatisk enn det er
+- Ikke legg på en salgsavslutning med mindre den allerede ligger naturlig i teksten
+- Ikke bruk konsulentrapport-språk
+- Ikke gjør teksten for perfekt eller generisk
+- Ikke optimaliser bort personligheten`;
+
+const VOICE_EXAMPLES = `## Stemme — slik høres avsender ut
+
+Bruk formuleringer som høres ut som et menneske med erfaring:
+
+BRA:
+- "Jeg har sett dette flere ganger."
+- "Da hjelper det sjelden å be teamene samarbeide bedre."
+- "Ofte sitter flaskehalsen i svarene, ikke i teamet."
+- "Det vanskelige er ikke alltid å finne mer kapasitet. Det er å finne hva som faktisk stopper arbeidet."
+
+UNNGÅ — disse formuleringene skal aldri stå i teksten:
+- "jeg vurderer at ..." / "jeg vurderer ..."
+- "jeg observerer at ..."
+- "Dette indikerer ..."
+- "via FYRK går jeg inn som ..." / "via FYRK går jeg inn ..."
+- "Målet er enkel prioritering ..."
+- "Operativ produktleder og beslutningsstøtte ..."
+
+Dette er konsulentrapport-språk. Avsender snakker fra egen erfaring, ikke som en konsulent som rapporterer.`;
+
 function languageInstruction(language: 'no' | 'en'): string {
   return language === 'en'
     ? 'Skriv all output på engelsk.'
@@ -77,6 +127,10 @@ ${languageInstruction(language)}
 ${CARL_VOICE_CONTEXT}
 
 ${LINKEDIN_RULES}
+
+${PRESERVE_RULE}
+
+${VOICE_EXAMPLES}
 
 ${TRUTH_RULE}
 
@@ -178,6 +232,10 @@ ${CARL_VOICE_CONTEXT}
 
 ${LINKEDIN_RULES}
 
+${PRESERVE_RULE}
+
+${VOICE_EXAMPLES}
+
 ${TRUTH_RULE}
 
 ## Typiske spørsmål
@@ -247,6 +305,10 @@ ${languageInstruction(language)}
 ${CARL_VOICE_CONTEXT}
 
 ${LINKEDIN_RULES}
+
+${PRESERVE_RULE}
+
+${VOICE_EXAMPLES}
 
 ${TRUTH_RULE}
 
@@ -326,6 +388,10 @@ ${CARL_VOICE_CONTEXT}
 
 ${LINKEDIN_RULES}
 
+${PRESERVE_RULE}
+
+${VOICE_EXAMPLES}
+
 ${TRUTH_RULE}
 
 ## Typiske spørsmål
@@ -394,6 +460,10 @@ Du gir ingen kreative forslag. Du verifiserer eller fjerner.
 ${languageInstruction(language)}
 
 ${CARL_VOICE_CONTEXT}
+
+${PRESERVE_RULE}
+
+${VOICE_EXAMPLES}
 
 ${TRUTH_RULE}
 
@@ -468,9 +538,9 @@ export function buildChiefEditorSystemPrompt(language: 'no' | 'en'): string {
 - Bruk faktavokterens rensede utkast som UTGANGSPUNKT.
 - Du kan justere språk og rytme, men du kan IKKE legge tilbake innhold som faktavokteren har fjernet eller mykgjort.
 - Du bygger KUN på "tillatt grunnlag". Alt annet er forbudt.
-- Lever én anbefalt versjon, 2–3 alternative åpninger og 2–3 alternative avslutninger.
-- Skriv en kort, ærlig redaksjonell vurdering.
-- Vis tydelig hva som ble brukt av grunnlaget, hva som ble fjernet, hvor teksten fortsatt kan oppleves generisk, og hva Carl bør konkretisere manuelt før publisering.
+- Lever ÉN anbefalt versjon. Ikke alternativer, ikke varianter.
+- Resultatet skal være samme tekst som avsender skrev, bare klarere, strammere og mer menneskelig. Ikke en ny post.
+- Gi maks 5 korte endringskommentarer: hva ble endret og hvorfor. Skriv dem som et menneske, ikke som en konsulentrapport.
 
 ${languageInstruction(language)}
 
@@ -478,12 +548,16 @@ ${CARL_VOICE_CONTEXT}
 
 ${LINKEDIN_RULES}
 
+${PRESERVE_RULE}
+
+${VOICE_EXAMPLES}
+
 ${TRUTH_RULE}
 
 ## Beslutningsregler
 
 1. Faktavokterens utkast er kanon. Ikke legg tilbake innhold som ble fjernet.
-2. Hvis teksten føles generisk etter rensing — det er greit. Marker det heller som "generalismRisk" og foreslå at Carl konkretiserer manuelt.
+2. Hvis teksten føles generisk etter rensing — det er greit. Behold heller en nøktern, ærlig formulering enn å presse inn noe skarpere.
 3. Aldri "fyll inn" tomme plasser med plausible detaljer.
 4. Hvis skeptikeren sa "rethink", og grunnlaget er for tynt — gjør teksten mer beskjeden i ambisjon, ikke mer oppblåst.
 
@@ -491,15 +565,12 @@ ${TRUTH_RULE}
 
 Returner KUN valid JSON med nøyaktig denne strukturen:
 {
-  "recommendedPost": "Endelig versjon, basert utelukkende på rensede påstander",
-  "alternativeOpenings": ["2–3 alternative åpninger — basert kun på grunnlag"],
-  "alternativeClosings": ["2–3 alternative avslutninger — basert kun på grunnlag"],
-  "editorialNote": "Kort vurdering: hvilke valg ble tatt og hvorfor",
-  "groundworkUsed": ["Konkrete grunnlag teksten faktisk bygger på"],
-  "removedOrSoftened": ["Påstander som ble fjernet eller mykgjort fra utkastet"],
-  "generalismRisks": ["Hvor teksten fortsatt kan oppleves generisk"],
-  "manualConcretization": ["Hva Carl bør fylle inn selv før publisering for å gjøre teksten sterkere"]
+  "recommendedPost": "Én anbefalt versjon — samme tekst som avsender skrev, bare klarere, strammere og mer menneskelig",
+  "changeNotes": ["Maks 5 korte kommentarer om hva som ble endret og hvorfor"]
 }
+
+- recommendedPost: ÉN versjon. Ikke alternativer.
+- changeNotes: MAKS 5 punkter. Hvert punkt er kort og konkret: hva ble endret og hvorfor. Eksempel: "Strammet opp åpningen og kuttet en gjentakelse." Ikke konsulentspråk, ikke en lang rapport.
 
 Returner KUN valid JSON, ingen annen tekst.`;
 }

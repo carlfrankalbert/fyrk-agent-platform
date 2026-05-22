@@ -113,13 +113,11 @@ const factGuard: FactGuardPass = {
 
 const final: FinalPass = {
   recommendedPost: 'Endelig anbefalt post om prioritering og fremdrift.',
-  alternativeOpenings: ['Åpning 1', 'Åpning 2'],
-  alternativeClosings: ['Avslutning 1', 'Avslutning 2'],
-  editorialNote: 'Tonet ned ett oppblåst tall, beholdt kjernen.',
-  groundworkUsed: ['Carls erfaring med prioritering'],
-  removedOrSoftened: ['30% raskere leveranse'],
-  generalismRisks: ['Kan fortsatt oppleves generisk uten eksempel'],
-  manualConcretization: ['Legg til ett konkret eksempel fra bank'],
+  changeNotes: [
+    'Strammet opp åpningen og kuttet en gjentakelse',
+    'Tonet ned et oppblåst tall uten dekning',
+    'Gjorde avslutningen mer presis',
+  ],
 };
 
 /** Wire callRole to resolve the seven redaksjonssteg in order. */
@@ -259,47 +257,37 @@ describe('editorial-room agent', () => {
       expect(result.artifacts[0].kind).toBe('editorial-room-output');
     });
 
-    it('includes the recommended post and editorial note in the markdown', async () => {
+    it('includes the recommended post and change notes in the markdown', async () => {
       mockEditorialRun();
       const result = await editorialRoomAgent.execute(basicInput, ctx);
       const content = result.artifacts[0].content;
 
       expect(content).toContain('# Redaksjonsrommet');
-      expect(content).toContain(final.recommendedPost);
-      expect(content).toContain(final.editorialNote);
-      expect(content).toContain(`**Verdikt:** ${skeptic.verdict}`);
-    });
-
-    it('renders optional sections when their arrays are non-empty', async () => {
-      mockEditorialRun();
-      const result = await editorialRoomAgent.execute(basicInput, ctx);
-      const content = result.artifacts[0].content;
-
-      expect(content).toContain('## Risiko for generiskhet');
-      expect(content).toContain('## Påstander som ble fjernet eller mykgjort');
-      expect(content).toContain('## Alternative åpninger');
-    });
-
-    it('omits optional sections when their arrays are empty', async () => {
-      const sparseFinal: FinalPass = {
-        ...final,
-        groundworkUsed: [],
-        removedOrSoftened: [],
-        generalismRisks: [],
-        manualConcretization: [],
-        alternativeOpenings: [],
-        alternativeClosings: [],
-      };
-      mockEditorialRun({ final: sparseFinal });
-      const result = await editorialRoomAgent.execute(basicInput, ctx);
-      const content = result.artifacts[0].content;
-
-      expect(content).not.toContain('## Risiko for generiskhet');
-      expect(content).not.toContain('## Brukt grunnlag');
-      expect(content).not.toContain('## Alternative åpninger');
-      // The recommended version and editorial note are always present.
       expect(content).toContain('## Anbefalt versjon');
-      expect(content).toContain('## Redaksjonell vurdering');
+      expect(content).toContain(final.recommendedPost);
+      expect(content).toContain('## Endringer');
+      expect(content).toContain(final.changeNotes[0]);
+    });
+
+    it('omits the change section when there are no change notes', async () => {
+      mockEditorialRun({ final: { ...final, changeNotes: [] } });
+      const result = await editorialRoomAgent.execute(basicInput, ctx);
+      const content = result.artifacts[0].content;
+
+      expect(content).not.toContain('## Endringer');
+      // The recommended version is always present.
+      expect(content).toContain('## Anbefalt versjon');
+      expect(content).toContain(final.recommendedPost);
+    });
+
+    it('caps change notes at five', async () => {
+      const sixNotes = ['en', 'to', 'tre', 'fire', 'fem', 'seks'];
+      mockEditorialRun({ final: { ...final, changeNotes: sixNotes } });
+      const result = await editorialRoomAgent.execute(basicInput, ctx);
+
+      expect(result.output.final.changeNotes).toHaveLength(5);
+      expect(result.output.final.changeNotes).not.toContain('seks');
+      expect(result.artifacts[0].content).not.toContain('- seks');
     });
 
     it('records mode, tier and verdict in artifact meta', async () => {
