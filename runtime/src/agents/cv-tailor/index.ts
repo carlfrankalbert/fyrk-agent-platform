@@ -62,7 +62,7 @@ async function execute(
     model: 'claude-haiku-4-5-20251001',
     system: buildEditorialSystemPrompt(language),
     messages: [{ role: 'user', content: buildEditorialUserPrompt(editorialInput) }],
-    maxTokens: 4096,
+    maxTokens: 8192,
   });
 
   // Merge polished text back into output
@@ -140,7 +140,7 @@ async function execute(
         },
       }),
     }],
-    maxTokens: 4096,
+    maxTokens: 12288,
   });
 
   output.cv.profile = reviewer.profile;

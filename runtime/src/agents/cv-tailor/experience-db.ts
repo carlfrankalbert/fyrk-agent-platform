@@ -23,6 +23,15 @@ Senior produktleder med 15+ års erfaring fra bank, betaling, mobilbank og regul
 4. Test tidlig, lever ofte
 5. Snike inn endringer som eksperimenter — "vi prøver to uker, fungerer det ikke, stopper vi"
 
+**Selskapsstruktur:**
+- **Carlfrankalbert AS** er moderselskap. Brukt som konsulentvehikkel 2019–2022 for oppdrag hos Varner og SpareBank 1 Nettsider.
+- **FYRK AS** er heleid datterselskap av Carlfrankalbert AS, etablert høsten 2025. Brukes for selvstendig praksis fra og med nov 2025.
+- I CV-tittellinjer: skriv "via Carlfrankalbert AS" på konsulentoppdragene, ikke nevn FYRK på eldre roller.
+
+**Tidslinjekonvensjon:**
+- Datoformat: "Mnd YYYY – Mnd YYYY" eller "Mnd YYYY – nå".
+- Foreldrepermisjon (okt 2023 – jan 2024) skal IKKE nevnes eksplisitt i CV. Carl var formelt ansatt hele perioden, og måned-presisjon er konvensjon — det er ikke fabrikering. Periodene rundt er allerede tilpasset slik at tidslinjen fremstår sømløs (Dataplattform t.o.m. des 2023, Mobilbank f.o.m. jan 2024).
+
 ---
 
 ## Kjernekompetanse
@@ -85,8 +94,8 @@ Senior produktleder med 15+ års erfaring fra bank, betaling, mobilbank og regul
 ## Prosjekterfaring
 
 ### FYRK — Grunnlegger / Selvstendig produktleder
-**Periode:** Des 2025 – nå
-**Arbeidsgiver:** FYRK (eget firma)
+**Periode:** Nov 2025 – nå
+**Arbeidsgiver:** FYRK AS (heleid datterselskap av Carlfrankalbert AS)
 **Bransje:** Konsulentvirksomhet / produktledelse
 **Teamstørrelse:** Solo
 
@@ -125,15 +134,17 @@ Produktleder for tre tverrfaglige team innen mobilbank bedrift, betalingsløsnin
 
 **Hva jeg gjorde:**
 - Satte roadmap og mål for tre team. Bestemte hva vi leverte og når.
-- Drev migrering fra gammel plattform — compliance, sikkerhet og arkitektur
+- Tok over pågående migreringsløp av betalingsplattform — hadde gått i to år, et oppdrag flere hadde takket nei til
+- Kjørte migreringen parallelt med fortsatt produktlederansvar for Mobilbank Bedrift
 - Inkrementelle mobilbank-forbedringer: regnskapsfunksjonalitet, bedre betalingsfunksjoner
+- Forbedret brukeropplevelse i selvbetjente betalingsflyter for bedriftskunder
 - Stoppet parallelt arbeid: insisterte på å gjøre én ting ferdig før neste
 - Håndterte avhengigheter mellom team og fagmiljøer i regulert bankmiljø
 
 **Resultater:**
-- Migrering av betalingsplattform gjennomført — milliarder i ukentlige transaksjoner
+- Levert deler av migreringen uten produksjonsbrudd — milliarder i ukentlige transaksjoner gjennom plattformen
 - 80/20 strategi vs brannslukking — klarte å holde fokus
-- Fikk teamene til å jobbe sekvensielt: inlandsbet. ferdig → utenlandsbetaling → neste
+- Fikk teamene til å jobbe sekvensielt: innlandsbet. ferdig → utenlandsbetaling → neste
 
 **Læring:**
 - Tre team gir mye context-switching. Man sprer seg tynt utover. Ikke sikkert det er optimalt.
@@ -163,14 +174,18 @@ Kvalitet mot hastighet. QA-person på betaling var veldig grundig men treg. Fork
 Helhetlig ansvar for mobilbanken bedrift — produktretning, roadmap, leveranse og teamutvikling. Kombinerte produktledelse med teamledelse.
 
 **Hva jeg gjorde:**
-- Drev gjennom biometrisk signering for betaling — lansert som første bank i Norge
+- Drev gjennom biometrisk signering for betaling — lansert som første bedriftsbank i Norge
+- Definerte beløpsgrenser per transaksjon og daglig akkumulert grense, balanse mellom kundeverdi og risiko
+- Startet integrasjon mot SpareBank 1 Regnskap (videreført i 2025)
+- Hypotesedrevet utviklingsarbeid: antakelser, eksperimenter, innsiktsbaserte beslutninger
 - Satte retning og prioriterte selvstendig — høy autonomi, ingen som kontrollerte hva vi gjorde
 - Tok unna teknisk gjeld underveis, leverte nye features i tillegg
 - Monday commitment, Friday wins, retro en gang i måneden. Ikke mer. Workshops ved behov.
 
 **Resultater:**
-- **Biometrisk signering for betaling — første bank i Norge.** Jeg drev det gjennom, koordinerte mot bankene på sikkerhet.
-- **Kundebruk opp 40% på halvannet år.** Ikke bare min fortjeneste, men et velsmurt maskineri jeg var bidragsyter til.
+- **Biometrisk signering for betaling — første bedriftsbank i Norge.** Drev løpet gjennom, koordinerte mot bankene på sikkerhet.
+- **Over én milliard kroner signert med biometri første år** (basert på relativt lave maksgrenser i lanseringen).
+- **Kundebruk opp 40 % på halvannet år.** Ikke bare min fortjeneste, men et velsmurt maskineri jeg var bidragsyter til.
 - Høy app-rating på Google Play og App Store. Fornøyde kunder. God stemning i teamet.
 
 **Læring:**
@@ -185,7 +200,7 @@ Helhetlig ansvar for mobilbanken bedrift — produktretning, roadmap, leveranse 
 ---
 
 ### SpareBank 1 Utvikling — Teamleder, Ny data- og analyseplattform
-**Periode:** Mar 2023 – okt 2023
+**Periode:** Mar 2023 – des 2023
 **Arbeidsgiver:** SpareBank 1 Utvikling (ansatt)
 **Bransje:** Bank / data og analyse
 **Rolle:** Teamleder
@@ -218,7 +233,7 @@ Tidligfase-initiativ for å bygge analyseplattform (Databricks) og dataplattform
 ---
 
 ### SpareBank 1 Utvikling — Områdeleder og smidig coach, Kundedialog
-**Periode:** Jan 2022 – jan 2023
+**Periode:** Jan 2022 – feb 2023
 **Arbeidsgiver:** SpareBank 1 Utvikling (ansatt)
 **Bransje:** Bank / kundedialog
 **Rolle:** Områdeleder, prosjektleder, smidig coach
@@ -229,13 +244,17 @@ Tidligfase-initiativ for å bygge analyseplattform (Databricks) og dataplattform
 Ledet to tverrfaglige team med ansvar for bemanning, budsjett og leveranse. Også prosjektleder for møtebookingprosjektet (~3 MNOK). Produktleder sluttet underveis — tok da også produktlederansvaret.
 
 **Hva jeg gjorde:**
-- Forbedret prioritering: færre prio 1-er, kortere backlog
+- Ledet to team (12 personer) med ansvar for chat, skjemaer, skjemagenerator, meldinger og dokumentarkiv
+- Forbedret prioritering: færre prio 1-saker, kortere backlog, ryddet opp i forvaltningsporteføljen
+- Koblet OKR til forvaltningsarbeid — ikke bare nyutvikling
+- Lanserte selvbetjent møtebooking via bankens nettsider (frontend levert; backend-integrasjon forsinket av tilgrensende CRM-team)
 - Lærte produktleder om MVP-tenkning: små steg, test tidlig, ikke gap over for mye
 - Hjalp et annet team med å redusere parallelt arbeid
 - Budsjettoppfølging, bemanning, prosjektledelse
 
 **Resultater:**
 - Leverte jevnt og trutt. Oppfylte målene.
+- Selvbetjent møtebooking lansert i frontend som første steg
 - Fikk sterke personligheter til å tone seg ned og jobbe bedre som lag
 - Ingen harde tall på leveransetakt, men stabil og forutsigbar leveranse
 
@@ -366,7 +385,9 @@ Kvalitetssikring av iOS- og Android-plattformene i Norges ledende betalingsapp.
 Testleder for akseptansetest av Lovisa (domstolenes forvaltningssystem) og ESAS (digital overføring av straffesaker, initiert av Justisdepartementet).
 
 **Hva jeg gjorde:**
-- Planla og koordinerte akseptansetest med 15 superbrukere fra domstolene
+- Planla og koordinerte akseptansetest med 15 superbrukere fra tingrettene, lagmannsrettene og Høyesterett
+- Tett samarbeid med saksbehandlere i domstolene som testet i sin daglige flyt
+- Akseptansebeslutter for releaser før produksjonssetting (unngå "CAB" i CV-tekst — bruk "release-godkjenning" eller tilsvarende)
 - Månedlige releaser i samarbeid med Comptas (leverandør)
 - Forbedret testprosesser. Jobbet mot continuous deploy.
 - ESAS: testplanlegging og koordinering mot Politiet og Kriminalomsorgen
@@ -511,9 +532,10 @@ Min første IT-jobb. Begynte som supportmedarbeider og superbruker på kredittko
 **Rolle:** Kunderådgiver, prosjektmedarbeider
 
 **Beskrivelse:**
-Rådgiver for kortinnløsning og fagekspert for bedriftskunder. Også involvert i konvertering av salgspantslån fra svensk system til norsk dagligbanksystem.
+Startet som saksbehandler av kreditter, gikk deretter over til rådgiver for kortinnløsning med kontraktsadministrasjon og fagstøtte til kundeansvarlige. Også involvert i konvertering av salgspantslån fra svensk system til norsk dagligbanksystem.
 
 **Hva jeg gjorde:**
+- Saksbehandling av kredittsøknader for bedriftskunder (første halvdel av perioden)
 - Administrerte avtaler for kortinnløsning (VISA, Mastercard) for bedriftskunder
 - Digitaliserte papirbasert kontraktsarkiv
 - Fagekspert som støttet kundeansvarlige

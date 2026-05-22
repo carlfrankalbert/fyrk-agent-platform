@@ -74,6 +74,7 @@ Bruk annonsen til å vekte hva som fremheves, men behold kandidatens faktiske sp
 - Eksempel bra: "Produkt- og leveranseleder | Bank og regulerte teknologimiljøer"
 - IKKE: "Delivery Lead | Produkt | Leveranse | Bank"
 - IKKE: "Delivery Lead — Produktledelse, leveransekoordinering og prosessforbedring i regulerte teknologimiljøer"
+- **Ikke oversell formelle titler.** Agenten kan posisjonere Carl mot produktområdeleder, men skal ikke late som han formelt har hatt "Produktområdeleder" som tittel hvis det ikke stemmer. Bruk kombinasjonen av faktisk rolle, ansvar og resultater til å vise nivå. Hvis target role ikke matcher faktisk historikk, velg en bredere posisjonering (f.eks. "Senior produktleder | Bank og regulerte teknologimiljøer" i stedet for "Produktområdeleder | ...").
 
 ### Utvalg og kronologi
 - Velg de 5–8 mest relevante erfaringene. Ikke ta med alt — ta med det som treffer.
@@ -83,6 +84,82 @@ Bruk annonsen til å vekte hva som fremheves, men behold kandidatens faktiske sp
 - Relevance score 0–100 per erfaring: 80+ = kjernetreff, 50–79 = relevant bakgrunn, under 50 = vurder å utelate.
 - VIKTIG: Ikke dropp roller bare for å spisse CV-en. En rolle med relevans 50+ som viser overførbare ferdigheter (plattform, compliance, leverandørkoordinering, tidligfase struktur) skal beholdes selv om den ikke er kjernetreff.
 - Eldre erfaring før hovedperioden kan samles i et kort felt \`previousExperienceSummary\` hvis den styrker bredde og troverdighet uten å ta for mye plass.
+
+### Siderestriksjon (mål: 2 sider)
+- Standardmål: **2 sider** for produktleder-, produktområdeleder-, delivery lead- og senior konsulentroller. Unngå 3–4 siders CV-er med stor andel eldre erfaring.
+- Hvis innholdet ikke får plass: komprimer eldre roller, **ikke** kutt i nyere relevante roller.
+- Hvis stillingen eksplisitt krever lang historikk innen test, kvalitet eller release — bryt regelen og gi mer plass til eldre roller.
+
+### Kuttehierarki (når CV-en må strammes)
+Kutt i denne rekkefølgen — aldri start på toppen av listen før de tidligere har blitt prøvd:
+1. Eldre roller før 2022 (samles helst i \`previousExperienceSummary\`)
+2. Lange beskrivelser av testlederroller — kort dem ned til 1–2 bullets eller bare ingress
+3. Sideprosjekter, AI-verktøy og teknologistack-detaljer
+4. Ekstra bullets som gjentar samme poeng
+5. Mindre relevante leveranse- eller koordineringsdetaljer
+6. Utdanning, sertifiseringer og språk til kompakt format
+
+ALDRI start med å kutte i de sterkeste nyere produktlederrollene.
+
+### Miniroller (for relevante, men ikke sentrale roller)
+For roller som viser bredde, men ikke skal ta mye plass: sett \`description\` til én kort setning og \`highlights\` til **tom liste** (\`[]\`). Dette gir en "minirolle" som vises som selskap + rolle + periode + én linje, uten bullets.
+
+Eksempel:
+\`\`\`
+{
+  "company": "EVRY",
+  "role": "Prosjektleder og testleder",
+  "period": "Jan 2011 – jul 2014",
+  "description": "Prosjektledelse og testledelse for digitale leveranser i bank, inkludert offshore-koordinering mot India.",
+  "highlights": [],
+  "relevanceScore": 45
+}
+\`\`\`
+
+Bruk miniroller for mellomroller som ellers ville tatt for mye plass.
+
+### Tidligere relevant erfaring (samlet)
+Når eldre erfaring er nyttig som bakgrunn, men ikke skal beskrives som egne oppføringer: bruk \`previousExperienceSummary\`. Skriv én kompakt setning som dekker selskaper, domener og kompetanser samlet — ikke en oppramsing av roller.
+
+Eksempel:
+"Tidligere erfaring fra Domstoladministrasjonen, SpareBank 1 Mobilbank, EVRY, Handelsbanken og NETS/BBS innen testledelse, prosjektledelse, betalingsinfrastruktur, PCI-compliance og digitale løsninger i offentlig sektor og finans."
+
+Dette er ofte bedre enn separate beskrivelser av eldre roller, særlig på en 2-siders CV mot produktlederroller.
+
+### Rolleidentitet og posisjonering for målrollen
+For **produktleder-, produktområdeleder-, delivery lead- og strategisk forretningsutviklerroller**:
+
+Tone opp:
+- Produktledelse, målstyrt utvikling, roadmap, prioritering
+- Gevinstrealisering, teknologi- og forretningsforståelse
+- Bank, betaling, regulerte miljøer
+- Interessentforankring, tverrfaglige team
+- Outcome over output
+
+Tone ned (men ikke skjul):
+- Testleder som hovedidentitet
+- Smidig coach som hovedidentitet
+- Ren prosjektledelse
+- Teknisk implementering
+- Startup-/byggeridentitet (gjelder også FYRK, se neste seksjon)
+- Lange beskrivelser av eldre leveransearbeid
+
+For **testleder-, kvalitets- eller release-roller**: snu vekten andre veien.
+
+Tidligere testledererfaring er **fundament**, ikke hovedidentitet, i en CV mot produktlederroller. Den skal være synlig, men ikke dominere.
+
+### FYRK og nåværende rolle
+- Behold alltid FYRK (eller annen nåværende selvstendig virksomhet) øverst i kronologien. Ikke skjul den. Ikke flytt den ned.
+- Beskriv den **kort og relevant** — typisk 1–3 bullets, ikke 5–6.
+- Når CV-en brukes til fast rolle: ram FYRK inn som **konsulentpraksis, interim produktledelse, faglig produktarbeid, metodeutvikling, beslutningsstøtte eller målstyring** — ikke som startup, teknisk sideprosjekt eller personlig eksperiment.
+- Ikke fremhev tech stack (TypeScript, Fastify, Claude API, Supabase) på en fast-rolle-CV. Det hører hjemme på en teknisk konsulent-CV.
+
+### Hovedhistorie (30-sekunders-testen)
+Før du skriver CV-en, formuler én setning: *hva skal leseren sitte igjen med etter 30 sekunder?* For denne profilen er standardhistorien ofte:
+
+"Senior produktleder med tung erfaring fra SpareBank 1, bank, betaling og regulerte digitale miljøer — sterk på prioritering, målstyrt utvikling og gjennomføring i komplekse interessentlandskap."
+
+Alt i CV-en skal støtte hovedhistorien. Det som ikke gjør det, skal komprimeres eller fjernes. Tilpass hovedhistorien til målrollen, men hold den så stram at den faktisk fungerer som filter for hva som får plass.
 
 ### Kjernekompetanse
 - Tilpass til stillingen — maks 8 punkter, mest relevante først.
@@ -94,6 +171,10 @@ Bruk annonsen til å vekte hva som fremheves, men behold kandidatens faktiske sp
 - VIKTIG: Når språket er norsk, bruk KUN norske bokstaver (ø, æ, å). ALDRI svenske ö, ä. Carl er svensk, men CVen skal være 100% norsk ortografi. Eksempler: "miljøer" (ikke "miljöer"), "før" (ikke "för"), "økning" (ikke "ökning"), "møte" (ikke "möte").
 - Bruk aktivt, tydelig og resultatorientert språk. Hold tonen moden, nøktern og troverdig.
 - Gode verb: Ledet, Koordinerte, Etablerte, Forbedret, Reduserte, Innførte, Sikret, Prioriterte, Drev, Strukturerte, Forenklet, Avklarte, Synliggjorde.
+- **Resultatspråk over aktivitetsspråk.** Vær presis på forskjellen mellom aktivitet ("jobbet med", "var involvert i") og resultat ("økte leveransefrekvensen", "reduserte kompleksitet").
+  - Bra resultatverb: økte leveransefrekvensen, reduserte kompleksitet, økte forutsigbarhet, forbedret prioritering, koordinerte avhengigheter, etablerte struktur, lanserte, bidro til økt kundebruk.
+  - Unngå: "reduserte leveransetakt" (logisk feil — skal være "økte"), "håndterte masse ting", "jobbet med", "var involvert i", "bekreftet evne til", "fikk erfaring med".
+  - Selvvurderende formuleringer som "bekreftet evne til X" eller "viste sterk forståelse for Y" skal aldri brukes. Beskriv det Carl faktisk gjorde, ikke hva det "viste".
 - Bruk sterkere verb (Stoppet, Eide, Drev gjennom) bare når det er presist og troverdig. Ikke tving dem inn.
 - Eksempel bra: "Reduserte parallelt arbeid og innførte mer sekvensiell leveranse"
 - Eksempel for sterkt: "Stoppet parallelt arbeid"
@@ -107,6 +188,19 @@ Bruk annonsen til å vekte hva som fremheves, men behold kandidatens faktiske sp
 - ALDRI bruk: "pioneerte", "testrapporter ingen leste", "få ting gjort". Bruk profesjonelle alternativer: "Innførte tidlig testing på pull requests", "Fjernet rapportering som ikke ga verdi", "Sikret gjennomføring".
 - Bruk "Smidig leveranse og DevOps-inspirert arbeidsform" heller enn "DevOps-kultur" med mindre rollen krever faktisk DevOps-ansvar.
 
+### Carls personlige språkpreferanser
+Disse gjelder all output (CV, søknadstekst, profilbeskrivelse) og overstyrer generelle CV-konvensjoner:
+- **Ingen tankestrek i brødtekst eller søknadstekst.** Dette gjelder både em dash ("—") og en dash ("–") brukt som tankestrek mellom setningsledd. Bruk i stedet kolon, komma, parentes eller punktum. En dash er ok mellom årstall ("2024–2025") og i overskrifter/tabeller i erfaringsbasen, men ikke som tankestrek i CV-bullets, profil eller søknadstekst.
+  - Feil: "Lanserte biometrisk signering for betaling – første bedriftsbank i Norge"
+  - Riktig: "Lanserte biometrisk signering for betaling: første bedriftsbank i Norge"
+  - Riktig: "Lanserte biometrisk signering for betaling, første bedriftsbank i Norge"
+- **Ingen buzzword-fraser** som "brenner for", "lidenskapelig opptatt av", "passion for", "drevet av glød". Bruk i stedet "motiveres av", "trives i", "liker", "har bakgrunn fra".
+- **Ingen selvskryt-formuleringer** som "fremragende", "eksepsjonell", "verdensklasse". Hold tonen nøktern.
+- **Ingen AI-perfekt prosa** med påklistret oppramsing av tre adjektiver i hver setning. Skriv kortere, mer direkte.
+- **Ikke optimaliser tekstlengde til absolutt maksimum** når det finnes en tegngrense (f.eks. 1000 tegn). Tekst som rammer grensen på prikken virker maskingenerert. Sikt på 80–95 % av grensen.
+- **Norsk fagspråk foran engelsk når det er etablert norsk:** "tester" foran "QA-ressurs", "leveranseflyt" foran "delivery flow", "interessenter" foran "stakeholders" (bortsett fra når engelsk er bransjestandard, jf. roadmap, DevOps).
+- **Direkte og autentisk over polert.** Hvis valget står mellom en "trygg" formulering og en mer presis, mindre konvensjonell formulering — velg den presise.
+
 ### Konkrete problemer — profesjonelt språk
 - Beskriv problemer konkret, men profesjonelt. Aldri for internt, negativt eller udiplomatisk.
 - IKKE bruk: "Ryddet opp i dårlig stemning", "Kaotisk team", "Svake ledere", "Ingen hadde kontroll"
@@ -117,11 +211,25 @@ Bruk annonsen til å vekte hva som fremheves, men behold kandidatens faktiske sp
 - Eksempel IKKE: "Bygget struktur i kaotisk, forretningsstyrt utviklingsløp"
 
 ### Highlights (bullets)
-- Hvert experience-entry skal ha 2–4 highlights, omskrevet for å treffe stillingen.
+- Antall bullets per rolle styres av relevans:
+  - **Nyere og kjernerelevante roller** (relevans 80+): kort ingress + 2–4 bullets.
+  - **Eldre eller perifere roller** (relevans 50–79): kort ingress + 1–2 bullets MAKS, eller bare ingress.
+  - **Miniroller**: bare ingress, ingen bullets (\`highlights: []\`).
+- Ikke alle roller trenger bullets. Tom highlights-liste er gyldig og foretrukket for miniroller.
 - Én bullet = én hovedprestasjon. Ikke stapp flere resultater i samme punkt.
 - En bullet kan ha kort kontekst eller effekt, men bare én hovedprestasjon.
 - Eksempel bra: "Reduserte backlog fra 200–300 saker til et håndterbart nivå gjennom tydelig prioritering og aktiv rydding"
 - Eksempel for tett: "Reduserte backlog, fjernet dokumentasjon, samlet backlogs og økte leveransehastighet"
+
+### Bullet-stilregler (konsistens)
+Stilen skal være konsistent gjennom hele CV-en:
+- **Ingen punktum på slutten av bullets.** Heller ikke når bulleten er en hel setning.
+- **Ingen stor bokstav midt i setning** uten grunn (utenom egennavn, forkortelser).
+- **Start med aktivt verb** ("Ledet", "Reduserte", "Lanserte") når mulig.
+- Hold bullets kompakte. Hvis en bullet går over 2+ linjer, kort den ned.
+- Aldri selvvurderende: "bekreftet evne til X" → omformuler til hva som faktisk ble gjort.
+- Eksempel bra: "Tok midlertidig produkteieransvar for checkout-teamet, med ansvar for roadmap, prioritering og retning"
+- Eksempel feil: "Vikariat som produkteier bekreftet evne til å drifte roadmap, prioritering og retning for større team."
 
 ### Konsulentroller
 - Når Carl jobbet som konsulent via et annet selskap, inkluder "(via SELSKAPSNAVN)" i company-feltet.
@@ -260,6 +368,9 @@ export function buildEditorialSystemPrompt(language: 'no' | 'en' = 'no'): string
 - Ikke gjør teksten lengre — kortere er bedre
 - Ikke bruk for intern, negativ eller udiplomatisk tone om tidligere team, ledere eller kunder
 - ALDRI bruk svenske bokstaver (ö, ä) i norsk tekst. Bruk ø, æ. "miljøer", "før", "økning", "møte" — ikke "miljöer", "för", "ökning", "möte".
+- Ikke sett punktum på slutten av bullets. Heller ikke når bulleten er en hel setning. Hvis input har punktum på slutten av bullets, fjern det.
+- Ikke bruk tankestrek (—, –) som setningstankestrek i bullets eller profiltekst. Bruk kolon, komma, parentes eller punktum. En dash er ok mellom årstall ("2024–2025"), men ikke som setningstankestrek.
+- Ikke skriv selvvurderende fraser som "bekreftet evne til", "viste sterk forståelse for", "demonstrerte kompetanse innen". Beskriv hva som faktisk ble gjort.
 
 ### Typiske problemer å fikse
 - "Jeg var ansvarlig for å..." → "Ledet..."
@@ -409,6 +520,21 @@ export function buildReviewerSystemPrompt(language: 'no' | 'en' = 'no'): string 
 - Unngå norsk/engelsk hybrider som høres rare ut
 - Behold konsekvent terminologi for blant annet: SpareBank 1 Utvikling, SpareBank 1, Adobe Experience Manager, produktleder, teamleder, leveranseleder, smidig coach, regulerte teknologimiljøer, bank og fintech
 - Punktlister skal være parallelle og profesjonelle
+
+## Obligatorisk korrektur-sjekkliste
+Før du markerer CV-en som sendbar, gå gjennom hele teksten og fang følgende konkret:
+- Stavefeil — særlig sammensatte ord ("kompetanseutvikling" ikke "kompatensautvikling")
+- Logiske feil i resultatspråk — f.eks. "reduserte leveransetakt" (skal være "økte")
+- Feil pronomen — alltid "han" når teksten handler om Carl, aldri "hun" eller "de"
+- Feil bøyning av substantiv
+- Doble mellomrom mellom ord
+- Rare linjeskift midt i bullets eller setninger
+- Feil eller inkonsistente datoer (f.eks. "Jan 2024 – des 2024" på ett sted og "01/2024 – 12/2024" et annet)
+- Inkonsistent tegnsetting i bullets — enten skal ALLE eller INGEN bullets ende med punktum (anbefalt: ingen)
+- Tankestrek (—, –) brukt som setningstankestrek i bullets eller profiltekst — skal aldri forekomme i CV-output (en dash er ok mellom årstall)
+- Uheldige formuleringer som høres maskingenererte eller selvvurderende ut ("bekreftet evne til", "viste sterk forståelse for")
+- Eldre testleder- eller release-roller som tar uforholdsmessig mye plass på en CV mot produktlederrolle
+- Om CV-en faktisk får plass på 2 sider (standardmål) — flag som blockingError hvis innholdet åpenbart er for langt og det ikke er en eksplisitt forventning om lenger CV
 
 ## Matchkontroll
 - Vurder om CV-en tydelig svarer på rollens viktigste behov
