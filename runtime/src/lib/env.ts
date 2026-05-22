@@ -10,6 +10,8 @@ const EnvSchema = z.object({
   ANTHROPIC_API_KEY: optStr,
   OPENAI_API_KEY: optStr,
   OPENAI_CV_REVIEW_MODEL: optStr,
+  OPENAI_EDITORIAL_QUALITY_MODEL: optStr,
+  OPENAI_EDITORIAL_FAST_MODEL: optStr,
   CV_SECOND_OPINION_PROVIDER: z.enum(['openai']).optional(),
   HUB_ACCESS_CODE: optStr,
   ODA_EMAIL: optEmail,

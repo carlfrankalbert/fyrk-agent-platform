@@ -16,11 +16,16 @@ export interface OpenAiRequest {
       strict?: boolean;
     };
   };
+  reasoning?: {
+    effort?: 'minimal' | 'low' | 'medium' | 'high';
+  };
 }
 
 export interface OpenAiResponse {
   id: string;
   model: string;
+  status?: string;
+  incomplete_details?: { reason?: string } | null;
   output?: Array<{
     type: string;
     content?: Array<{
@@ -92,7 +97,16 @@ export function extractOpenAiText(response: OpenAiResponse): string {
   }
 
   if (chunks.length === 0) {
-    throw new Error('No output_text content in OpenAI response');
+    const status = response.status ?? 'unknown';
+    const reason = response.incomplete_details?.reason;
+    const outputTypes = (response.output ?? []).map(o => o.type).join(', ') || 'none';
+    const usage = response.usage ? ` (output_tokens=${response.usage.output_tokens ?? '?'})` : '';
+    const hint = reason === 'max_output_tokens'
+      ? ' — increase max_output_tokens or lower reasoning effort'
+      : '';
+    throw new Error(
+      `No output_text content in OpenAI response: status=${status}, incomplete_reason=${reason ?? 'none'}, output_types=[${outputTypes}]${usage}${hint}`,
+    );
   }
 
   return chunks.join('');

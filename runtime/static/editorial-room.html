@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redaksjonsrommet — FYRK</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --surface: #fff;
+    --border: #e2e2e2;
+    --text: #1a1a1a;
+    --muted: #666;
+    --accent: #1a1a1a;
+    --accent-hover: #333;
+    --green: #16a34a;
+    --yellow: #ca8a04;
+    --red: #dc2626;
+    --blue: #2563eb;
+    --bg-soft: #f5f5f5;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.25rem; }
+  .subtitle { color: var(--muted); margin-bottom: 0.35rem; font-size: 0.9rem; }
+  .build-meta { color: var(--muted); margin-bottom: 1.65rem; font-size: 0.8rem; }
+
+  label { display: block; font-weight: 500; margin-bottom: 0.25rem; font-size: 0.875rem; }
+  .hint { color: var(--muted); font-size: 0.8rem; margin-bottom: 0.5rem; }
+
+  textarea, input, select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    background: var(--surface);
+    color: var(--text);
+    transition: border-color 0.15s;
+  }
+
+  textarea:focus, input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  textarea { min-height: 160px; resize: vertical; }
+  .field { margin-bottom: 1.25rem; }
+
+  .row { display: flex; gap: 1rem; }
+  .row .field { flex: 1; }
+
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 0.75rem 2rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button:hover { background: var(--accent-hover); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .actions { display: flex; gap: 0.75rem; align-items: center; margin-top: 0.5rem; }
+
+  .status { font-size: 0.85rem; color: var(--muted); }
+  .status.error { color: var(--red); }
+
+  #output { display: none; margin-top: 2rem; }
+  #output.visible { display: block; }
+
+  .verdict-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 100px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .verdict-badge.send { background: var(--green); }
+  .verdict-badge.revise { background: var(--yellow); color: var(--text); }
+  .verdict-badge.rethink { background: var(--red); }
+
+  .tabs {
+    display: flex;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 1.5rem;
+    gap: 0;
+    flex-wrap: wrap;
+  }
+  .tab {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.15s;
+    background: none;
+    border-radius: 0;
+  }
+  .tab:hover { color: var(--text); background: none; }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); background: none; }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .section { margin-bottom: 1.5rem; }
+  .section h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+  .section h3 { font-size: 0.95rem; font-weight: 600; margin: 0.75rem 0 0.25rem; }
+  .section ul { padding-left: 1.25rem; margin-top: 0.25rem; }
+  .section li { font-size: 0.9rem; margin-bottom: 0.2rem; }
+
+  .post-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+    white-space: pre-wrap;
+    line-height: 1.65;
+  }
+
+  .alt-item {
+    background: var(--bg-soft);
+    border-left: 3px solid var(--border);
+    padding: 0.65rem 0.85rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    border-radius: 0 4px 4px 0;
+  }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.5rem 1rem;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+  }
+  .meta-grid dt { color: var(--muted); }
+
+  .role-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+  .role-card .role-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+  .role-card .role-name { font-weight: 600; font-size: 0.95rem; }
+  .role-card .role-model {
+    font-size: 0.75rem;
+    color: var(--muted);
+    background: var(--bg-soft);
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+  }
+
+  .copy-btn {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    border-radius: 4px;
+  }
+  .copy-btn:hover { background: #f5f5f5; }
+
+  pre {
+    background: #f5f5f5;
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+</style>
+</head>
+<body>
+
+<h1>Redaksjonsrommet</h1>
+<p class="subtitle">Lim inn en idé eller et utkast, så kjører redaksjonen det gjennom posisjoneringsredaktør (GPT), språkredaktør (Claude), skeptiker (GPT) og sjefredaktør (Claude).</p>
+<p class="build-meta" id="build-meta">Versjon laster...</p>
+
+<div class="field">
+  <label for="api-url">API URL</label>
+  <input type="text" id="api-url" value="http://localhost:8787" placeholder="http://localhost:8787 eller https://fyrk-agent-runtime.fly.dev">
+</div>
+
+<div class="field">
+  <label for="draft">Idé eller utkast</label>
+  <div class="hint">Lim inn en grov idé, et utkast eller et notat. Redaksjonen tar resten.</div>
+  <textarea id="draft" placeholder="Jeg har tenkt på hvordan produktledere håndterer prioritering når interessentene drar i ulike retninger..."></textarea>
+</div>
+
+<div class="row">
+  <div class="field">
+    <label for="mode">Modus</label>
+    <select id="mode">
+      <option value="improve">Forbedre utkast</option>
+      <option value="explore">Utforsk idé</option>
+      <option value="finalize">Lag ferdig versjon</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="format">Format</label>
+    <select id="format">
+      <option value="post">LinkedIn-post</option>
+      <option value="comment">LinkedIn-kommentar</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="language">Språk</label>
+    <select id="language">
+      <option value="no">Norsk</option>
+      <option value="en">English</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="tier">Modellnivå</label>
+    <select id="tier">
+      <option value="quality">Høy kvalitet</option>
+      <option value="fast">Rask og rimelig</option>
+    </select>
+  </div>
+</div>
+
+<div class="row">
+  <div class="field">
+    <label for="audience">Målgruppe (valgfritt)</label>
+    <input type="text" id="audience" placeholder="Produktledere i bank, CTO-er, ...">
+  </div>
+  <div class="field">
+    <label for="intent">Intensjon (valgfritt)</label>
+    <input type="text" id="intent" placeholder="Hva skal teksten oppnå?">
+  </div>
+</div>
+
+<div class="field" id="revision-field" style="display:none;">
+  <label for="revision-notes">Revisjonsnotater</label>
+  <div class="hint">Hva skal endres på forrige versjon? Tone, lengde, vinkling.</div>
+  <textarea id="revision-notes" placeholder="Gjør den kortere. Ta vekk siste avsnitt. Spiss åpningen mot produktledere i bank..."></textarea>
+</div>
+
+<div class="actions">
+  <button id="generate-btn" onclick="generate()">Kjør redaksjonsmøtet</button>
+  <button id="regenerate-btn" class="copy-btn" style="display:none;" onclick="generate()">Revider med endringer</button>
+  <span class="status" id="status"></span>
+</div>
+
+<div id="output">
+  <hr>
+  <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
+    <span class="verdict-badge" id="verdict-badge"></span>
+    <span style="font-size:0.9rem; color:var(--muted);" id="three-second-test"></span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('final')">Endelig post</button>
+    <button class="tab" onclick="showTab('truth')">Grunnlag & risiko</button>
+    <button class="tab" onclick="showTab('alts')">Alternativer</button>
+    <button class="tab" onclick="showTab('room')">Redaksjonsmøtet</button>
+    <button class="tab" onclick="showTab('raw')">Markdown</button>
+  </div>
+
+  <div class="tab-content active" id="tab-final"></div>
+  <div class="tab-content" id="tab-truth"></div>
+  <div class="tab-content" id="tab-alts"></div>
+  <div class="tab-content" id="tab-room"></div>
+  <div class="tab-content" id="tab-raw">
+    <div style="margin-bottom:0.5rem;">
+      <button class="copy-btn" onclick="copyMarkdown()">Kopier markdown</button>
+    </div>
+    <pre id="raw-markdown"></pre>
+  </div>
+</div>
+
+<script>
+let lastResult = null;
+let artifactMarkdown = '';
+
+loadVersion();
+
+async function loadVersion() {
+  const apiUrl = document.getElementById('api-url').value.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${apiUrl}/editor/version`);
+    const data = await res.json();
+    const commit = data.commit ? ` · ${String(data.commit).slice(0, 12)}` : '';
+    document.getElementById('build-meta').textContent = `Versjon ${data.version}${commit}`;
+  } catch {
+    document.getElementById('build-meta').textContent = 'Versjon utilgjengelig';
+  }
+}
+
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+async function generate() {
+  const btn = document.getElementById('generate-btn');
+  const status = document.getElementById('status');
+  const output = document.getElementById('output');
+
+  const apiUrl = document.getElementById('api-url').value.replace(/\/$/, '');
+  const draft = document.getElementById('draft').value.trim();
+  const mode = document.getElementById('mode').value;
+  const format = document.getElementById('format').value;
+  const language = document.getElementById('language').value;
+  const tier = document.getElementById('tier').value;
+  const audience = document.getElementById('audience').value.trim() || undefined;
+  const intent = document.getElementById('intent').value.trim() || undefined;
+  const isRevision = Boolean(lastResult);
+  const revisionNotes = isRevision
+    ? (document.getElementById('revision-notes').value.trim() || undefined)
+    : undefined;
+  const previousFinalPost = isRevision ? lastResult.final.recommendedPost : undefined;
+
+  if (!draft) {
+    status.textContent = 'Lim inn en idé eller et utkast.';
+    status.className = 'status error';
+    return;
+  }
+
+  btn.disabled = true;
+  status.textContent = 'Redaksjonen jobber... (kan ta 30–60 sek)';
+  status.className = 'status';
+  output.className = '';
+
+  try {
+    const res = await fetch(`${apiUrl}/run/editorial-room`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: { draft, mode, format, language, tier, audience, intent, revisionNotes, previousFinalPost },
+        dryRun: true,
+        publish: false,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (data.status === 'error') {
+      throw new Error(data.error || 'Agent returnerte feil');
+    }
+
+    lastResult = data.output;
+    artifactMarkdown = data.artifacts?.[0]?.content || '';
+
+    renderOutput(lastResult);
+    output.className = 'visible';
+    status.textContent = `Ferdig (${lastResult.skeptic.verdict})`;
+
+    document.getElementById('regenerate-btn').style.display = '';
+    document.getElementById('revision-field').style.display = '';
+
+  } catch (err) {
+    status.textContent = `Feil: ${err.message}`;
+    status.className = 'status error';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderOutput(result) {
+  const badge = document.getElementById('verdict-badge');
+  badge.textContent = result.skeptic.verdict;
+  badge.className = `verdict-badge ${result.skeptic.verdict}`;
+  document.getElementById('three-second-test').textContent = result.skeptic.threeSecondTest;
+
+  renderFinal(result.final);
+  renderTruth(result);
+  renderAlternatives(result.final);
+  renderRoom(result);
+  document.getElementById('raw-markdown').textContent = artifactMarkdown;
+}
+
+function renderTruth(result) {
+  const el = document.getElementById('tab-truth');
+  const final = result.final;
+  const gw = result.groundwork;
+  const fg = result.factGuard;
+  let html = '';
+
+  // Grunnlag teksten bygger på
+  if (final.groundworkUsed?.length) {
+    html += '<div class="section"><h2>Brukt grunnlag</h2><ul>';
+    for (const g of final.groundworkUsed) html += `<li>${escapeHtml(g)}</li>`;
+    html += '</ul></div>';
+  }
+
+  if (final.removedOrSoftened?.length) {
+    html += '<div class="section"><h2>Påstander fjernet eller mykgjort</h2><ul>';
+    for (const r of final.removedOrSoftened) html += `<li>${escapeHtml(r)}</li>`;
+    html += '</ul></div>';
+  }
+
+  if (final.generalismRisks?.length) {
+    html += '<div class="section"><h2>Risiko for generiskhet</h2><ul>';
+    for (const r of final.generalismRisks) html += `<li>${escapeHtml(r)}</li>`;
+    html += '</ul></div>';
+  }
+
+  if (final.manualConcretization?.length) {
+    html += '<div class="section"><h2>Bør konkretiseres manuelt før publisering</h2><ul>';
+    for (const m of final.manualConcretization) html += `<li>${escapeHtml(m)}</li>`;
+    html += '</ul></div>';
+  }
+
+  // Detaljert klassifisering fra faktavokter
+  if (fg?.classifiedClaims?.length) {
+    html += '<div class="section"><h2>Faktavokterens klassifisering</h2>';
+    html += '<p style="color:var(--muted);font-size:0.85rem;margin-bottom:0.5rem;">Hver konkret påstand er klassifisert etter om den har dekning i Carls input eller fast kontekst.</p>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">';
+    html += '<thead><tr style="text-align:left;border-bottom:1px solid var(--border);"><th style="padding:0.5rem 0.5rem 0.5rem 0;">Påstand</th><th style="padding:0.5rem;">Klassifisering</th><th style="padding:0.5rem;">Handling</th></tr></thead><tbody>';
+    for (const c of fg.classifiedClaims) {
+      const color = c.action === 'remove' ? 'var(--red)' : c.action === 'soften' ? 'var(--yellow)' : 'var(--green)';
+      html += `<tr style="border-bottom:1px solid var(--border);">`;
+      html += `<td style="padding:0.5rem 0.5rem 0.5rem 0;">${escapeHtml(c.claim)}${c.softerPhrasing ? `<div style="color:var(--muted);font-size:0.8rem;margin-top:0.25rem;">→ ${escapeHtml(c.softerPhrasing)}</div>` : ''}</td>`;
+      html += `<td style="padding:0.5rem;font-size:0.8rem;">${escapeHtml(c.classification)}</td>`;
+      html += `<td style="padding:0.5rem;color:${color};font-weight:500;">${escapeHtml(c.action)}</td>`;
+      html += `</tr>`;
+    }
+    html += '</tbody></table></div>';
+  }
+
+  if (!html) html = '<p style="color:var(--muted);">Ingen grunnlagsdata å vise.</p>';
+  el.innerHTML = html;
+}
+
+function renderFinal(final) {
+  const el = document.getElementById('tab-final');
+  let html = '';
+  html += '<div class="section"><h2>Anbefalt versjon</h2>';
+  html += `<div class="post-card">${escapeHtml(final.recommendedPost)}</div>`;
+  html += '<button class="copy-btn" onclick="copyText(\'final-post\')">Kopier post</button>';
+  html += `<textarea id="final-post" style="position:absolute;left:-9999px;">${escapeHtml(final.recommendedPost)}</textarea>`;
+  html += '</div>';
+
+  html += '<div class="section"><h2>Redaksjonell vurdering</h2>';
+  html += `<p>${escapeHtml(final.editorialNote)}</p></div>`;
+
+  if (final.whatChanged?.length) {
+    html += '<div class="section"><h2>Hva ble endret</h2><ul>';
+    for (const c of final.whatChanged) html += `<li>${escapeHtml(c)}</li>`;
+    html += '</ul></div>';
+  }
+
+  el.innerHTML = html;
+}
+
+function renderAlternatives(final) {
+  const el = document.getElementById('tab-alts');
+  let html = '';
+
+  if (final.alternativeOpenings?.length) {
+    html += '<div class="section"><h2>Alternative åpninger</h2>';
+    for (const a of final.alternativeOpenings) {
+      html += `<div class="alt-item">${escapeHtml(a)}</div>`;
+    }
+    html += '</div>';
+  }
+
+  if (final.alternativeClosings?.length) {
+    html += '<div class="section"><h2>Alternative avslutninger</h2>';
+    for (const a of final.alternativeClosings) {
+      html += `<div class="alt-item">${escapeHtml(a)}</div>`;
+    }
+    html += '</div>';
+  }
+
+  if (!html) html = '<p style="color:var(--muted);">Ingen alternativer denne gangen.</p>';
+  el.innerHTML = html;
+}
+
+function renderRoom(result) {
+  const el = document.getElementById('tab-room');
+  let html = '';
+
+  // Brief
+  html += '<div class="role-card">';
+  html += '<div class="role-header"><span class="role-name">Felles brief</span></div>';
+  html += '<div class="meta-grid">';
+  html += `<dt>Mål</dt><dd>${escapeHtml(result.brief.goal)}</dd>`;
+  html += `<dt>Målgruppe</dt><dd>${escapeHtml(result.brief.audience)}</dd>`;
+  html += `<dt>Posisjonering</dt><dd>${escapeHtml(result.brief.positioning)}</dd>`;
+  html += '</div>';
+  if (result.brief.toneTargets?.length) {
+    html += '<h3>Toneanker</h3><ul>';
+    for (const t of result.brief.toneTargets) html += `<li>${escapeHtml(t)}</li>`;
+    html += '</ul>';
+  }
+  if (result.brief.risks?.length) {
+    html += '<h3>Risikoer</h3><ul>';
+    for (const r of result.brief.risks) html += `<li>${escapeHtml(r)}</li>`;
+    html += '</ul>';
+  }
+  html += '</div>';
+
+  // Groundwork
+  const gw = result.groundwork;
+  html += '<div class="role-card">';
+  html += '<div class="role-header"><span class="role-name">Materialforvalter (tillatt grunnlag)</span></div>';
+  if (gw.fromInput?.length) {
+    html += '<h3>Fra Carls input</h3><ul>';
+    for (const f of gw.fromInput) html += `<li>${escapeHtml(f)}</li>`;
+    html += '</ul>';
+  }
+  if (gw.fromCarlContext?.length) {
+    html += '<h3>Fra Carl/FYRK-kontekst</h3><ul>';
+    for (const f of gw.fromCarlContext) html += `<li>${escapeHtml(f)}</li>`;
+    html += '</ul>';
+  }
+  if (gw.reasonableInferences?.length) {
+    html += '<h3>Rimelige tolkninger</h3><ul>';
+    for (const f of gw.reasonableInferences) html += `<li>${escapeHtml(f)}</li>`;
+    html += '</ul>';
+  }
+  if (gw.placeholders?.length) {
+    html += '<h3>Forslag til plassholdere</h3><ul>';
+    for (const f of gw.placeholders) html += `<li>${escapeHtml(f)}</li>`;
+    html += '</ul>';
+  }
+  html += '</div>';
+
+  // Posisjoneringsredaktør
+  const p = result.positioning;
+  html += '<div class="role-card">';
+  html += '<div class="role-header"><span class="role-name">Posisjoneringsredaktør</span></div>';
+  html += `<p><strong>30-sekundstest:</strong> ${escapeHtml(p.takeaway)}</p>`;
+  if (p.honestAngle) {
+    html += `<p><strong>Ærlig vinkling:</strong> ${escapeHtml(p.honestAngle)}</p>`;
+  }
+  if (p.strengths?.length) {
+    html += '<h3>Styrker</h3><ul>';
+    for (const s of p.strengths) html += `<li>${escapeHtml(s)}</li>`;
+    html += '</ul>';
+  }
+  if (p.weaknesses?.length) {
+    html += '<h3>Svakheter</h3><ul>';
+    for (const w of p.weaknesses) html += `<li>${escapeHtml(w)}</li>`;
+    html += '</ul>';
+  }
+  if (p.reframings?.length) {
+    html += '<h3>Vinklingsforslag</h3><ul>';
+    for (const r of p.reframings) html += `<li>${escapeHtml(r)}</li>`;
+    html += '</ul>';
+  }
+  html += '</div>';
+
+  // Språkredaktør
+  const l = result.language;
+  html += '<div class="role-card">';
+  html += '<div class="role-header"><span class="role-name">Språkredaktør</span></div>';
+  html += '<h3>Polert utkast</h3>';
+  html += `<div class="post-card">${escapeHtml(l.polishedDraft)}</div>`;
+  if (l.cuts?.length) {
+    html += '<h3>Kutt</h3><ul>';
+    for (const c of l.cuts) html += `<li>${escapeHtml(c)}</li>`;
+    html += '</ul>';
+  }
+  html += '</div>';
+
+  // Skeptiker
+  const s = result.skeptic;
+  html += '<div class="role-card">';
+  html += '<div class="role-header"><span class="role-name">Skeptiker</span></div>';
+  html += `<p><strong>Verdikt:</strong> <span class="verdict-badge ${s.verdict}">${s.verdict}</span></p>`;
+  html += `<p><strong>3-sekundstest:</strong> ${escapeHtml(s.threeSecondTest)}</p>`;
+  if (s.genericPhrases?.length) {
+    html += '<h3>Generiske fraser</h3><ul>';
+    for (const c of s.genericPhrases) html += `<li>${escapeHtml(c)}</li>`;
+    html += '</ul>';
+  }
+  if (s.overclaims?.length) {
+    html += '<h3>Oversalg</h3><ul>';
+    for (const c of s.overclaims) html += `<li>${escapeHtml(c)}</li>`;
+    html += '</ul>';
+  }
+  if (s.unclearPoints?.length) {
+    html += '<h3>Uklare poenger</h3><ul>';
+    for (const c of s.unclearPoints) html += `<li>${escapeHtml(c)}</li>`;
+    html += '</ul>';
+  }
+  if (s.needsConcretization?.length) {
+    html += '<h3>Trenger Carls konkrete eksempel</h3><ul>';
+    for (const c of s.needsConcretization) html += `<li>${escapeHtml(c)}</li>`;
+    html += '</ul>';
+  }
+  html += '</div>';
+
+  // Faktavokter
+  const fg = result.factGuard;
+  html += '<div class="role-card">';
+  html += '<div class="role-header"><span class="role-name">Faktavokter</span></div>';
+  html += '<h3>Renset utkast</h3>';
+  html += `<div class="post-card">${escapeHtml(fg.cleanedDraft)}</div>`;
+  if (fg.removedClaims?.length) {
+    html += '<h3>Fjernet</h3><ul>';
+    for (const c of fg.removedClaims) html += `<li>${escapeHtml(c)}</li>`;
+    html += '</ul>';
+  }
+  if (fg.softenedClaims?.length) {
+    html += '<h3>Mykgjort</h3><ul>';
+    for (const c of fg.softenedClaims) html += `<li>${escapeHtml(c)}</li>`;
+    html += '</ul>';
+  }
+  html += '<p style="color:var(--muted);font-size:0.85rem;margin-top:0.5rem;">Se "Grunnlag & risiko"-fanen for full klassifisering av påstander.</p>';
+  html += '</div>';
+
+  el.innerHTML = html;
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab[onclick="showTab('${name}')"]`).classList.add('active');
+  document.getElementById(`tab-${name}`).classList.add('active');
+}
+
+function copyMarkdown() {
+  navigator.clipboard.writeText(artifactMarkdown).then(() => {
+    const btn = document.querySelector('#tab-raw .copy-btn');
+    btn.textContent = 'Kopiert!';
+    setTimeout(() => btn.textContent = 'Kopier markdown', 1500);
+  });
+}
+
+function copyText(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  navigator.clipboard.writeText(el.value || el.textContent || '').then(() => {
+    const status = document.getElementById('status');
+    status.textContent = 'Kopiert til utklippstavlen';
+    status.className = 'status';
+    setTimeout(() => { status.textContent = ''; }, 1500);
+  });
+}
+</script>
+
+</body>
+</html>

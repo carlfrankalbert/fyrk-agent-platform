@@ -4,6 +4,7 @@ import { validateEnv } from './lib/env.js';
 import { healthRoutes } from './routes/health.js';
 import { runRoutes } from './routes/run.js';
 import { cvTailorRoutes } from './routes/cv-tailor.js';
+import { editorialRoomRoutes } from './routes/editorial-room.js';
 import { hubRoutes } from './routes/hub/index.js';
 
 async function main(): Promise<void> {
@@ -22,6 +23,7 @@ async function main(): Promise<void> {
   await fastify.register(healthRoutes);
   await fastify.register(runRoutes);
   await fastify.register(cvTailorRoutes);
+  await fastify.register(editorialRoomRoutes);
   await fastify.register(hubRoutes);
 
   // Graceful shutdown

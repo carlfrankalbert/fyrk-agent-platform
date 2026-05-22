@@ -14,6 +14,7 @@ interface CallOpenAiJsonOptions {
   schemaJson: Record<string, unknown>;
   model?: string;
   maxTokens?: number;
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high';
 }
 
 export async function callOpenAiJson<T>(
@@ -43,6 +44,7 @@ export async function callOpenAiJson<T>(
         strict: true,
       },
     },
+    ...(options.reasoningEffort && { reasoning: { effort: options.reasoningEffort } }),
   });
 
   const refusal = extractOpenAiRefusal(response);

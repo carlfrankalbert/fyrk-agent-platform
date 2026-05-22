@@ -38,6 +38,15 @@ export async function callClaudeJson<T>(
   });
 
   const raw = extractText(response);
+
+  if (response.stop_reason === 'max_tokens') {
+    throw new Error(
+      `Claude response truncated at max_tokens (${options.maxTokens ?? DEFAULT_MAX_TOKENS}). ` +
+        `Output was cut off mid-string and cannot be parsed as JSON. ` +
+        `Increase maxTokens or shrink the requested output.`,
+    );
+  }
+
   const jsonStr = stripJsonFences(raw);
   const parsed = schema.parse(JSON.parse(jsonStr));
 
