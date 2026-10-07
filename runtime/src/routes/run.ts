@@ -104,7 +104,7 @@ export async function runRoutes(fastify: FastifyInstance): Promise<void> {
       // Run agent
       const result = await runAgent(agent, input, ctx);
 
-      fastify.log.info({ runId: run.id, status: result.status }, 'Agent run finished');
+      fastify.log.info({ runId: run.id, status: result.status, ...(agentName === 'assignment-radar' ? { radar: result.output } : {}) }, 'Agent run finished');
 
       return result;
     }

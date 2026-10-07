@@ -16,7 +16,7 @@ export interface AgentDefinition<TInput = unknown, TOutput = unknown> {
   version: string;
   /** Agents touching private state: the run route rejects requests without a valid operator token. */
   requiresOperator?: boolean;
-  inputSchema: z.ZodSchema<TInput>;
+  inputSchema: z.ZodType<TInput, z.ZodTypeDef, unknown>;
   outputSchema: z.ZodSchema<TOutput>;
   /**
    * Optional: what to store in agent_runs.input / agent_runs.output instead of the raw values, for agents handling

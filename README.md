@@ -247,3 +247,7 @@ fly deploy
 ## License
 
 MIT
+
+## Assignment radar
+
+Ny konsulentoppdragsradar: `POST /run/assignment-radar`. Se [oppsett, kilder, deduplisering og utvidelse med ny portal](runtime/src/agents/assignment-radar/README.md).

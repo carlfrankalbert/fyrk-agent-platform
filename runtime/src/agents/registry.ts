@@ -3,12 +3,15 @@ import { releaseNotesAgent } from './release-notes/index.js';
 import { mealPlanAgent } from './meal-plan/index.js';
 import { cvTailorAgent } from './cv-tailor/index.js';
 import { editorialRoomAgent } from './editorial-room/index.js';
+
+import { assignmentRadarAgent } from './assignment-radar/index.js';
 import { characterAgent, haroldAgent } from './character/index.js';
 
 // Agent registry - add new agents here
 const agents: Map<string, AgentDefinition<unknown, unknown>> = new Map();
 
 // Register built-in agents
+agents.set('assignment-radar', assignmentRadarAgent as AgentDefinition<unknown, unknown>);
 agents.set('release-notes', releaseNotesAgent as AgentDefinition<unknown, unknown>);
 agents.set('meal-plan', mealPlanAgent as AgentDefinition<unknown, unknown>);
 agents.set('cv-tailor', cvTailorAgent as AgentDefinition<unknown, unknown>);
