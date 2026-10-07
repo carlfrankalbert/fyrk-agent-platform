@@ -18,6 +18,7 @@
     "node": ">=20"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.14",
     "@types/node": "^20.11.0",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",

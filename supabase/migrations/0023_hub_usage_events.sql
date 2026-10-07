@@ -14,8 +14,9 @@ create index idx_hub_usage_feature_time on hub_usage_events (feature, created_at
 -- Partition-friendly: allow efficient cleanup of old data
 create index idx_hub_usage_created on hub_usage_events (created_at);
 
--- Summary view: per-feature daily counts for the last 30 days
-create or replace view hub_usage_summary as
+-- Summary view: per-feature daily counts for the last 30 days.
+-- security_invoker: the view runs with the caller's rights, so it cannot bypass the table's access rules.
+create or replace view hub_usage_summary with (security_invoker = true) as
 select
   feature,
   action,
@@ -27,7 +28,9 @@ where created_at > now() - interval '30 days'
 group by feature, action, date_trunc('day', created_at)::date
 order by day desc, count desc;
 
--- RLS
+-- Service-role only: RLS on with no policy denies anon/authenticated; the runtime's service-role key bypasses RLS.
 alter table hub_usage_events enable row level security;
-create policy "service_key_only" on hub_usage_events
-  for all using (true) with check (true);
+revoke all on table hub_usage_events from anon, authenticated;
+grant select, insert, update, delete on table hub_usage_events to service_role;
+revoke all on table hub_usage_summary from anon, authenticated;
+grant select on table hub_usage_summary to service_role;
