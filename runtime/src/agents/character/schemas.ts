@@ -194,8 +194,49 @@ export const RecallPlanSchema = z.object({
 });
 export type RecallPlan = z.infer<typeof RecallPlanSchema>;
 
-/** The planner must always state the subject; a plan without one is rejected rather than matched broadly. */
-export const RecallPlannerSchema = RecallPlanSchema.extend({ subject: z.string().max(80).nullable() });
+/** Tag as the model might write it ("Favorite Food ") → valid tag ("favorite_food"), or null if nothing usable remains. */
+export function normalizeTag(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const tag = value.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '').replace(/_+/g, '_')
+    .replace(/^[_-]+|[_-]+$/g, '');
+  return tag && tag.length <= 40 ? tag : null;
+}
+
+const uniq = <T>(xs: T[]): T[] => [...new Set(xs)];
+const MEMORY_KEY_RE = /^[a-z0-9_]+(\.[a-z0-9_]+)*$/;
+
+/**
+ * Tolerates harmless formatting in the planner's lookup helpers before strict validation. Only fields where a dropped
+ * or rewritten entry can only narrow the lookup are touched: tags, terms, memoryKeys, keyPrefixes. subject,
+ * memoryTypes and dates are left as-is (a dropped type or date would broaden recall); a literal null on the optional
+ * scope/from/to means "omitted", exactly as the prompt documents.
+ */
+export function normalizePlannerLookups(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+  const plan: Record<string, unknown> = { ...(raw as Record<string, unknown>) };
+  const list = (field: string, fn: (v: unknown) => string | null): void => {
+    const value = plan[field];
+    if (value === null || value === undefined) { delete plan[field]; return; }
+    if (Array.isArray(value)) plan[field] = uniq(value.map(fn).filter((v): v is string => v !== null));
+  };
+  list('tags', normalizeTag);
+  list('terms', v => (typeof v === 'string' && v.trim() && v.trim().length <= 40 ? v.trim() : null));
+  const key = (v: unknown): string | null => {
+    const k = typeof v === 'string' ? v.trim().toLowerCase() : '';
+    return k.length <= 120 && MEMORY_KEY_RE.test(k) ? k : null;
+  };
+  list('memoryKeys', key);
+  list('keyPrefixes', key);
+  for (const field of ['scope', 'from', 'to']) if (plan[field] === null) delete plan[field];
+  return plan;
+}
+
+/**
+ * The planner must always state the subject; a plan without one is rejected rather than matched broadly.
+ * Lookup helpers are normalized first; subject is validated strictly and resolved by normalizeSubject afterwards.
+ */
+export const RecallPlannerSchema = z.preprocess(normalizePlannerLookups,
+  RecallPlanSchema.extend({ subject: z.string().max(80).nullable() }));
 
 // --- Agent output ---
 

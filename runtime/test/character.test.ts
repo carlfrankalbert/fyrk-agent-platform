@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { executeCharacter, haroldAgent, type CharacterModel } from '../src/agents/character/index.js';
+import { describeModelFailure, executeCharacter, haroldAgent, type CharacterModel } from '../src/agents/character/index.js';
 import { CharacterFileSchema, upsertCharacter, type CharacterFile } from '../src/agents/character/bootstrap.js';
 import { InMemoryCharacterStore } from '../src/agents/character/store.js';
 import { nextAnniversary, normalizeSubject, selectForContent, subjectOf } from '../src/agents/character/memory.js';
 import {
-  CharacterInputSchema, type ContentDraft, type CharacterOutput, type MemoryClassification, type RecallPlan,
+  CharacterInputSchema, RecallPlannerSchema, normalizeTag, type ContentDraft, type CharacterOutput, type MemoryClassification, type RecallPlan,
   type CreateContentOutput, type RememberOutput, type RecallOutput, type MarkPublicOutput,
 } from '../src/agents/character/schemas.js';
 import { runAgent } from '../src/agents/base.js';
@@ -430,5 +430,104 @@ describe('recall subject scoping (stage-4 regression)', () => {
       .toEqual(['family.mother', 'family.father', 'friends.ola', 'people.anna']);
     expect(['self', 'SELF', 'family.mother', 'family.mother.favorite_food', 'family', 'mother', 'coworkers.bob', 'family.Mother!', null]
       .map(normalizeSubject)).toEqual(['self', 'self', 'family.mother', 'family.mother', 'family', null, null, null, null]);
+  });
+});
+
+describe('recall plan normalization (v122 planner robustness)', () => {
+  // Exact planner responses captured during diagnosis that failed strict validation (tags with spaces).
+  const CAPTURED_FAILING_PLANS = [
+    { subject: 'family.mother', memoryKeys: [], keyPrefixes: ['family.mother'], tags: ['favorite food', 'food preference'], terms: ['mother', 'favorite', 'food'], memoryTypes: [] },
+    { subject: 'family.mother', memoryKeys: [], keyPrefixes: [], tags: ['favorite food'], terms: ['mother', 'favorite', 'food'], memoryTypes: [] },
+  ];
+  const parse = (plan: Record<string, unknown>): RecallPlan => RecallPlannerSchema.parse(plan);
+  const base = { subject: 'self', memoryKeys: [], keyPrefixes: [], terms: [], memoryTypes: [] };
+
+  it('A/B/C: tags are trimmed, lowercased and whitespace-joined', () => {
+    expect(normalizeTag('favorite food')).toBe('favorite_food');
+    expect(normalizeTag('Food Preference')).toBe('food_preference');
+    expect(normalizeTag('  coffee  ')).toBe('coffee');
+    expect(normalizeTag('  Very   Strong \t Coffee ')).toBe('very_strong_coffee');
+    expect(normalizeTag('dark-roast')).toBe('dark-roast');
+  });
+
+  it('D/E/F: duplicates collapse, null/undefined entries are ignored, unusable tags are dropped', () => {
+    const plan = parse({ ...base, tags: ['Favorite Food', 'favorite food', ' favorite_food ', null, undefined, '!!!', '', 42, 'x'.repeat(41), 'coffee'] });
+    expect(plan.tags).toEqual(['favorite_food', 'coffee']);
+    expect(parse({ ...base, tags: null }).tags).toEqual([]);
+  });
+
+  it('lookup keys and terms are tidied conservatively; invalid entries only narrow the lookup', () => {
+    const plan = parse({ ...base, memoryKeys: [' Food.Olives ', 'food olives', null], keyPrefixes: ['family.mother', 'family mother'],
+      terms: ['  olives ', '', null, 'x'.repeat(41), 'olives'] });
+    expect(plan.memoryKeys).toEqual(['food.olives']);
+    expect(plan.keyPrefixes).toEqual(['family.mother']);
+    expect(plan.terms).toEqual(['olives']);
+  });
+
+  it('null scope/from/to mean omitted; substantive fields stay strict', () => {
+    const plan = parse({ ...base, scope: null, from: null, to: null });
+    expect(plan.scope).toBeUndefined();
+    expect(plan.from).toBeUndefined();
+    expect(() => parse({ ...base, memoryTypes: ['episodes'] })).toThrow();
+    expect(() => parse({ ...base, from: 'last christmas' })).toThrow();
+    expect(() => parse({ ...base, scope: 'everyone' })).toThrow();
+  });
+
+  it('G: subject is not normalized into a broader subject', () => {
+    for (const subject of ['family mother', 'Family Mother', 'mother', 'Marta', 'everyone', '']) {
+      const plan = parse({ ...base, subject, tags: ['favorite food'] });
+      expect(normalizeSubject(plan.subject), subject).toBeNull();
+    }
+    expect(normalizeSubject(parse({ ...base, subject: ' Family.Mother ' }).subject)).toBe('family.mother');
+  });
+
+  it('H: a missing or non-string subject still fails closed, naming the field', () => {
+    const { subject: _omit, ...noSubject } = CAPTURED_FAILING_PLANS[0];
+    for (const bad of [noSubject, { ...noSubject, subject: 7 }]) {
+      const result = RecallPlannerSchema.safeParse(bad);
+      expect(result.success).toBe(false);
+      if (!result.success) expect(describeModelFailure(result.error)).toBe('invalid model response (subject)');
+    }
+  });
+
+  it('diagnostics name failing paths and never include values', () => {
+    const result = RecallPlannerSchema.safeParse({ ...base, from: 'secret-ish value', memoryTypes: ['nope'] });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const reason = describeModelFailure(result.error);
+      expect(reason).toBe('invalid model response (memoryTypes.0, from)');
+      expect(reason).not.toContain('secret-ish');
+    }
+    expect(describeModelFailure(new SyntaxError('Unexpected token x in JSON'))).toBe('invalid model response (json)');
+    expect(describeModelFailure(new Error('Claude API error 529: overloaded'))).toBe('Claude API error 529');
+  });
+
+  describe('end to end with the captured failing plans', () => {
+    const MOTHER = "What was Marta's mother's favorite food?";
+    const OLIVES_Q = 'What does Marta think about olives?';
+    beforeEach(async () => {
+      await bootstrap({ ...exampleFile, memories: [] });
+      await run({ action: 'remember', date: '2026-10-01', memories: [
+        { memoryType: 'preference', memoryKey: 'food.olives', value: { summary: 'Marta Example dislikes olives.', stance: 'dislike' }, tags: ['food', 'favorite_food'] },
+      ] });
+    });
+
+    it('I: the mother question parses and answers Unknown, with no cross-subject result', async () => {
+      for (const captured of CAPTURED_FAILING_PLANS) {
+        model = fakeModel({ plan: { [MOTHER]: captured } });
+        const r = await run({ action: 'recall', query: MOTHER }) as RecallOutput;
+        expect(r.subject).toBe('family.mother');
+        expect(r.answer).toMatch(/^Unknown/);
+        expect([r.current, r.history, r.episodes, r.memoryIds]).toEqual([[], [], [], []]);
+      }
+      expect(store.memories).toHaveLength(1);
+    });
+
+    it('J: the self olive question still works with messy lookup fields', async () => {
+      model = fakeModel({ plan: { [OLIVES_Q]: { subject: 'self', memoryKeys: [' Food.Olives '], keyPrefixes: [], tags: ['Favorite Food', null], terms: [' olives '], memoryTypes: [] } } });
+      const r = await run({ action: 'recall', query: OLIVES_Q }) as RecallOutput;
+      expect(r.subject).toBe('self');
+      expect(r.current).toEqual(['Marta Example dislikes olives.']);
+    });
   });
 });

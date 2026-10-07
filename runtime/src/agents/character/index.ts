@@ -1,4 +1,4 @@
-import type { z } from 'zod';
+import { ZodError, type z } from 'zod';
 import type { AgentArtifact, AgentDefinition, AgentResult } from '../base.js';
 import { callClaudeJson, DEFAULT_MODEL } from '../../lib/claude-json.js';
 import { getEnv } from '../../lib/env.js';
@@ -23,6 +23,20 @@ export interface CharacterModel {
   json<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, req: { tier: 'quality' | 'fast'; system: string; user: string; label: string }): Promise<T>;
 }
 
+/**
+ * Reason for a failed model call without any model output or prompt content: validation failures name only the
+ * failing field paths, e.g. "invalid model response (tags.0)".
+ */
+export function describeModelFailure(err: unknown): string {
+  if (err instanceof ZodError) {
+    const paths = [...new Set(err.issues.map(i => i.path.join('.') || 'root'))];
+    return `invalid model response (${paths.slice(0, 5).join(', ')}${paths.length > 5 ? ', …' : ''})`;
+  }
+  if (err instanceof SyntaxError) return 'invalid model response (json)';
+  const message = err instanceof Error ? err.message : '';
+  return /ANTHROPIC_API_KEY|Claude API error \d+|truncated/.exec(message)?.[0] ?? 'invalid model response';
+}
+
 /** Claude-backed model. Errors are reduced to a label so prompts (private state) never end up in run errors. */
 export const claudeCharacterModel: CharacterModel = {
   async json(schema, req) {
@@ -35,9 +49,7 @@ export const claudeCharacterModel: CharacterModel = {
       });
       return parsed;
     } catch (err) {
-      const message = err instanceof Error ? err.message : '';
-      const reason = /ANTHROPIC_API_KEY|Claude API error \d+|truncated/.exec(message)?.[0] ?? 'invalid model response';
-      throw new Error(`${req.label} failed: ${reason}`);
+      throw new Error(`${req.label} failed: ${describeModelFailure(err)}`);
     }
   },
 };
