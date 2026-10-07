@@ -75,6 +75,8 @@ export async function executeRadar(input: RadarInput, deps: RadarDependencies): 
 }
 export const assignmentRadarAgent: AgentDefinition<RadarInput, RadarOutput> = {
   name: 'assignment-radar', version: '0.2.1', inputSchema: InputSchema, outputSchema: OutputSchema,
+  // Triggers external fetches, DB writes and Slack posts: callers must send x-operator-token (AGENT_OPERATOR_TOKEN).
+  requiresOperator: true,
   async execute(input, ctx) {
     const env = getEnv();
     const result = await executeRadar(input, {

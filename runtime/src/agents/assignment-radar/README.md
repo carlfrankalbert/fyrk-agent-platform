@@ -10,13 +10,17 @@ Deterministisk agent som samler konsulentoppdrag, kobler kildeobservasjoner til 
 4. Sett `ASSIGNMENT_RADAR_THRESHOLD=70`, `ASSIGNMENT_RADAR_SLACK_BOT_TOKEN` og `ASSIGNMENT_RADAR_SLACK_CHANNEL`. Botten trenger `chat:write` og medlemskap i kanalen. Ingen meldinger sendes før `publish:true` brukes.
 Agenten bruker åtte kilder: IC, Omega 365, Kons, Forte Hub, emagine, Right People Group, Sperton og 7N. Ingen kilde krever innlogging. Folq er satt på pause og verken hentes eller kan velges i API-input. Ingen Folq-credentials kreves.
 
-Et faktisk API-kall:
+Endepunktet krever operatør-token (`x-operator-token`, samme `AGENT_OPERATOR_TOKEN` som character-agentene). Uten gyldig token svarer det `401` uten å opprette en kjøring. Les tokenet fra `.env` via stdin, slik at det verken havner i shell-historikken eller prosesslisten:
 
 ```sh
-curl -X POST http://localhost:8787/run/assignment-radar \
-  -H 'Content-Type: application/json' \
-  -d '{"input":{"threshold":70,"profile":{"maxExtent":100,"preferredLocations":["Oslo","Lysaker","Fornebu"]}},"dryRun":false,"publish":true}'
+# fra repo-roten
+sed -n 's/^AGENT_OPERATOR_TOKEN=/x-operator-token: /p' .env | \
+  curl -sS -X POST https://fyrk-agent-runtime.fly.dev/run/assignment-radar \
+  -H @- -H 'Content-Type: application/json' \
+  -d '{"input":{"threshold":70},"dryRun":false,"publish":true}'
 ```
+
+Bytt `dryRun` til `true` og `publish` til `false` for en kjøring uten DB-skriving og uten Slack.
 
 `input.sources` kan begrenses til en eller flere av `ic`, `omega365`, `kons`, `fortehub`, `emagine`, `rightpeoplegroup`, `sperton`, `7n`. Uten input brukes alle åtte kildene, terskel fra miljøet og Oslo-regionen. De fire nye kildene avgrenses til norske oppdrag; irrelevante roller og utløpte oppdrag lagres fortsatt for allerede-sett-logikken. Oppstart lagres, brukes til deduplisering og vises i Slack som oppdragsinformasjon. Carls tilgjengelighet inngår ikke i score, gap eller anbefalt handling. Eldre `profile.availableFrom`-input ignoreres.
 

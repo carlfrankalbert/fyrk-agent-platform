@@ -268,13 +268,18 @@ describe('persistent already-seen and delivery orchestration', () => {
 describe('existing agent API', () => {
   it('runs POST /run/assignment-radar with the established request envelope', async () => {
     vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co'); vi.stubEnv('SUPABASE_SERVICE_KEY', 'test');
+    const operatorToken = 'radar-test-operator-token-0123456789';
+    vi.stubEnv('AGENT_OPERATOR_TOKEN', operatorToken);
     validateEnv();
     const read = vi.spyOn(SupabaseRadarStore.prototype, 'list').mockResolvedValue([]);
     const write = vi.spyOn(SupabaseRadarStore.prototype, 'save');
     vi.stubGlobal('fetch', vi.fn(async () => new Response(fixture('fortehub.json'))));
     const app = Fastify(); await app.register(runRoutes);
     try {
-      const r = await app.inject({ method: 'POST', url: '/run/assignment-radar', payload: { input: { sources: ['fortehub'] }, dryRun: true, publish: true } });
+      const payload = { input: { sources: ['fortehub'] }, dryRun: true, publish: true };
+      const denied = await app.inject({ method: 'POST', url: '/run/assignment-radar', payload });
+      expect(denied.statusCode).toBe(401); expect(read).not.toHaveBeenCalled();
+      const r = await app.inject({ method: 'POST', url: '/run/assignment-radar', payload, headers: { 'x-operator-token': operatorToken } });
       expect(r.statusCode).toBe(200); expect(r.json()).toMatchObject({ agentName: 'assignment-radar', status: 'ok', output: { found: 2, posted: 0 } });
       expect(read).toHaveBeenCalledOnce(); expect(write).not.toHaveBeenCalled();
     } finally { await app.close(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); }
