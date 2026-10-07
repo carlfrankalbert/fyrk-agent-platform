@@ -36,5 +36,8 @@ supabase/.temp/
 # MCP config (local, may contain secrets)
 .mcp.json
 
+# Local pnpm package store
+.pnpm-store/
+
 # Private character state (canon, memories, visual refs) — never commit
 private/
