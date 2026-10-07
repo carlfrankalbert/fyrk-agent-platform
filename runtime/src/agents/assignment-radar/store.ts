@@ -52,8 +52,10 @@ export class SupabaseRadarStore implements RadarStore {
   }
   claim(token: string, id: string): Promise<boolean> { return this.rpc('assignment_radar_claim', { p_token: token, p_id: id }); }
   async finish(id: string, status: 'sent' | 'pending' | 'uncertain', channel?: string, ts?: string, error?: string): Promise<void> {
+    // A confirmed send clears any earlier failure text (explicit null: undefined fields are dropped from the update).
     const result = await this.client.from('assignment_radar_deliveries').update({ status, slack_channel: channel,
-      slack_ts: ts, error, updated_at: new Date().toISOString() }).eq('assignment_id', id).eq('status', 'sending');
+      slack_ts: ts, error: status === 'sent' ? null : error, updated_at: new Date().toISOString() })
+      .eq('assignment_id', id).eq('status', 'sending');
     if (result.error) throw new Error(`Radar delivery state: ${result.error.message}`);
   }
 }
