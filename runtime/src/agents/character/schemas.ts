@@ -179,6 +179,11 @@ export type MemoryClassification = z.infer<typeof MemoryClassificationSchema>;
 
 export const RecallPlanSchema = z.object({
   scope: z.enum(['internal', 'audience']).optional(),
+  /**
+   * Whose memories may answer: 'self' (the character) or a person namespace such as 'family.mother'.
+   * null = could not be resolved (nothing matches). Absent = no scoping (structured recall without a question).
+   */
+  subject: z.string().max(80).nullable().optional(),
   memoryKeys: z.array(MemoryKeySchema).max(20).default([]),
   keyPrefixes: z.array(MemoryKeySchema).max(20).default([]),
   tags: z.array(TagSchema).max(20).default([]),
@@ -188,6 +193,9 @@ export const RecallPlanSchema = z.object({
   to: IsoDateSchema.optional(),
 });
 export type RecallPlan = z.infer<typeof RecallPlanSchema>;
+
+/** The planner must always state the subject; a plan without one is rejected rather than matched broadly. */
+export const RecallPlannerSchema = RecallPlanSchema.extend({ subject: z.string().max(80).nullable() });
 
 // --- Agent output ---
 
@@ -217,6 +225,8 @@ const RecallOutput = z.object({
   characterId: z.string(),
   scope: z.enum(['internal', 'audience']),
   asOf: IsoDateSchema.nullable(),
+  /** Subject the recall was scoped to; null when unscoped or unresolved. */
+  subject: z.string().nullable(),
   answer: z.string(),
   current: z.array(z.string()),
   history: z.array(z.string()),

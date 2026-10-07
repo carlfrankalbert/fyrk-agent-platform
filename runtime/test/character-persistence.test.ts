@@ -58,7 +58,7 @@ const model: CharacterModel = {
           value: { summary: "Marta Example's uncle was born on 12 May 1938.", date: '1938-05-12', recursYearly: true } }] }
         : { touchesLockedCanon: true, lockedKeys: ['identity.age'], memories: [] }));
     }
-    if (req.label === 'Recall planning') return Promise.resolve(schema.parse({ keyPrefixes: ['family'] }));
+    if (req.label === 'Recall planning') return Promise.resolve(schema.parse({ subject: 'family', keyPrefixes: ['family'] }));
     return Promise.resolve(schema.parse({
       imagePrompt: 'Recurring flat, grinder on the counter.', captionOptions: ['New grinder.', 'It grinds.', 'Fine.'],
       continuityChecklist: [], usedMemoryIds: [], revealsMemoryIds: [],

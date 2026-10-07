@@ -82,6 +82,9 @@ Memory types:
 - opinion: views and beliefs (set value.stance). Key like opinion.smart_speakers.
 - fact: facts about the character's life or people in it. Dates go in value.date (YYYY-MM-DD); birthdays set
   value.recursYearly=true. Key like family.father.birth_date.
+- Memories about another person always live under that person's namespace, whatever the topic:
+  family.<relation>.* (family.mother.favorite_food), friends.<name>.*, people.<name>.*. Never file another person's
+  tastes or facts under the character's own topical keys (food.*, opinion.*, ...).
 - episode: something that happened on a day. Set occurredAt (resolve "today", "yesterday", "last Saturday" relative
   to STATEMENT DATE). Key like food.kimchi.first_try.
 
@@ -115,7 +118,15 @@ export function buildRecallSystemPrompt(): string {
   return `You translate a question about a fictional character's memory into a retrieval plan. You never answer the
 question yourself.
 
-- memoryKeys: exact existing keys that match. keyPrefixes: key namespaces (e.g. family.father) that match.
+- subject (required): whose memories can answer. "self" when the question is about the character's own tastes, views,
+  life or experiences. A person namespace when it is about someone else: "family.mother", "family.father",
+  "family.sister", "friends.<name>", "people.<name>" (dotted snake_case). "family" for the family as a whole.
+  null when you cannot tell who is meant, including a bare pronoun with no named referent ("What did they like?").
+  "his"/"her" in a possessive relation ("his mother") refers to the character. Never answer a question about another
+  person with the character's own
+  memories, and never the reverse: "<character>'s mother's favorite food" is subject "family.mother", not "self".
+- memoryKeys: exact existing keys that match. keyPrefixes: key namespaces (e.g. family.father) that match. Only
+  choose keys and prefixes that belong to the subject.
 - tags: existing tags that match. terms: 1-5 plain keywords as fallback text search (e.g. olives, father).
 - memoryTypes: restrict only when the question clearly asks for events ("what did they do" = episode).
 - from/to: an inclusive date range when the question refers to time ("last Christmas" relative to TODAY means the most
@@ -124,7 +135,7 @@ question yourself.
   asks what we/the character internally know; omit otherwise.
 
 Respond with JSON only:
-{"scope"?: "internal"|"audience", "memoryKeys": string[], "keyPrefixes": string[], "tags": string[],
+{"scope"?: "internal"|"audience", "subject": string|null, "memoryKeys": string[], "keyPrefixes": string[], "tags": string[],
  "terms": string[], "memoryTypes": string[], "from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"}`;
 }
 

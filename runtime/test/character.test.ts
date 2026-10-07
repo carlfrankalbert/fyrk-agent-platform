@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { executeCharacter, haroldAgent, type CharacterModel } from '../src/agents/character/index.js';
 import { CharacterFileSchema, upsertCharacter, type CharacterFile } from '../src/agents/character/bootstrap.js';
 import { InMemoryCharacterStore } from '../src/agents/character/store.js';
-import { nextAnniversary, selectForContent } from '../src/agents/character/memory.js';
+import { nextAnniversary, normalizeSubject, selectForContent, subjectOf } from '../src/agents/character/memory.js';
 import {
   CharacterInputSchema, type ContentDraft, type CharacterOutput, type MemoryClassification, type RecallPlan,
   type CreateContentOutput, type RememberOutput, type RecallOutput, type MarkPublicOutput,
@@ -57,11 +57,11 @@ const SCRIPT = {
     'Marta is actually 25 years old.': { touchesLockedCanon: true, lockedKeys: ['identity.age'], memories: [] },
   } satisfies Record<string, MemoryClassification>,
   plan: {
-    'What does Marta think about olives?': { memoryKeys: ['food.olives'], terms: ['olives'] },
-    'What does the audience know about her uncle?': { scope: 'audience' as const, keyPrefixes: ['family.uncle'], terms: ['uncle'] },
-    'What do we internally know about her uncle?': { scope: 'internal' as const, keyPrefixes: ['family.uncle'] },
-    'What do we know about her father?': { keyPrefixes: ['family.father'], terms: ['father'] },
-    'What did Marta do last Christmas?': { memoryTypes: ['episode' as const], from: '2026-12-24', to: '2026-12-26' },
+    'What does Marta think about olives?': { subject: 'self', memoryKeys: ['food.olives'], terms: ['olives'] },
+    'What does the audience know about her uncle?': { scope: 'audience' as const, subject: 'family.uncle', keyPrefixes: ['family.uncle'], terms: ['uncle'] },
+    'What do we internally know about her uncle?': { scope: 'internal' as const, subject: 'family.uncle', keyPrefixes: ['family.uncle'] },
+    'What do we know about her father?': { subject: 'family.father', keyPrefixes: ['family.father'], terms: ['father'] },
+    'What did Marta do last Christmas?': { subject: 'self', memoryTypes: ['episode' as const], from: '2026-12-24', to: '2026-12-26' },
   },
   content: (user: string): ContentDraft => {
     const ids = [...user.matchAll(/id=([0-9a-f-]{36})/g)].map(m => m[1]);
@@ -315,5 +315,120 @@ describe('character agent wiring', () => {
   it('a slug-bound agent cannot be pointed at another character', async () => {
     const result = await runAgent(haroldAgent, { action: 'recall', query: 'x', character: 'marta-example' }, createTestContext({ operator: true }));
     expect(result.error).toMatch(/bound to character/);
+  });
+});
+
+describe('recall subject scoping (stage-4 regression)', () => {
+  // The scripted planner here is deliberately careless (topic prefixes/terms that span people), so these tests prove
+  // the deterministic subject boundary, not prompt obedience.
+  const MOTHER_FOOD = "What was Marta's mother's favorite food?";
+  const OWN_FOOD = "What is Marta's favorite food?";
+  const FATHER_BIRTHDAY = "When was Marta's father born?";
+  const SCOPED = {
+    "What was Marta's mother's favorite food?": { subject: 'family.mother', keyPrefixes: ['food', 'family.mother'], terms: ['food', 'favorite', 'mother'] },
+    'What does Marta think about olives?': { subject: 'self', keyPrefixes: ['food'], terms: ['olives', 'food'] },
+    "What is Marta's favorite food?": { subject: 'self', keyPrefixes: ['food', 'family'], terms: ['food', 'favorite'] },
+    "When was Marta's father born?": { subject: 'family.father', keyPrefixes: ['family'], terms: ['born', 'birth', 'mother', 'father'] },
+    'What did they like to eat?': { subject: null, keyPrefixes: ['food'], terms: ['food', 'eat'] },
+    "What does Marta's friend Ola like to eat?": { subject: 'friends.ola', keyPrefixes: ['food'], terms: ['food', 'eat'] },
+    "What did Marta's mother like?": { subject: 'mother', terms: ['food', 'olives'] },
+  } satisfies Record<string, Partial<RecallPlan>>;
+  const OLIVES = { memoryType: 'preference', memoryKey: 'food.olives', value: { summary: 'Marta Example dislikes olives.', stance: 'dislike' }, tags: ['food'] };
+  const FISH_SOUP = { memoryType: 'fact', memoryKey: 'family.mother.favorite_food', value: { summary: "Marta Example's mother's favorite food was fish soup." }, tags: ['food', 'family'] };
+  const FATHER_BORN = { memoryType: 'fact', memoryKey: 'family.father.birth_date', value: { summary: "Marta Example's father was born on 2 March 1940.", date: '1940-03-02', recursYearly: true } };
+  const MOTHER_BORN = { memoryType: 'fact', memoryKey: 'family.mother.birth_date', value: { summary: "Marta Example's mother was born on 9 June 1942.", date: '1942-06-09', recursYearly: true } };
+
+  const store_ = async (...memories: object[]): Promise<void> => { await run({ action: 'remember', date: '2026-10-01', memories }); };
+  const ask = async (query: string): Promise<RecallOutput> => await run({ action: 'recall', query }) as RecallOutput;
+
+  beforeEach(async () => {
+    await bootstrap({ ...exampleFile, memories: [] });
+    model = fakeModel({ ...SCRIPT, plan: { ...SCRIPT.plan, ...SCOPED } });
+  });
+
+  it('A: own food memories never answer a question about the mother (stage-4 case)', async () => {
+    await store_(OLIVES);
+    const before = store.memories.length;
+    const r = await ask(MOTHER_FOOD);
+    expect(r.subject).toBe('family.mother');
+    expect(r.answer).toMatch(/^Unknown/);
+    expect([r.current, r.history, r.episodes, r.memoryIds]).toEqual([[], [], [], []]);
+    expect(store.memories).toHaveLength(before);
+  });
+
+  it("B: the character's own olive memory still answers the olive question", async () => {
+    await store_(OLIVES);
+    const r = await ask('What does Marta think about olives?');
+    expect(r.subject).toBe('self');
+    expect(r.current).toEqual(['Marta Example dislikes olives.']);
+  });
+
+  it("C: a memory scoped to the mother answers the mother's question", async () => {
+    await store_(FISH_SOUP);
+    expect((await ask(MOTHER_FOOD)).current).toEqual(["Marta Example's mother's favorite food was fish soup."]);
+  });
+
+  it("D: with both stored, only the mother's memory answers about the mother, only the own memory about self", async () => {
+    await store_(FISH_SOUP, OLIVES);
+    const mother = await ask(MOTHER_FOOD);
+    expect(mother.current).toEqual(["Marta Example's mother's favorite food was fish soup."]);
+    expect(mother.memoryIds).toEqual([store.memories.find(m => m.memoryKey === 'family.mother.favorite_food')?.id]);
+    const own = await ask(OWN_FOOD);
+    expect(own.current).toEqual(['Marta Example dislikes olives.']);
+  });
+
+  it("E: a father query never returns the mother's row, even with a family-wide prefix and shared terms", async () => {
+    await store_(FATHER_BORN, MOTHER_BORN);
+    const r = await ask(FATHER_BIRTHDAY);
+    expect(r.current).toHaveLength(1);
+    expect(r.current[0]).toContain('father was born on 2 March 1940');
+    expect(JSON.stringify(r)).not.toContain('1942');
+    expect(r.memoryIds).toEqual([store.memories.find(m => m.memoryKey === 'family.father.birth_date')?.id]);
+  });
+
+  it('F: ambiguous or unresolvable subjects return Unknown instead of keyword matches', async () => {
+    await store_(OLIVES, FISH_SOUP);
+    for (const q of ['What did they like to eat?', "What did Marta's mother like?"]) {
+      const r = await ask(q);
+      expect(r.subject, q).toBeNull();
+      expect(r.answer, q).toMatch(/^Unknown/);
+      expect(r.memoryIds, q).toEqual([]);
+    }
+    const friend = await ask("What does Marta's friend Ola like to eat?");
+    expect(friend.subject).toBe('friends.ola');
+    expect(friend.memoryIds).toEqual([]);
+  });
+
+  it('scoping composes with audience visibility and history', async () => {
+    await store_(FISH_SOUP, OLIVES);
+    const audience = await run({ action: 'recall', query: MOTHER_FOOD, scope: 'audience' }) as RecallOutput;
+    expect(audience.answer).toMatch(/^Not publicly revealed/);
+    expect(audience.unrevealedMemoryIds).toEqual([store.memories.find(m => m.memoryKey === 'family.mother.favorite_food')?.id]);
+    await run({ action: 'remember', date: '2026-11-01', memories: [{ ...OLIVES, value: { summary: 'Marta Example likes some olives.', stance: 'likes_some' } }] });
+    const own = await ask('What does Marta think about olives?');
+    expect(own.history).toHaveLength(2);
+    expect((await ask(MOTHER_FOOD)).history).toEqual([]);
+  });
+
+  it('a planner response without a subject is rejected, not matched broadly', async () => {
+    await store_(OLIVES);
+    model = fakeModel({ plan: { [MOTHER_FOOD]: { keyPrefixes: ['food'], terms: ['food'] } } });
+    await expect(ask(MOTHER_FOOD)).rejects.toThrow();
+  });
+
+  it('structured recall without a question stays unscoped (operator chose the keys)', async () => {
+    await store_(OLIVES, FISH_SOUP);
+    const r = await run({ action: 'recall', keyPrefixes: ['family.mother', 'food'] }) as RecallOutput;
+    expect(r.subject).toBeNull();
+    expect(r.memoryIds).toHaveLength(2);
+  });
+
+  it('subjectOf / normalizeSubject follow the key convention', () => {
+    expect(['food.olives', 'opinion.smart_speakers', 'holiday.christmas_eve', 'family'].map(subjectOf))
+      .toEqual(['self', 'self', 'self', 'family']);
+    expect(['family.mother.favorite_food', 'family.father.birth_date', 'friends.ola.food.tacos', 'people.anna'].map(subjectOf))
+      .toEqual(['family.mother', 'family.father', 'friends.ola', 'people.anna']);
+    expect(['self', 'SELF', 'family.mother', 'family.mother.favorite_food', 'family', 'mother', 'coworkers.bob', 'family.Mother!', null]
+      .map(normalizeSubject)).toEqual(['self', 'self', 'family.mother', 'family.mother', 'family', null, null, null, null]);
   });
 });

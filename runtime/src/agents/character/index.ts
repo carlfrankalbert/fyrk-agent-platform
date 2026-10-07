@@ -3,12 +3,12 @@ import type { AgentArtifact, AgentDefinition, AgentResult } from '../base.js';
 import { callClaudeJson, DEFAULT_MODEL } from '../../lib/claude-json.js';
 import { getEnv } from '../../lib/env.js';
 import {
-  CharacterInputSchema, CharacterOutputSchema, ContentDraftSchema, MemoryClassificationSchema, RecallPlanSchema,
+  CharacterInputSchema, CharacterOutputSchema, ContentDraftSchema, MemoryClassificationSchema, RecallPlanSchema, RecallPlannerSchema,
   type CharacterInput, type CharacterMemory, type CharacterOutput, type CharacterProfile, type CreateContentRequest,
   type MarkPublicRequest, type MemoryInput, type MemorySource, type NewMemory, type RecallPlan, type RecallRequest,
   type RememberRequest, type CreateContentOutput, type RememberOutput, type RecallOutput, type MarkPublicOutput,
 } from './schemas.js';
-import { keyCatalog, lockedNamespaces, planWrite, recallMemories, selectForContent } from './memory.js';
+import { keyCatalog, lockedNamespaces, normalizeSubject, planWrite, recallMemories, selectForContent } from './memory.js';
 import {
   buildClassifySystemPrompt, buildClassifyUserPrompt, buildContentSystemPrompt, buildContentUserPrompt,
   buildRecallSystemPrompt, buildRecallUserPrompt,
@@ -213,13 +213,14 @@ async function recall(input: RecallRequest, profile: CharacterProfile, deps: Cha
     memoryKeys: input.memoryKeys, keyPrefixes: input.keyPrefixes, tags: input.tags, from: input.from, to: input.to,
   });
   if (input.query) {
-    const planned = await deps.model.json(RecallPlanSchema, {
+    const planned = await deps.model.json(RecallPlannerSchema, {
       tier: 'fast', label: 'Recall planning',
       system: buildRecallSystemPrompt(),
       user: buildRecallUserPrompt(profile.displayName, input.query, input.asOf ?? deps.today, keyCatalog(memories)),
     });
     plan = {
       scope: planned.scope,
+      subject: normalizeSubject(planned.subject),
       memoryKeys: [...plan.memoryKeys, ...planned.memoryKeys],
       keyPrefixes: [...plan.keyPrefixes, ...planned.keyPrefixes],
       tags: [...plan.tags, ...planned.tags],
@@ -231,7 +232,9 @@ async function recall(input: RecallRequest, profile: CharacterProfile, deps: Cha
   }
   const scope = input.scope ?? plan.scope ?? 'internal';
   const result = recallMemories(memories, plan, scope, input.asOf ?? null, deps.today, profile.displayName);
-  const output: RecallOutput = { action: 'recall', characterId: profile.id, scope, asOf: input.asOf ?? null, ...result };
+  const output: RecallOutput = {
+    action: 'recall', characterId: profile.id, scope, asOf: input.asOf ?? null, subject: plan.subject ?? null, ...result,
+  };
   return { output, artifacts: [] };
 }
 

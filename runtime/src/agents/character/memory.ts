@@ -184,7 +184,41 @@ export function selectForContent(
   return { memories: selected, anniversaries };
 }
 
+/** Namespaces whose second segment names another person: family.mother.*, friends.ola.*, people.anna.* */
+export const PEOPLE_NAMESPACES = ['family', 'friends', 'people'] as const;
+export const SELF = 'self';
+const isPeopleNamespace = (ns: string): boolean => (PEOPLE_NAMESPACES as readonly string[]).includes(ns);
+
+/** Who a memory is about, from its key: a person (family.mother) or the character itself (self). */
+export function subjectOf(memoryKey: string): string {
+  const [ns, who] = memoryKey.split('.');
+  if (!isPeopleNamespace(ns)) return SELF;
+  return who ? `${ns}.${who}` : ns;
+}
+
+/** Planner subject → 'self', a person scope (at most two segments), or null when it cannot be resolved. */
+export function normalizeSubject(subject: string | null | undefined): string | null | undefined {
+  if (subject === undefined || subject === null) return subject;
+  const s = subject.trim().toLowerCase();
+  if (s === SELF) return SELF;
+  const parts = s.split('.');
+  return isPeopleNamespace(parts[0]) && /^[a-z0-9_]+(\.[a-z0-9_]+)?$/.test(parts.slice(0, 2).join('.'))
+    ? parts.slice(0, 2).join('.') : null;
+}
+
+/**
+ * Hard subject boundary, applied before any key/prefix/tag/term matching: a memory about one person is never
+ * evidence about another just because it shares a topic word. Unresolved subject → nothing matches.
+ */
+function inSubject(m: CharacterMemory, subject: string | null | undefined): boolean {
+  if (subject === undefined) return true;
+  if (subject === null) return false;
+  const s = subjectOf(m.memoryKey);
+  return subject === SELF ? s === SELF : s === subject || s.startsWith(`${subject}.`);
+}
+
 function matchesPlan(m: CharacterMemory, plan: RecallPlan, name: string): boolean {
+  if (!inSubject(m, plan.subject)) return false;
   if (plan.memoryTypes.length && !plan.memoryTypes.includes(m.memoryType)) return false;
   if (plan.from || plan.to) {
     const d = knownFrom(m);
