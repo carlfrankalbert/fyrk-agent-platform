@@ -3,6 +3,7 @@ import { releaseNotesAgent } from './release-notes/index.js';
 import { mealPlanAgent } from './meal-plan/index.js';
 import { cvTailorAgent } from './cv-tailor/index.js';
 import { editorialRoomAgent } from './editorial-room/index.js';
+import { characterAgent, haroldAgent } from './character/index.js';
 
 // Agent registry - add new agents here
 const agents: Map<string, AgentDefinition<unknown, unknown>> = new Map();
@@ -12,6 +13,8 @@ agents.set('release-notes', releaseNotesAgent as AgentDefinition<unknown, unknow
 agents.set('meal-plan', mealPlanAgent as AgentDefinition<unknown, unknown>);
 agents.set('cv-tailor', cvTailorAgent as AgentDefinition<unknown, unknown>);
 agents.set('editorial-room', editorialRoomAgent as AgentDefinition<unknown, unknown>);
+agents.set('character', characterAgent as AgentDefinition<unknown, unknown>);
+agents.set('harold', haroldAgent as AgentDefinition<unknown, unknown>);
 
 export function getAgent(name: string): AgentDefinition<unknown, unknown> | undefined {
   return agents.get(name);

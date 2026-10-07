@@ -1,0 +1,60 @@
+{
+  "slug": "marta-example",
+  "displayName": "Marta Example",
+  "publicProfile": {
+    "fictional": true,
+    "disclosure": "Openly fictional placeholder character used to demonstrate the character-memory engine.",
+    "bio": "Marta Example keeps a small allotment garden and writes very short notes about it."
+  },
+  "privateCanon": {
+    "identity": { "name": "Marta Example", "age": 41, "origin": "Placeholder Town" },
+    "personality": { "core": "Cheerful, methodical, slightly impatient with slow kettles." },
+    "voice": { "style": "Brisk, warm, one exclamation mark at most.", "examples": ["Tomatoes: thriving. Me: also fine."] },
+    "interests": ["allotment gardening", "crossword puzzles", "bicycles"],
+    "home": { "description": "Small yellow placeholder flat above a placeholder bakery." },
+    "undecided": ["family history beyond what memories state", "previous jobs", "romantic relationships"]
+  },
+  "visualCanon": {
+    "appearance": { "summary": "41-year-old woman, short brown hair, freckles, green rain jacket." },
+    "wardrobe": { "summary": "Practical outdoor clothes in green and grey." }
+  },
+  "asOf": "2026-01-01",
+  "memories": [
+    {
+      "memoryType": "preference",
+      "memoryKey": "food.olives",
+      "value": { "summary": "Marta Example dislikes olives.", "stance": "dislike" },
+      "validFrom": "2026-01-10",
+      "tags": ["food"]
+    },
+    {
+      "memoryType": "preference",
+      "memoryKey": "food.olives",
+      "value": { "summary": "Marta Example now likes some olives.", "stance": "likes_some" },
+      "validFrom": "2026-03-02",
+      "tags": ["food"]
+    },
+    {
+      "memoryType": "episode",
+      "memoryKey": "garden.first_tomato",
+      "value": { "summary": "Marta Example harvested her first tomato of the season." },
+      "occurredAt": "2026-07-18",
+      "tags": ["garden"]
+    },
+    {
+      "memoryType": "fact",
+      "memoryKey": "family.aunt.birth_date",
+      "value": { "summary": "Marta Example's aunt was born on 3 April 1950.", "date": "1950-04-03", "recursYearly": true },
+      "validFrom": "2026-01-01",
+      "tags": ["family", "birthday"]
+    },
+    {
+      "memoryType": "fact",
+      "memoryKey": "garden.allotment_number",
+      "value": { "summary": "Marta Example's allotment is plot 7." },
+      "validFrom": "2026-01-01",
+      "audienceVisibility": "public",
+      "tags": ["garden"]
+    }
+  ]
+}

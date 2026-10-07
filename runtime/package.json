@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "character:upsert": "tsx --env-file=../.env scripts/character-upsert.ts"
   },
   "engines": {
     "node": ">=20"
