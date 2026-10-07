@@ -1,0 +1,60 @@
+name: assignment-radar
+
+# Production scheduler for the consultant-assignment radar (posts qualifying assignments to Slack).
+# Scheduled runs publish; manual runs default to a safe dry run (no DB writes, no Slack).
+on:
+  schedule:
+    - cron: '7 8 * * 1-5'
+      timezone: 'Europe/Oslo'
+    - cron: '7 14 * * 1-5'
+      timezone: 'Europe/Oslo'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'safe = dryRun:true, publish:false (no DB writes, no Slack). production = dryRun:false, publish:true.'
+        type: choice
+        options: [safe, production]
+        default: safe
+
+concurrency:
+  group: assignment-radar-production
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Run assignment radar
+        env:
+          AGENT_OPERATOR_TOKEN: ${{ secrets.AGENT_OPERATOR_TOKEN }}
+          MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'production' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AGENT_OPERATOR_TOKEN:-}" ]; then
+            echo "::error::Repository secret AGENT_OPERATOR_TOKEN is not configured"
+            exit 1
+          fi
+          if [ "$MODE" = "safe" ]; then
+            body='{"input":{"threshold":70},"dryRun":true,"publish":false}'
+          else
+            body='{"input":{"threshold":70},"dryRun":false,"publish":true}'
+          fi
+          echo "mode=$MODE"
+
+          # The token reaches curl on stdin (printf is a shell builtin), never as an argument or URL part.
+          # Radar runs are lease-guarded and deliveries idempotent, so a transient retry cannot double-post.
+          if ! printf 'x-operator-token: %s\n' "$AGENT_OPERATOR_TOKEN" | curl --silent --show-error --fail-with-body \
+              --retry 2 --retry-delay 15 --retry-connrefused --max-time 300 \
+              -X POST https://fyrk-agent-runtime.fly.dev/run/assignment-radar \
+              -H @- -H 'Content-Type: application/json' -d "$body" -o response.json; then
+            echo "::error::Radar request failed"
+            jq -c '{status, error}' response.json 2>/dev/null || true
+            exit 1
+          fi
+
+          jq '{status, runId, found: .output.found, new: .output.new, posted: .output.posted,
+               errorCount: ((.output.errors // []) | length), error}' response.json
+          test "$(jq -r .status response.json)" = ok
