@@ -70,4 +70,19 @@ describe('radar PostgreSQL migration and transactions', () => {
     expect((await db.query('select * from public.assignment_radar_observations')).rows).toHaveLength(2);
     await db.exec('reset role');
   });
+  it('queues an existing, newly qualifying assignment once and never resets an existing delivery', async () => {
+    await db.exec("update public.assignment_radar_lease set expires_at = now() - interval '1 second'"); // earlier test leaves a lease held
+    const lease = randomUUID(); expect((await acquire(lease)).rows[0].acquired).toBe(true);
+    const existing = randomUUID();
+    const obs = { ...a, external_id: 'late', url: 'https://ic.no/oppdrag/late' };
+    const call = (queue: boolean) => db.query('select public.assignment_radar_save($1::uuid, $2::jsonb, $3, $4)',
+      [lease, JSON.stringify({ id: existing, assignment: obs, observations: [obs], score }), queue, queue]);
+    const status = async () => (await db.query<{ status: string }>('select status from public.assignment_radar_deliveries where assignment_id = $1', [existing])).rows.map(r => r.status);
+    await call(false); expect(await status()).toEqual([]);                 // first seen, not qualifying
+    await call(true); expect(await status()).toEqual(['pending']);         // qualifies later → queued
+    await call(true); expect(await status()).toEqual(['pending']);         // idempotent
+    await db.query("update public.assignment_radar_deliveries set status = 'sent' where assignment_id = $1", [existing]);
+    await call(true); expect(await status()).toEqual(['sent']);            // sent is never recreated/reset
+    await db.query('select public.assignment_radar_release($1::uuid)', [lease]);
+  });
 });

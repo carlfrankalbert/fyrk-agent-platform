@@ -36,9 +36,10 @@ class MemoryStore implements RadarStore {
   async acquire() { if (this.locked) return false; this.locked = true; return true; }
   async release() { this.locked = false; }
   async list() { return [...this.records.values()].map(r => structuredClone(r)); }
-  async save(_token: string, r: StoredAssignment, isNew: boolean, notify: boolean) {
+  async save(_token: string, r: StoredAssignment, queueDelivery: boolean) {
     this.records.set(r.id, structuredClone(r));
-    if (isNew && notify) this.deliveries.set(r.id, 'pending');
+    // Mirrors the RPC's ON CONFLICT DO NOTHING: an existing delivery keeps its state.
+    if (queueDelivery && !this.deliveries.has(r.id)) this.deliveries.set(r.id, 'pending');
   }
   async pending() { return [...this.deliveries].filter(([, s]) => s === 'pending').map(([id]) => id); }
   async claim(_token: string, id: string) { if (this.deliveries.get(id) !== 'pending') return false; this.deliveries.set(id, 'sending'); return true; }
@@ -283,5 +284,82 @@ describe('existing agent API', () => {
       expect(r.statusCode).toBe(200); expect(r.json()).toMatchObject({ agentName: 'assignment-radar', status: 'ok', output: { found: 2, posted: 0 } });
       expect(read).toHaveBeenCalledOnce(); expect(write).not.toHaveBeenCalled();
     } finally { await app.close(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); }
+  });
+});
+
+describe('delivery queueing for assignments that qualify after first sighting', () => {
+  const base = InputSchema.parse({ sources: ['ic'], profile });
+  const listing = () => assignment({ location: 'Bergen' }); // relevant, but scores below 100 so a higher threshold exists
+  const score = scoreAssignment(listing(), profile).total;
+  const above = { ...base, threshold: 70 };
+  const below = { ...base, threshold: Math.min(100, score + 1) };
+  const deps = (store: MemoryStore) => ({ store, adapters: [adapter('ic', [listing()])], fetcher: slack(), threshold: 70, dryRun: false, publish: true, slackToken: 'x', slackChannel: 'C1', now });
+
+  it('fixture assignment is relevant and scores between the two thresholds', () => {
+    expect(scoreAssignment(listing(), profile).relevant).toBe(true);
+    expect(score).toBeGreaterThanOrEqual(70);
+    expect(score).toBeLessThan(below.threshold ?? 0);
+  });
+
+  it('1-3/5/6: queued once when it later qualifies, kept pending without publish, sent exactly once', async () => {
+    const store = new MemoryStore(), d = deps(store);
+    expect(await executeRadar(below, { ...d, publish: false })).toMatchObject({ new: 1, filtered: 1, posted: 0 });
+    expect(store.records.size).toBe(1); expect(store.deliveries.size).toBe(0);                 // 1: below threshold → no delivery
+    const id = [...store.records.keys()][0];
+
+    expect(await executeRadar(above, { ...d, publish: false })).toMatchObject({ new: 0, duplicates: 1, filtered: 0, posted: 0 });
+    expect([...store.deliveries]).toEqual([[id, 'pending']]);                                  // 2: now qualifies → exactly one
+    expect(await executeRadar(above, { ...d, publish: false })).toMatchObject({ posted: 0 });
+    expect([...store.deliveries]).toEqual([[id, 'pending']]);                                  // 3: still exactly one
+    expect(d.fetcher).not.toHaveBeenCalled();                                                  // 5: publish:false sends nothing
+
+    expect(await executeRadar(above, d)).toMatchObject({ posted: 1 });                          // 6: publish:true sends once
+    expect([...store.deliveries]).toEqual([[id, 'sent']]);
+    expect(d.fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('4: an already sent assignment that keeps qualifying is never reposted', async () => {
+    const store = new MemoryStore(), d = deps(store);
+    expect(await executeRadar(above, d)).toMatchObject({ new: 1, posted: 1 });
+    for (let i = 0; i < 3; i++) expect(await executeRadar(above, d)).toMatchObject({ posted: 0 });
+    expect([...store.deliveries.values()]).toEqual(['sent']);
+    expect(d.fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('E: sending/uncertain deliveries keep their state and are not duplicated or retried', async () => {
+    for (const state of ['sending', 'uncertain']) {
+      const store = new MemoryStore(), d = deps(store);
+      await executeRadar(below, { ...d, publish: false });
+      const id = [...store.records.keys()][0];
+      store.deliveries.set(id, state);
+      expect(await executeRadar(above, d)).toMatchObject({ posted: 0 });
+      expect([...store.deliveries]).toEqual([[id, state]]);
+      expect(d.fetcher).not.toHaveBeenCalled();
+    }
+  });
+
+  it('7: dryRun never writes a delivery for a newly qualifying existing assignment', async () => {
+    const store = new MemoryStore(), d = deps(store);
+    await executeRadar(below, { ...d, publish: false });
+    const before = structuredClone([...store.records.values()]);
+    expect(await executeRadar(above, { ...d, dryRun: true })).toMatchObject({ filtered: 0, posted: 0 });
+    expect(store.deliveries.size).toBe(0);
+    expect([...store.records.values()]).toEqual(before);
+    expect(d.fetcher).not.toHaveBeenCalled();
+  });
+
+  it('8: qualification uses the current run threshold, so a threshold change can make it deliverable', async () => {
+    const store = new MemoryStore(), d = deps(store);
+    await executeRadar(below, { ...d, publish: false });
+    expect(store.deliveries.size).toBe(0);
+    await executeRadar(base, { ...d, publish: false, threshold: 70 });                          // falls back to deps threshold
+    expect([...store.deliveries.values()]).toEqual(['pending']);
+  });
+
+  it('F: an assignment that stays below the threshold never gets a delivery', async () => {
+    const store = new MemoryStore(), d = deps(store);
+    for (let i = 0; i < 3; i++) await executeRadar(below, d);
+    expect(store.deliveries.size).toBe(0);
+    expect(d.fetcher).not.toHaveBeenCalled();
   });
 });

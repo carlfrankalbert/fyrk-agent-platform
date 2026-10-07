@@ -41,7 +41,8 @@ export async function executeRadar(input: RadarInput, deps: RadarDependencies): 
         record.score = scoreAssignment(record.assignment, input.profile, now.slice(0, 10));
         const eligible = record.score.relevant && record.score.total >= (input.threshold ?? deps.threshold);
         if (!eligible) output.filtered++;
-        if (!deps.dryRun) await deps.store.save(token, record, !match, eligible);
+        // Queue whenever it qualifies now, not only when first seen: an assignment can cross the threshold later.
+        if (!deps.dryRun) await deps.store.save(token, record, eligible);
         if (match) records[records.findIndex(r => r.id === record.id)] = record;
         else records.push(record);
       }

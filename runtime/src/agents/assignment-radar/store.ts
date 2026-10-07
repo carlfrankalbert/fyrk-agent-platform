@@ -5,7 +5,8 @@ export interface RadarStore {
   acquire(token: string): Promise<boolean>;
   release(token: string): Promise<void>;
   list(): Promise<StoredAssignment[]>;
-  save(token: string, record: StoredAssignment, isNew: boolean, notify: boolean): Promise<void>;
+  /** Persists the record; queueDelivery adds a pending delivery unless one already exists in any state. */
+  save(token: string, record: StoredAssignment, queueDelivery: boolean): Promise<void>;
   pending(): Promise<string[]>;
   claim(token: string, id: string): Promise<boolean>;
   finish(id: string, status: 'sent' | 'pending' | 'uncertain', channel?: string, ts?: string, error?: string): Promise<void>;
@@ -34,8 +35,10 @@ export class SupabaseRadarStore implements RadarStore {
       if (data.length < 500) return result;
     }
   }
-  save(token: string, record: StoredAssignment, isNew: boolean, notify: boolean): Promise<void> {
-    return this.rpc('assignment_radar_save', { p_token: token, p_record: record, p_new: isNew, p_notify: notify });
+  save(token: string, record: StoredAssignment, queueDelivery: boolean): Promise<void> {
+    // The RPC inserts a delivery only when both flags are set, with ON CONFLICT DO NOTHING: an existing
+    // pending/sending/sent/uncertain delivery is never recreated or reset.
+    return this.rpc('assignment_radar_save', { p_token: token, p_record: record, p_new: queueDelivery, p_notify: queueDelivery });
   }
   async pending(): Promise<string[]> {
     const ids: string[] = [];
