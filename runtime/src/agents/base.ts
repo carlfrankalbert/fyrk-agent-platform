@@ -7,13 +7,23 @@ export interface AgentContext {
   dryRun: boolean;
   publish: boolean;
   runId: string;
+  /** True when the request carried a valid operator token (see lib/operator.ts). */
+  operator?: boolean;
 }
 
 export interface AgentDefinition<TInput = unknown, TOutput = unknown> {
   name: string;
   version: string;
-  inputSchema: z.ZodSchema<TInput>;
+  /** Agents touching private state: the run route rejects requests without a valid operator token. */
+  requiresOperator?: boolean;
+  inputSchema: z.ZodType<TInput, z.ZodTypeDef, unknown>;
   outputSchema: z.ZodSchema<TOutput>;
+  /**
+   * Optional: what to store in agent_runs.input / agent_runs.output instead of the raw values, for agents handling
+   * private state. The API response is unaffected. Agents without these hooks persist everything as before.
+   */
+  persistedInput?(rawInput: Record<string, unknown>): Record<string, unknown>;
+  persistedOutput?(output: TOutput): Record<string, unknown>;
   execute(input: TInput, ctx: AgentContext): Promise<AgentResult<TOutput>>;
 }
 
@@ -56,7 +66,7 @@ export async function runAgent<TInput, TOutput>(
     // Update run status
     await ctx.db.updateRun(ctx.runId, {
       status: 'completed',
-      output: result.output as Record<string, unknown>,
+      output: agent.persistedOutput ? agent.persistedOutput(result.output) : result.output as Record<string, unknown>,
       finished_at: new Date().toISOString(),
     });
 

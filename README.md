@@ -136,6 +136,7 @@ fyrk-agent-platform/
 | **release-notes** | Generates structured release notes from commit data (Norwegian markdown) | Push to main |
 | **docs-sync** | Detects code changes that need documentation updates, opens PRs | Push to nettside_fyrk |
 | **linkedin-post** | Synthesizes tech news into a contrarian LinkedIn post draft | Cron (Mon/Wed/Fri) |
+| **character** / **harold** | Persistent fictional-character memory: canon, evolving memories, episodes, public/private reveals ([docs](docs/agents/character.md)) | Manual, operator token |
 
 ## Slack Integrations
 
@@ -238,6 +239,7 @@ fly deploy
 | `SLACK_CHANNEL_LEADS` | Slack channel for lead notifications | `#fyrk-leads` |
 | `SLACK_HUSMOR_BOT_TOKEN` | Slack bot token (Husmor) | optional |
 | `SLACK_HUSMOR_SIGNING_SECRET` | Slack signing secret (Husmor) | optional |
+| `AGENT_OPERATOR_TOKEN` | Operator token (`x-operator-token`) for agents touching private state, e.g. character agents. Unset = they refuse | optional |
 | `PORT` | Server port | `8787` |
 | `HOST` | Server host | `0.0.0.0` |
 | `LOG_LEVEL` | Logging level (fatal/error/warn/info/debug/trace) | `info` |
@@ -245,3 +247,7 @@ fly deploy
 ## License
 
 MIT
+
+## Assignment radar
+
+Ny konsulentoppdragsradar: `POST /run/assignment-radar`. Se [oppsett, kilder, deduplisering og utvidelse med ny portal](runtime/src/agents/assignment-radar/README.md).

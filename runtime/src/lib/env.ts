@@ -13,7 +13,12 @@ const EnvSchema = z.object({
   OPENAI_EDITORIAL_QUALITY_MODEL: optStr,
   OPENAI_EDITORIAL_FAST_MODEL: optStr,
   CV_SECOND_OPINION_PROVIDER: z.enum(['openai']).optional(),
+  ASSIGNMENT_RADAR_THRESHOLD: z.coerce.number().int().min(0).max(100).default(70),
+  ASSIGNMENT_RADAR_SLACK_BOT_TOKEN: optStr,
+  ASSIGNMENT_RADAR_SLACK_CHANNEL: optStr,
   HUB_ACCESS_CODE: optStr,
+  /** Shared secret for internal operator actions (x-operator-token header). Unset = operator agents refuse. */
+  AGENT_OPERATOR_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(24).optional()),
   ODA_EMAIL: optEmail,
   ODA_PASSWORD: optStr,
   PORT: z.coerce.number().int().positive().default(8787),

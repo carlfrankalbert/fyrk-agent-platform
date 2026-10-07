@@ -1,0 +1,25 @@
+{
+  "DateOfPost": "2025-08-10T00:00:00",
+  "Title": "Senior Java Developer",
+  "ShortDescription": "<p>At the moment we are experiencing high demand for Senior Java Backend Developers among the clients we serve in Norway. </p>\n<p> </p>",
+  "MainDescription": "<h4 class=\"make-dropdown\">Senior Java Developer<span class=\"dropdown-icon\"><img src=\"/assets/mobile-dropdown-arrow-proficient-blue.svg\"></span></h4><div class=\"offer-content\"><p>We are looking for Java developers with enterprise experience and a big personal drive, preferably with 10+ years of experience.</p>\n<p> </p></div><h4 class=\"make-dropdown\">Your qualifications<span class=\"dropdown-icon\"><img src=\"/assets/mobile-dropdown-arrow-proficient-blue.svg\"></span></h4><div class=\"offer-content\"><p>You have experience with technologies including Java, Spring Boot, and Kotlin, and DevOps within an agile environment. You have strong team collaboration skills, and are fluent in one of the Scandinavian languages. As an experienced Java Developer, you have worked with several (but not necessarily all) of the technologies listed below:</p>\n<p> </p>\n<ul>\n<li>REST</li>\n<li>Microservices</li>\n<li>SAML/oAUTH/JWT</li>\n<li>Docker</li>\n<li>Kubernetes</li>\n<li>MySQL</li>\n<li>Git</li>\n<li>Nexus</li>\n<li>Bamboo</li>\n<li>CI/CD</li>\n<li>Swagger &amp; OpenAP</li>\n</ul></div><h4 class=\"make-dropdown\">What you can expect from 7N<span class=\"dropdown-icon\"><img src=\"/assets/mobile-dropdown-arrow-proficient-blue.svg\"></span></h4><div class=\"offer-content\"><p><strong>7N</strong> is an Elite supplier of IT consultants, with more than 30 years of market experience in serving all aspects of critical IT projects. We work hard every day to help top IT experts achieve fulfilling professional lives and satisfying earnings.<br /><br />In our work, we strive to be the leading Agent for High-End IT Professionals, serving organizations whose complex IT needs are critical to their operations. We are specialized in matching our clients in both the private and public sectors with exceptional people. 7N consultants make a significant difference every day on complex and demanding client projects within various areas of IT expertise.</p>\n<p> </p>\n<p>As a <strong>freelance</strong> consultant at 7N, you get your own Agent, who cares about your professional and personal development and knows your strengths and weaknesses.<br />Our Agents go the extra mile to represent you in the best manner. Your Agent will start scouting for a new project when the existing is coming to and end - so you can focus on the fun part!</p>\n<p>Founded in Copenhagen, 7N currently manage more than 1700 specialized consultants within a wide range of industries and leading companies in Denmark, Norway, Sweden, Finland, Poland, India and USA. 7Ns global reach brings with it opportunities for both companies and consultants.</p></div><h4 class=\"make-dropdown\">Ready to take your career to the next level? <span class=\"dropdown-icon\"><img src=\"/assets/mobile-dropdown-arrow-proficient-blue.svg\"></span></h4><div class=\"offer-content\"><p>Submit your contact information and your CV via the 'Apply now' link. </p>\n<p>If you have any questions please contact us.</p></div>",
+  "Salary": "",
+  "Tags": [
+    "Java",
+    "Spring",
+    "Spring Boot",
+    "Rest API",
+    "Microservices",
+    "Swagger",
+    "Kafka",
+    "Git",
+    "Kotlin",
+    "Kubernetes"
+  ],
+  "City": "Oslo",
+  "Country": "Norway",
+  "Categories": [
+    "Developer"
+  ],
+  "AdditionalAnnotation": "All qualified candidates are encouraged to apply regardless of gender, race, age, religion or ethnicity."
+}

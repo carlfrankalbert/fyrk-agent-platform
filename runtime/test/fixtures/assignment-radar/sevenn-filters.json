@@ -1,0 +1,198 @@
+{
+  "categoriesFilters": [
+    {
+      "CategoryId": 6,
+      "CategoryName": "Developer",
+      "Count": 59
+    },
+    {
+      "CategoryId": 11,
+      "CategoryName": "Specialist",
+      "Count": 53
+    },
+    {
+      "CategoryId": 14,
+      "CategoryName": "System Administrator",
+      "Count": 9
+    },
+    {
+      "CategoryId": 9,
+      "CategoryName": "Project Manager",
+      "Count": 7
+    },
+    {
+      "CategoryId": 39,
+      "CategoryName": "Sales Manager",
+      "Count": 1
+    },
+    {
+      "CategoryId": 7,
+      "CategoryName": "Lead Developer",
+      "Count": 10
+    },
+    {
+      "CategoryId": 5,
+      "CategoryName": "Database Developer",
+      "Count": 1
+    },
+    {
+      "CategoryId": 1,
+      "CategoryName": "Architect",
+      "Count": 12
+    },
+    {
+      "CategoryId": 13,
+      "CategoryName": "Supporter",
+      "Count": 5
+    },
+    {
+      "CategoryId": 2,
+      "CategoryName": "Business Analyst",
+      "Count": 6
+    },
+    {
+      "CategoryId": 36,
+      "CategoryName": "Test Manager",
+      "Count": 1
+    },
+    {
+      "CategoryId": 10,
+      "CategoryName": "Security Specialist",
+      "Count": 2
+    },
+    {
+      "CategoryId": 44,
+      "CategoryName": "Business Intelligence Specialist",
+      "Count": 3
+    },
+    {
+      "CategoryId": 37,
+      "CategoryName": "Tester",
+      "Count": 3
+    },
+    {
+      "CategoryId": 8,
+      "CategoryName": "Program Manager",
+      "Count": 2
+    }
+  ],
+  "localizationFilters": [
+    {
+      "ContinentId": 1,
+      "ContinentName": "Europe",
+      "Count": 67,
+      "CountriesList": [
+        {
+          "CountryId": 6,
+          "CountryName": "Belgium",
+          "CountryCode": "BE",
+          "Count": 1,
+          "CitiesList": []
+        },
+        {
+          "CountryId": 13,
+          "CountryName": "Denmark",
+          "CountryCode": "DK",
+          "Count": 6,
+          "CitiesList": []
+        },
+        {
+          "CountryId": 251,
+          "CountryName": "Poland",
+          "CountryCode": "PL",
+          "Count": 58,
+          "CitiesList": [
+            {
+              "CityId": 2,
+              "CityName": "Warsaw",
+              "Count": 15
+            },
+            {
+              "CityId": 12,
+              "CityName": "Gdansk",
+              "Count": 2
+            },
+            {
+              "CityId": 16,
+              "CityName": "Łódź",
+              "Count": 2
+            },
+            {
+              "CityId": 36,
+              "CityName": "Remote",
+              "Count": 5
+            }
+          ]
+        },
+        {
+          "CountryId": 254,
+          "CountryName": "Norway",
+          "CountryCode": "NO",
+          "Count": 1,
+          "CitiesList": [
+            {
+              "CityId": 8,
+              "CityName": "Oslo",
+              "Count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "ContinentId": 2,
+      "ContinentName": "Asia",
+      "Count": 102,
+      "CountriesList": [
+        {
+          "CountryId": 257,
+          "CountryName": "India",
+          "CountryCode": "IN",
+          "Count": 102,
+          "CitiesList": [
+            {
+              "CityId": 11,
+              "CityName": "Gurgaon",
+              "Count": 7
+            },
+            {
+              "CityId": 37,
+              "CityName": "Remote",
+              "Count": 9
+            },
+            {
+              "CityId": 62,
+              "CityName": "Bangalore",
+              "Count": 68
+            },
+            {
+              "CityId": 64,
+              "CityName": "Pune",
+              "Count": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "ContinentId": 3,
+      "ContinentName": "North America",
+      "Count": 1,
+      "CountriesList": [
+        {
+          "CountryId": 258,
+          "CountryName": "USA",
+          "CountryCode": "US",
+          "Count": 1,
+          "CitiesList": []
+        }
+      ]
+    },
+    {
+      "ContinentId": 0,
+      "ContinentName": "Anywhere",
+      "Count": 3,
+      "CountriesList": []
+    }
+  ]
+}

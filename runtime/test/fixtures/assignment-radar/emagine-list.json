@@ -1,0 +1,173 @@
+{
+  "items": [
+    {
+      "id": 180627,
+      "title": "Prosjektleder nye digitale virksomhetskritiske tjenester – NPE",
+      "startDate": "04.01.2027",
+      "duration": "4-6 måneder",
+      "requestId": 319954,
+      "isPartTime": false,
+      "jobAdWorkLocation": {
+        "workLocationType": "Onsite",
+        "city": "Oslo",
+        "region": null,
+        "country": "Norway"
+      },
+      "area": {
+        "id": 2133,
+        "name": "Prosjektleveranse"
+      },
+      "industry": {
+        "id": 7429,
+        "name": "Healthcare"
+      },
+      "isJobSaved": false,
+      "applicationDate": null
+    },
+    {
+      "id": 180597,
+      "title": "Samfunnsøkonomisk analyse av innføring av Single Digital Gateway ",
+      "startDate": "12.10.2026",
+      "duration": "1-3 måneder",
+      "requestId": 319887,
+      "isPartTime": false,
+      "jobAdWorkLocation": {
+        "workLocationType": "Remote",
+        "city": null,
+        "region": null,
+        "country": "Norway"
+      },
+      "area": {
+        "id": 2135,
+        "name": "Strategi og Transformasjon"
+      },
+      "industry": {
+        "id": 7428,
+        "name": "Government"
+      },
+      "isJobSaved": false,
+      "applicationDate": null
+    },
+    {
+      "id": 180553,
+      "title": "Konsulentbistand Nye tjenester",
+      "startDate": "01.01.2027",
+      "duration": "4-6 måneder",
+      "requestId": 319826,
+      "isPartTime": false,
+      "jobAdWorkLocation": {
+        "workLocationType": "Remote",
+        "city": null,
+        "region": null,
+        "country": "Norway"
+      },
+      "area": {
+        "id": 2133,
+        "name": "Prosjektleveranse"
+      },
+      "industry": {
+        "id": 7429,
+        "name": "Healthcare"
+      },
+      "isJobSaved": false,
+      "applicationDate": null
+    },
+    {
+      "id": 180534,
+      "title": "Senior Azure-konsulent (40% stilling)",
+      "startDate": "15.10.2026",
+      "duration": "1-3 måneder",
+      "requestId": 319802,
+      "isPartTime": false,
+      "jobAdWorkLocation": {
+        "workLocationType": "Onsite",
+        "city": "Oslo",
+        "region": null,
+        "country": "Norway"
+      },
+      "area": {
+        "id": 2138,
+        "name": "IT infrastruktur og drift"
+      },
+      "industry": {
+        "id": 7431,
+        "name": "Insurance / Pension"
+      },
+      "isJobSaved": false,
+      "applicationDate": null
+    },
+    {
+      "id": 180248,
+      "title": "Bistand til kartlegging og beregning av gebyr - DMP",
+      "startDate": "01.11.2026",
+      "duration": "7-9 måneder",
+      "requestId": 319364,
+      "isPartTime": false,
+      "jobAdWorkLocation": {
+        "workLocationType": "Onsite",
+        "city": "Oslo",
+        "region": null,
+        "country": "Norway"
+      },
+      "area": {
+        "id": 2133,
+        "name": "Prosjektleveranse"
+      },
+      "industry": {
+        "id": 7429,
+        "name": "Healthcare"
+      },
+      "isJobSaved": false,
+      "applicationDate": null
+    },
+    {
+      "id": 179242,
+      "title": "SOC Lead",
+      "startDate": "ASAP",
+      "duration": "4-6 måneder",
+      "requestId": 317950,
+      "isPartTime": false,
+      "jobAdWorkLocation": {
+        "workLocationType": "Onsite",
+        "city": "Halden",
+        "region": null,
+        "country": "Norway"
+      },
+      "area": {
+        "id": 2139,
+        "name": "Risiko, Sikkerhet og Compliance"
+      },
+      "industry": {
+        "id": 7426,
+        "name": "Energy / Utilities"
+      },
+      "isJobSaved": false,
+      "applicationDate": null
+    },
+    {
+      "id": 176651,
+      "title": "Sak 26/00860 - Arkitekt - Retinascreening (Dekket Stilling)",
+      "startDate": "01.07.2026",
+      "duration": "4-6 måneder",
+      "requestId": 237435,
+      "isPartTime": false,
+      "jobAdWorkLocation": {
+        "workLocationType": "Onsite",
+        "city": "Oslo",
+        "region": null,
+        "country": "Norway"
+      },
+      "area": {
+        "id": 2135,
+        "name": "Strategi og Transformasjon"
+      },
+      "industry": {
+        "id": 7429,
+        "name": "Healthcare"
+      },
+      "isJobSaved": false,
+      "applicationDate": null
+    }
+  ],
+  "totalCount": 7
+}

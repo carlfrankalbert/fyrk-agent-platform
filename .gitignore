@@ -35,3 +35,6 @@ supabase/.temp/
 
 # MCP config (local, may contain secrets)
 .mcp.json
+
+# Private character state (canon, memories, visual refs) — never commit
+private/

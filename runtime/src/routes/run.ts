@@ -4,6 +4,7 @@ import { getAgent, listAgents } from '../agents/registry.js';
 import { runAgent, type AgentContext } from '../agents/base.js';
 import { SupabaseDbClient, NullDbClient, type DbClient } from '../db/client.js';
 import { getEnv } from '../lib/env.js';
+import { isOperatorRequest } from '../lib/operator.js';
 
 interface RunParams {
   agentName: string;
@@ -45,6 +46,20 @@ export async function runRoutes(fastify: FastifyInstance): Promise<void> {
         } satisfies RunResponse);
       }
 
+      const operator = isOperatorRequest(request);
+      if (agent.requiresOperator && !operator) {
+        return reply.status(401).send({
+          runId: '00000000-0000-0000-0000-000000000000',
+          agentName,
+          agentVersion: agent.version,
+          status: 'error',
+          artifactIds: [],
+          publish: false,
+          output: {},
+          error: 'Unauthorized: this agent requires an operator token',
+        } satisfies RunResponse);
+      }
+
       // Parse request body
       const parseResult = RunRequestSchema.safeParse(request.body);
       if (!parseResult.success) {
@@ -70,7 +85,7 @@ export async function runRoutes(fastify: FastifyInstance): Promise<void> {
         agent_name: agentName,
         agent_version: agent.version,
         status: 'started',
-        input,
+        input: agent.persistedInput ? agent.persistedInput(input) : input,
         output: {},
         error: null,
       });
@@ -83,12 +98,13 @@ export async function runRoutes(fastify: FastifyInstance): Promise<void> {
         dryRun,
         publish,
         runId: run.id,
+        operator,
       };
 
       // Run agent
       const result = await runAgent(agent, input, ctx);
 
-      fastify.log.info({ runId: run.id, status: result.status }, 'Agent run finished');
+      fastify.log.info({ runId: run.id, status: result.status, ...(agentName === 'assignment-radar' ? { radar: result.output } : {}) }, 'Agent run finished');
 
       return result;
     }
