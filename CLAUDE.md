@@ -20,6 +20,19 @@ runtime/
       claude.ts            — Claude API client with retry (429/500/529, exponential backoff)
       schemas.ts           — RunRequestSchema, RunResponseSchema
       types.ts             — shared types (Logger)
+      slack.ts             — Slack client: replyInThread, updateMessage, getThreadHistory, verifySignature
+      slack-events.ts      — raw-body JSON parser for Slack signature verification
+    slack-bot/             — FYRK Slack bot core (knows nothing about module content)
+      routes.ts            — POST /slack/fyrk-bot-events: signature, url_verification, retries, filtering, async ack
+      events.ts            — envelope schemas, classifyEvent (app_mention, message.im, un-mentioned replies in bot threads; no bots/subtypes)
+      dedup.ts             — event_id claim in slack_bot_event_dedup
+      conversation.ts      — thread history → Claude stream → Slack placeholder updates, error message, usage log
+      stream.ts            — createSlackStreamUpdater (500 ms / 80 char debounce)
+      select.ts            — selectModule(event): SLACK_BOT_CHANNEL_MODULES override, else SLACK_BOT_DEFAULT_MODULE
+      types.ts             — BotModule, SlackBotEvent
+      modules/
+        registry.ts        — module registration (same pattern as agents/registry.ts)
+        handbook/          — Kvitsøy personalhåndbok Q&A (claude-sonnet-5-5, handbook as cached context)
     routes/
       health.ts            — GET /health, GET /health/failures
       run.ts               — POST /run/:agentName
@@ -39,23 +52,16 @@ runtime/
         proactive.ts       — contextual family tips via Claude Haiku
         settings.ts        — family preferences
         analytics.ts       — usage event tracking
-      husmor/              — Slack-based meal assistant
-        conversation.ts    — message handling, Claude orchestration
-        proactive.ts       — proactive messages (reminders, check-ins)
-        actions.ts         — action execution (meals, shopping, canvas)
-        prompt.ts          — system prompt builder, response parser
-        db.ts              — DB context loader, weekly plans, preferences
-        schemas.ts         — Zod schemas for Slack events + Claude response
-        canvas.ts          — Slack canvas sync
-        cache.ts           — TTL cache for DB aggregations
-        learnings/         — learning extraction, patterns, metrics, signals
   test/
     release-notes.test.ts
     meal-plan.test.ts
     cv-tailor.test.ts
     oda.test.ts
     claude-stream.test.ts
+    slack-bot.test.ts
     fixtures/              — test fixtures (JSON)
+  static/
+    handbook/kvitsoy-personalhandbok.md — handbook as Markdown, point numbers as headings
 hub/                       — React/Vite frontend for family dashboard
 n8n/
   workflows/
@@ -70,6 +76,7 @@ supabase/
   seed/                    — food traditions, nutrition, seasonal produce, pantry staples
 docs/
   agents/release-notes.md
+  slack-bot/slack-app-manifest.yml — Slack app manifest for the FYRK bot
   husmor-overview.md
   husmor-user-guide.md
   husmor/deferred-features.md

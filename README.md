@@ -10,7 +10,7 @@ The FYRK Agent Platform provides:
 - **Agent Registry** - Pluggable system for registering agents
 - **Supabase Integration** - Persistent storage for runs, artifacts, leads, and household data
 - **n8n Workflows** - Visual automation via webhook triggers
-- **Slack Integration** - Bot interactions (Husmor), lead notifications (Timing Radar)
+- **Slack Integration** - FYRK Slack bot (pluggable modules, first: Kvitsøy personalhåndbok), lead notifications (Timing Radar)
 - **Operational hygiene** - Env validation, health checks, failure monitoring
 
 ## Quick Start
@@ -99,9 +99,15 @@ fyrk-agent-platform/
 │   │   ├── lib/                   # Shared libraries
 │   │   │   ├── env.ts             # Zod env validation (fail-fast)
 │   │   │   ├── claude.ts          # Claude API wrapper
-│   │   │   ├── slack.ts           # Slack client
+│   │   │   ├── slack.ts           # Slack client (thread replies, updates, history, signature)
+│   │   │   ├── slack-events.ts    # Raw-body JSON parser for Slack signature verification
 │   │   │   ├── schemas.ts         # Request/response schemas
 │   │   │   └── types.ts           # Shared types
+│   │   ├── slack-bot/             # FYRK Slack bot core: events, signature, dedup, threads, streaming
+│   │   │   ├── routes.ts          # POST /slack/fyrk-bot-events
+│   │   │   ├── conversation.ts    # Thread history → Claude stream → Slack updates
+│   │   │   ├── select.ts          # selectModule(event)
+│   │   │   └── modules/           # Bot modules (registry.ts, handbook/)
 │   │   └── routes/                # Bounded context directories
 │   │       ├── health.ts          # /health + /health/failures
 │   │       ├── run.ts             # /run/:agentName
@@ -140,6 +146,16 @@ fyrk-agent-platform/
 
 ## Slack Integrations
 
+### FYRK Slack bot
+
+A general Slack bot for the FYRK workspace. The core (`runtime/src/slack-bot/`) handles Slack events, signature verification, dedup, threads, streaming and errors; what the bot knows comes from a module (`runtime/src/slack-bot/modules/<id>/`) implementing `BotModule` and registered in `modules/registry.ts`. Adding a module needs no core changes.
+
+- Answers `app_mention` and direct messages, always in a thread, streaming the answer into a `...` placeholder. Follow-ups include the thread history.
+- In channel threads the bot has already replied in, follow-ups are answered without `@FYRK` (`message.channels` / `message.groups`). Top-level channel messages always need a mention.
+- Module per event: `SLACK_BOT_CHANNEL_MODULES` (per-channel JSON override), otherwise `SLACK_BOT_DEFAULT_MODULE`.
+- First module, `handbook`: answers only from the Kvitsøy kommune personalhåndbok (`runtime/static/handbook/kvitsoy-personalhandbok.md`, sent as a cached system block), citing point numbers.
+- Slack app: [docs/slack-bot/slack-app-manifest.yml](docs/slack-bot/slack-app-manifest.yml). Dedup table: `slack_bot_event_dedup`.
+
 ### Husmor
 
 A Slack-based meal planning assistant that manages weekly meal plans, shopping lists, and learns household preferences over time. Uses Claude for conversation and a learning system that tracks patterns, contradictions, and knowledge gaps.
@@ -149,6 +165,10 @@ A Slack-based meal planning assistant that manages weekly meal plans, shopping l
 Monitors new CPO/Head of Product hires in Nordic companies. Scores leads across 5 dimensions (fit, trigger, timing, authority, intent) and sends Slack notifications with emoji-based feedback (contacted, planned, not relevant, warm, cold good account).
 
 ## API Reference
+
+### POST /slack/fyrk-bot-events
+
+Slack Events API endpoint for the FYRK bot. Verifies the Slack signature, answers `url_verification`, acks every event immediately and answers asynchronously. Ignores retries, bot messages and message subtypes; dedups on `event_id`. Returns 503 when `SLACK_FYRK_BOT_TOKEN`/`SLACK_FYRK_SIGNING_SECRET` are not set.
 
 ### GET /health
 
@@ -239,6 +259,10 @@ fly deploy
 | `SLACK_CHANNEL_LEADS` | Slack channel for lead notifications | `#fyrk-leads` |
 | `SLACK_HUSMOR_BOT_TOKEN` | Slack bot token (Husmor) | optional |
 | `SLACK_HUSMOR_SIGNING_SECRET` | Slack signing secret (Husmor) | optional |
+| `SLACK_FYRK_BOT_TOKEN` | Bot token for the FYRK Slack bot | optional |
+| `SLACK_FYRK_SIGNING_SECRET` | Signing secret for the FYRK Slack bot (required for it to accept events) | optional |
+| `SLACK_BOT_DEFAULT_MODULE` | FYRK Slack bot module used when no channel override matches | `handbook` |
+| `SLACK_BOT_CHANNEL_MODULES` | Per-channel module overrides as JSON, e.g. `{"C0123ABC":"handbook"}` | optional |
 | `AGENT_OPERATOR_TOKEN` | Operator token (`x-operator-token`) for agents touching private state, e.g. character agents. Unset = they refuse | optional |
 | `PORT` | Server port | `8787` |
 | `HOST` | Server host | `0.0.0.0` |
