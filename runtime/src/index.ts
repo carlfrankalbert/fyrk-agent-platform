@@ -6,6 +6,7 @@ import { runRoutes } from './routes/run.js';
 import { cvTailorRoutes } from './routes/cv-tailor.js';
 import { editorialRoomRoutes } from './routes/editorial-room.js';
 import { hubRoutes } from './routes/hub/index.js';
+import { slackBotRoutes } from './slack-bot/routes.js';
 
 async function main(): Promise<void> {
   const env = validateEnv();
@@ -25,6 +26,7 @@ async function main(): Promise<void> {
   await fastify.register(cvTailorRoutes);
   await fastify.register(editorialRoomRoutes);
   await fastify.register(hubRoutes);
+  await fastify.register(slackBotRoutes);
 
   // Graceful shutdown
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
