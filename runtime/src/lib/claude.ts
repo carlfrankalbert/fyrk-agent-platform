@@ -3,12 +3,24 @@ export interface ClaudeMessage {
   content: string;
 }
 
+export interface ClaudeCacheControl {
+  type: 'ephemeral';
+}
+
+export interface ClaudeSystemBlock {
+  type: 'text';
+  text: string;
+  cache_control?: ClaudeCacheControl;
+}
+
 export interface ClaudeRequest {
   model: string;
   max_tokens: number;
-  system?: string;
+  /** Plain string, or text blocks so cache_control can be set on individual blocks (e.g. a large static context). */
+  system?: string | ClaudeSystemBlock[];
   messages: ClaudeMessage[];
-  cache_control?: { type: 'ephemeral' };
+  /** Shorthand for a string `system`: caches the whole system prompt as one block. */
+  cache_control?: ClaudeCacheControl;
 }
 
 export interface ClaudeResponse {
@@ -24,28 +36,48 @@ export interface ClaudeResponse {
   };
 }
 
-export async function callClaude(
+/** Build headers + JSON body for the Messages API, normalising `system` and `cache_control`. */
+export function buildHttpRequest(
   apiKey: string,
   request: ClaudeRequest,
-): Promise<ClaudeResponse> {
+): { headers: Record<string, string>; body: Record<string, unknown> } {
   const headers: Record<string, string> = {
     'x-api-key': apiKey,
     'anthropic-version': '2023-06-01',
     'content-type': 'application/json',
   };
 
-  // Build body, handling cache_control by converting system to content blocks
   const { cache_control, system, ...rest } = request;
   const body: Record<string, unknown> = { ...rest };
+  let cached = false;
 
-  if (system) {
+  if (typeof system === 'string' && system) {
     if (cache_control) {
-      headers['anthropic-beta'] = 'prompt-caching-2024-07-31';
+      cached = true;
       body.system = [{ type: 'text', text: system, cache_control }];
     } else {
       body.system = system;
     }
+  } else if (Array.isArray(system) && system.length > 0) {
+    if (cache_control) {
+      throw new Error('cache_control shorthand only applies to a string system prompt; set it on a system block instead');
+    }
+    cached = system.some((b) => b.cache_control);
+    body.system = system;
   }
+
+  if (cached) {
+    headers['anthropic-beta'] = 'prompt-caching-2024-07-31';
+  }
+
+  return { headers, body };
+}
+
+export async function callClaude(
+  apiKey: string,
+  request: ClaudeRequest,
+): Promise<ClaudeResponse> {
+  const { headers, body } = buildHttpRequest(apiKey, request);
 
   const RETRYABLE = new Set([429, 500, 529]);
   const MAX_RETRIES = 3;
@@ -88,23 +120,8 @@ export async function* callClaudeStream(
   apiKey: string,
   request: ClaudeRequest,
 ): AsyncGenerator<ClaudeStreamEvent> {
-  const headers: Record<string, string> = {
-    'x-api-key': apiKey,
-    'anthropic-version': '2023-06-01',
-    'content-type': 'application/json',
-  };
-
-  const { cache_control, system, ...rest } = request;
-  const body: Record<string, unknown> = { ...rest, stream: true };
-
-  if (system) {
-    if (cache_control) {
-      headers['anthropic-beta'] = 'prompt-caching-2024-07-31';
-      body.system = [{ type: 'text', text: system, cache_control }];
-    } else {
-      body.system = system;
-    }
-  }
+  const { headers, body } = buildHttpRequest(apiKey, request);
+  body.stream = true;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
