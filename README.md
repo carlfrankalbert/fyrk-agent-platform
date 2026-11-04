@@ -151,6 +151,7 @@ fyrk-agent-platform/
 A general Slack bot for the FYRK workspace. The core (`runtime/src/slack-bot/`) handles Slack events, signature verification, dedup, threads, streaming and errors; what the bot knows comes from a module (`runtime/src/slack-bot/modules/<id>/`) implementing `BotModule` and registered in `modules/registry.ts`. Adding a module needs no core changes.
 
 - Answers `app_mention` and direct messages, always in a thread, streaming the answer into a `...` placeholder. Follow-ups include the thread history.
+- In channel threads the bot has already replied in, follow-ups are answered without `@FYRK` (`message.channels` / `message.groups`). Top-level channel messages always need a mention.
 - Module per event: `SLACK_BOT_CHANNEL_MODULES` (per-channel JSON override), otherwise `SLACK_BOT_DEFAULT_MODULE`.
 - First module, `handbook`: answers only from the Kvitsøy kommune personalhåndbok (`runtime/static/handbook/kvitsoy-personalhandbok.md`, sent as a cached system block), citing point numbers.
 - Slack app: [docs/slack-bot/slack-app-manifest.yml](docs/slack-bot/slack-app-manifest.yml). Dedup table: `slack_bot_event_dedup`.

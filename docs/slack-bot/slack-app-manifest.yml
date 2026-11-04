@@ -28,6 +28,8 @@ settings:
     bot_events:
       - app_mention
       - message.im
+      - message.channels
+      - message.groups
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: false

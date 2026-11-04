@@ -27,4 +27,9 @@ export interface SlackBotEvent {
   threadTs?: string;
   /** The bot's own Slack user id (from authorizations), used to strip mentions and recognise its own replies */
   botUserId?: string;
+  /**
+   * Channel thread reply without a mention: only answer if the bot has already replied in this thread.
+   * Checked against the thread history before anything is posted.
+   */
+  requireBotInThread?: boolean;
 }

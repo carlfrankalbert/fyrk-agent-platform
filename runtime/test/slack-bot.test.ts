@@ -102,12 +102,33 @@ describe('classifyEvent', () => {
     ['bot messages', { ...dm, bot_id: 'B1' }],
     ['message subtypes', { ...dm, subtype: 'message_changed' }],
     ['bot_message subtype', { ...dm, subtype: 'bot_message' }],
-    ['channel messages (not im)', { ...dm, channel_type: 'channel', channel: 'C1' }],
     ['other event types', { ...dm, type: 'reaction_added' }],
     ['messages without user', { ...dm, user: undefined }],
     ['a bare mention with no question', { ...mention, text: `<@${BOT_USER}>` }],
   ])('ignores %s', (_label, event) => {
     expect(classifyEvent(envelope(event)).handle).toBe(false);
+  });
+
+  it('handles replies in channel and private-channel threads without a mention, pending a thread check', () => {
+    for (const channel_type of ['channel', 'group']) {
+      const result = classifyEvent(envelope({ ...dm, channel_type, channel: 'C1', thread_ts: '1700000000.000001' }));
+      expect(result.handle && result.event, channel_type).toMatchObject({ type: 'message', threadTs: '1700000000.000001', requireBotInThread: true });
+    }
+    const direct = classifyEvent(envelope(mention));
+    expect(direct.handle && direct.event.requireBotInThread).toBeFalsy();
+  });
+
+  it.each([
+    ['top-level channel messages', { ...dm, channel_type: 'channel', channel: 'C1' }],
+    ['thread parents (thread_ts === ts)', { ...dm, channel_type: 'channel', channel: 'C1', thread_ts: dm.ts }],
+    ['channel thread replies that mention the bot (app_mention answers those)', { ...dm, channel_type: 'channel', channel: 'C1', thread_ts: '1', text: `<@${BOT_USER}> og så?` }],
+  ])('ignores %s', (_label, event) => {
+    expect(classifyEvent(envelope(event)).handle).toBe(false);
+  });
+
+  it('ignores channel thread replies when the bot user is unknown', () => {
+    const event = { ...dm, channel_type: 'channel', channel: 'C1', thread_ts: '1' };
+    expect(classifyEvent(envelope(event, { authorizations: undefined })).handle).toBe(false);
   });
 
   it('ignores envelopes that are not event_callback or lack event_id', () => {
@@ -396,6 +417,53 @@ describe('handleBotEvent', () => {
     const calls = mockFetch(() => new Response('overloaded', { status: 529 }));
     await handleBotEvent(event, { botToken: 'xoxb', apiKey: 'sk', selectModule: () => handbookModule, logger: silent });
     expect(calls.filter((c) => c.url.includes('chat.update')).at(-1)!.body.text).toBe(ERROR_MSG);
+  });
+
+  describe('un-mentioned channel thread replies', () => {
+    const reply: SlackBotEvent = { ...event, type: 'message', threadTs: '1700000000.000001', requireBotInThread: true, text: 'Og ved deltid?' };
+
+    function mockWithHistory(messages: unknown[]) {
+      const calls = mockFetch(() => sse(['{"type":"content_block_delta","delta":{"type":"text_delta","text":"Forholdsmessig (pkt. 2.5)."}}']));
+      const base = vi.mocked(globalThis.fetch).getMockImplementation()!;
+      vi.mocked(globalThis.fetch).mockImplementation((input, init) => String(input).includes('conversations.replies')
+        ? (calls.push({ url: String(input), body: {} }), Promise.resolve(Response.json({ ok: true, messages })))
+        : base(input, init));
+      return calls;
+    }
+
+    it('answers when the bot has already replied in the thread', async () => {
+      const calls = mockWithHistory([
+        { user: 'U1', text: `<@${BOT_USER}> Får jeg funksjonstillegg?`, ts: '1700000000.000001' },
+        { user: BOT_USER, bot_id: 'B1', text: 'Ja, se pkt. 2.5.', ts: '1700000000.000002' },
+      ]);
+      await handleBotEvent(reply, { botToken: 'xoxb', apiKey: 'sk', selectModule: () => handbookModule, logger: silent });
+      expect(calls.find((c) => c.url.includes('chat.postMessage'))!.body).toMatchObject({ thread_ts: reply.threadTs, text: PLACEHOLDER_MSG });
+      const claude = calls.find((c) => c.url.includes('api.anthropic.com'))!;
+      expect(claude.body.messages).toEqual([
+        { role: 'user', content: 'Får jeg funksjonstillegg?' },
+        { role: 'assistant', content: 'Ja, se pkt. 2.5.' },
+        { role: 'user', content: 'Og ved deltid?' },
+      ]);
+    });
+
+    it('stays silent in threads the bot is not part of', async () => {
+      const calls = mockWithHistory([
+        { user: 'U2', text: 'Noen som vet?', ts: '1700000000.000001' },
+        { user: 'UOTHER', bot_id: 'B2', text: 'Annen bot', ts: '1700000000.000002' },
+      ]);
+      await handleBotEvent(reply, { botToken: 'xoxb', apiKey: 'sk', selectModule: () => handbookModule, logger: silent });
+      expect(calls.map((c) => c.url)).toEqual([expect.stringContaining('conversations.replies')]);
+    });
+
+    it('stays silent (no error message) when the thread history cannot be loaded', async () => {
+      const calls = mockFetch(() => sse([]));
+      vi.mocked(globalThis.fetch).mockImplementation((input) => {
+        calls.push({ url: String(input), body: {} });
+        return Promise.resolve(Response.json({ ok: false, error: 'missing_scope' }));
+      });
+      await handleBotEvent(reply, { botToken: 'xoxb', apiKey: 'sk', selectModule: () => handbookModule, logger: silent });
+      expect(calls.map((c) => c.url)).toEqual([expect.stringContaining('conversations.replies')]);
+    });
   });
 
   it('posts the error in the thread when no module can be selected', async () => {

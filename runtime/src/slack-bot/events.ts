@@ -49,11 +49,22 @@ export function classifyEvent(envelope: SlackEnvelope): Classification {
   if (ev.subtype) return { handle: false, reason: `subtype ${ev.subtype}` };
   if (!ev.user) return { handle: false, reason: 'no user' };
 
+  const botUserId = envelope.authorizations?.[0]?.user_id;
   const isMention = ev.type === 'app_mention';
   const isDm = ev.type === 'message' && ev.channel_type === 'im';
-  if (!isMention && !isDm) return { handle: false, reason: `event ${ev.type}/${ev.channel_type ?? '-'}` };
+  // Reply in a public/private channel thread (message.channels / message.groups). Top-level channel messages are
+  // never answered without a mention.
+  const isChannelThreadReply = ev.type === 'message' && (ev.channel_type === 'channel' || ev.channel_type === 'group')
+    && !!ev.thread_ts && ev.thread_ts !== ev.ts;
+  if (!isMention && !isDm && !isChannelThreadReply) {
+    return { handle: false, reason: `event ${ev.type}/${ev.channel_type ?? '-'}${ev.thread_ts ? '' : ' (not in thread)'}` };
+  }
+  if (isChannelThreadReply) {
+    if (!botUserId) return { handle: false, reason: 'channel thread reply without known bot user' };
+    // Slack also sends app_mention for this message; answer that one only
+    if ((ev.text ?? '').includes(`<@${botUserId}>`)) return { handle: false, reason: 'mention handled by app_mention' };
+  }
 
-  const botUserId = envelope.authorizations?.[0]?.user_id;
   const text = stripMention(ev.text ?? '', botUserId);
   if (!text) return { handle: false, reason: 'empty text' };
 
@@ -69,6 +80,7 @@ export function classifyEvent(envelope: SlackEnvelope): Classification {
       ts: ev.ts,
       threadTs: ev.thread_ts,
       botUserId,
+      ...(isChannelThreadReply ? { requireBotInThread: true } : {}),
     },
   };
 }

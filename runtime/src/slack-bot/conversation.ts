@@ -65,6 +65,11 @@ function pushTurn(turns: ClaudeMessage[], role: ClaudeMessage['role'], text: str
   }
 }
 
+/** True if the bot has posted in the thread (any of its messages, including placeholders). */
+export function botHasReplied(history: ThreadMessage[], botUserId: string | undefined): boolean {
+  return !!botUserId && history.some((m) => !!m.bot_id && m.user === botUserId);
+}
+
 // Per-thread concurrency guard: answers in the same thread are produced one at a time, in order
 const threadLocks = new Map<string, Promise<void>>();
 
@@ -84,20 +89,30 @@ async function answer(event: SlackBotEvent, deps: HandleEventDeps): Promise<void
   let replyTs: string | undefined;
   let moduleId: string | undefined;
 
+  // Thread history first: for un-mentioned channel thread replies it decides whether we answer at all,
+  // and in that case nothing (not even an error message) may be posted into a thread the bot is not part of.
+  let history: ThreadMessage[] = [];
+  if (event.threadTs) {
+    try {
+      history = await getThreadHistory(botToken, event.channel, event.threadTs);
+    } catch (err) {
+      if (event.requireBotInThread) {
+        logger.warn({ err, channel: event.channel, threadTs }, 'Failed to load thread history, not answering un-mentioned reply');
+        return;
+      }
+      logger.warn({ err, channel: event.channel, threadTs }, 'Failed to load thread history, answering without it');
+    }
+  }
+  if (event.requireBotInThread && !botHasReplied(history, event.botUserId)) {
+    logger.debug({ channel: event.channel, threadTs }, 'Bot is not part of this thread, ignoring reply');
+    return;
+  }
+
   try {
     if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not configured');
     const module = deps.selectModule(event);
     moduleId = module.id;
-
-    const [prompt, history] = await Promise.all([
-      module.buildSystemPrompt(),
-      event.threadTs
-        ? getThreadHistory(botToken, event.channel, event.threadTs).catch((err: unknown) => {
-            logger.warn({ err, module: moduleId }, 'Failed to load thread history, answering without it');
-            return [] as ThreadMessage[];
-          })
-        : Promise.resolve([] as ThreadMessage[]),
-    ]);
+    const prompt = await module.buildSystemPrompt();
 
     const placeholder = await replyInThread(botToken, event.channel, threadTs, PLACEHOLDER_MSG);
     replyTs = placeholder.ts;
@@ -135,6 +150,7 @@ async function answer(event: SlackBotEvent, deps: HandleEventDeps): Promise<void
       model: module.model,
       channel: event.channel,
       threadTs,
+      trigger: event.requireBotInThread ? 'thread_reply' : event.type,
       followUp: !!event.threadTs,
       stop_reason: response.stop_reason,
       input_tokens: response.usage.input_tokens,

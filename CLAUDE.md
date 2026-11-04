@@ -24,7 +24,7 @@ runtime/
       slack-events.ts      — raw-body JSON parser for Slack signature verification
     slack-bot/             — FYRK Slack bot core (knows nothing about module content)
       routes.ts            — POST /slack/fyrk-bot-events: signature, url_verification, retries, filtering, async ack
-      events.ts            — envelope schemas, classifyEvent (app_mention + message.im, no bots/subtypes)
+      events.ts            — envelope schemas, classifyEvent (app_mention, message.im, un-mentioned replies in bot threads; no bots/subtypes)
       dedup.ts             — event_id claim in slack_bot_event_dedup
       conversation.ts      — thread history → Claude stream → Slack placeholder updates, error message, usage log
       stream.ts            — createSlackStreamUpdater (500 ms / 80 char debounce)
